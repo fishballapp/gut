@@ -1,16 +1,40 @@
 {
   "name": "@gut.run/cli",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
   "description": "The gut bin: a non-deterministic runtime where a decision model picks each next step.",
+  "license": "MIT",
+  "homepage": "https://github.com/fishballapp/gut",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fishballapp/gut.git",
+    "directory": "packages/cli"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "bin": {
     "gut": "./src/bin/cli.ts"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public",
+    "bin": {
+      "gut": "./dist/cli.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown src/bin/cli.ts --format esm",
+    "prepack": "pnpm build"
   },
   "dependencies": {
     "@stricli/core": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "catalog:"
+    "@types/node": "catalog:",
+    "tsdown": "catalog:"
   }
 }

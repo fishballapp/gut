@@ -380,6 +380,10 @@ browser page) has moved on; run again instead.
 
 The API is plain TypeScript.
 
+```sh
+npm install @gut.run/core && npm install --global @gut.run/cli
+```
+
 ## Configuration
 
 gut reads `gut.config.json` in the working directory, else `~/gut.config.json`.
