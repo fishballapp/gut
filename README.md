@@ -268,7 +268,7 @@ decision model runs the loop and the agent does the reasoning, so no big model i
 ```sh
 gut task 'CI on PR #55 is green' --use-acpx '{
   "agent": "claude",
-  "cwd": "~/Development/@fishballapp/fishballapps",
+  "cwd": "~/code/my-app",
   "prompts": {
     "ci": { "read": "Read the failing CI logs and summarise the cause", "fix": "Fix that cause, then run pnpm test" },
     "git": { "push": "Commit and push the fix" },
@@ -422,7 +422,3 @@ With no file, a run fails before its first tick and says where to put one.
    them?
 5. Parked: tasks that collect, or find a minimum or maximum, as a fold over the stream of ticks
    (`for await (const tick of run)`, where `break` ends the run).
-
-Background: [decision models](../../docs/knowledge/decision-models.md),
-[UI action pickers](../../docs/knowledge/ui-action-pickers.md), and why it is shaped this way:
-[DECISIONS.md](DECISIONS.md).
