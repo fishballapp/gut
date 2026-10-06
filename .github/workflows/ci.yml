@@ -1,0 +1,33 @@
+name: CI
+
+# Every gate, on every branch. The private monorepo this tree is ejected from pushes each of its
+# pull requests to the branch pr/<number> here, so these run before the private merge.
+on:
+  push:
+    branches:
+      - main
+      - 'pr/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  check:
+    name: Check · typecheck · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm repojj:check
+      - run: pnpm typecheck
+      - run: pnpm test

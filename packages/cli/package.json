@@ -1,0 +1,16 @@
+{
+  "name": "@gut.run/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The gut bin: a non-deterministic runtime where a decision model picks each next step.",
+  "bin": {
+    "gut": "./src/bin/cli.ts"
+  },
+  "dependencies": {
+    "@stricli/core": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:"
+  }
+}

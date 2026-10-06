@@ -1,0 +1,16 @@
+{
+  "name": "@gut.run/examples",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "gut tasks to run and learn from.",
+  "dependencies": {
+    "@gut.run/core": "workspace:*",
+    "@typesafe-ai/sdk": "catalog:",
+    "advocaat": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:"
+  }
+}
