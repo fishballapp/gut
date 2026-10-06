@@ -134,13 +134,15 @@ const createPickSession = ({
   asker,
   context,
   usage: initialUsage,
+  isGoalAsked,
 }: {
   asker: Asker;
   context: Context;
   usage: Usage;
+  isGoalAsked: boolean;
 }) => {
   let usage = initialUsage;
-  let isGoalPending = true;
+  let isGoalPending = isGoalAsked;
   const probabilities: number[] = [];
 
   /** Reads the goal question's answer: a met goal ends the pick. */
@@ -237,19 +239,21 @@ const pickAt = async (session: PickSession, level: Level, maxOptions: number): P
 };
 
 /**
- * Picks the tick's step among its ops, or finds the goal met; no ops halts the run. Whatever ends
- * the pick, it reports what the pick spent, a failure included.
+ * Picks the tick's step among its ops, or finds the goal met when `isGoalAsked`; no ops halts the
+ * run. Whatever ends the pick, it reports what the pick spent, a failure included.
  */
 export const pick = async ({
   asker,
   context,
   ops,
   usage,
+  isGoalAsked,
 }: {
   asker: Asker;
   context: Context;
   ops: readonly OpEntry[];
   usage: Usage;
+  isGoalAsked: boolean;
 }): Promise<
   { usage: Usage } & (
     | { status: 'picked'; step: Step; probabilities: number[] }
@@ -260,7 +264,7 @@ export const pick = async ({
 > => {
   const trees = toStepTrees(ops);
   if (trees.length === 0) return { status: 'halted', reason: 'noOptions', usage };
-  const session = createPickSession({ asker, context, usage });
+  const session = createPickSession({ asker, context, usage, isGoalAsked });
   const maxOptions = asker.decisionModel.capabilities.choiceQuestions.maxOptions;
   try {
     const step = await pickAt(session, { trail: [], trees }, maxOptions);

@@ -115,6 +115,104 @@ describe('task', () => {
     expect(requests.map(r => Object.keys(r.questions))).toEqual([['achieved'], ['achieved']]);
   });
 
+  it('stops only on isGoalAchieved when it is set, never asking the model about the goal', async () => {
+    const counter = { value: 0 };
+    // A model that would claim the goal at once, if it were asked.
+    decide = ({ criteria }) => ({
+      pick: Object.values(criteria).find(d => d.startsWith('Goal achieved')) ?? 'Add one',
+    });
+
+    const result = await task(
+      async () => ({
+        context: { goal: 'the counter is 2', value: counter.value },
+        ops: [
+          op({ id: 'add', description: 'Add one', invoke: () => counter.value++ }),
+          op({ id: 'reset', description: 'Reset', invoke: () => (counter.value = 0) }),
+        ],
+      }),
+      { isGoalAchieved: () => counter.value === 2 },
+    );
+
+    expect(result).toMatchObject({
+      status: 'achieved',
+      steps: ['add', 'add'],
+      context: { goal: 'the counter is 2', value: 2 },
+      usage: { requests: 2 },
+    });
+    // Ticks 1 and 2 ask only the move; tick 3 is checked in code and asks nothing.
+    expect(requests.map(r => Object.keys(r.questions))).toEqual([['next'], ['next']]);
+  });
+
+  it('runs a lone op with no request at all while an async isGoalAchieved checks the goal', async () => {
+    const counter = { value: 0 };
+
+    const result = await task(
+      async () => ({
+        context: { goal: 'the counter is 2', value: counter.value },
+        ops: [op({ id: 'add', description: 'Add one', invoke: () => counter.value++ })],
+      }),
+      { isGoalAchieved: async () => counter.value === 2 },
+    );
+
+    expect(result).toEqual({
+      status: 'achieved',
+      steps: ['add', 'add'],
+      context: { goal: 'the counter is 2', value: 2 },
+      usage: { inputTokens: 0, requests: 0 },
+    });
+    expect(requests).toEqual([]);
+  });
+
+  it('leaves the goal out of every request of a list asked in bundles', async () => {
+    const items = Array.from({ length: 100 }, (_, i) => `item ${i}`);
+    const picked: string[] = [];
+    decide = ({ criteria }) => {
+      const descriptions = Object.values(criteria);
+      return {
+        pick:
+          descriptions.find(d => d === 'item 42') ??
+          descriptions.find(d => d.startsWith('Contains:') && d.split(', ').includes('item 42')) ??
+          '',
+      };
+    };
+
+    const result = await task(
+      async () => ({
+        context: { goal: 'item 42 is picked', picked: picked[0] ?? null },
+        ops: [
+          op({
+            id: 'pick',
+            description: 'Pick an item',
+            choices: items,
+            invoke: item => picked.push(item),
+          }),
+        ],
+      }),
+      { isGoalAchieved: () => picked.includes('item 42') },
+    );
+
+    expect(result).toMatchObject({ status: 'achieved', steps: ['pick("item 42")'] });
+    // A bundle, then the item inside it; neither request carries the goal.
+    expect(requests.map(r => Object.keys(r.questions))).toEqual([['next'], ['next']]);
+  });
+
+  it('halts when isGoalAchieved throws', async () => {
+    const result = await task(
+      async () => ({
+        context: { goal: 'never' },
+        ops: [op({ id: 'wait', description: 'Wait', invoke: () => {} })],
+      }),
+      {
+        isGoalAchieved: () => {
+          throw new Error('the page is gone');
+        },
+      },
+    );
+
+    expect(result).toMatchObject({ status: 'halted', reason: 'error', error: 'the page is gone' });
+    expect(requests).toEqual([]);
+  });
+
   it('asks a list too long for one question part by part', async () => {
     const items = Array.from({ length: 100 }, (_, i) => `item ${i}`);
     const picked: string[] = [];

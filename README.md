@@ -8,8 +8,8 @@ choice is not random: the same view gives the same pick.
 
 An agent gives gut a goal and the moves it may make. Every tick, gut shows the decision model the
 goal, what the world looks like now, and the moves available. The model picks one and gut runs it,
-until the model picks the goal itself, claiming it is met, or gut halts back to the agent. The
-model only ever *picks*: it never writes text.
+until the goal is met (checked by the task's code, or claimed by the model when code can't check
+it) or gut halts back to the agent. The model only ever *picks*: it never writes text.
 
 > **Status:** core v0 is built: `task`, `op`, `group`, `gut run`, and the examples below. `gut
 > task`, plugins, the JSON result on stdout and the JSONL trace are designed here but not built.
@@ -29,8 +29,7 @@ Ask one question: **can you write the flowchart?**
 gut is for ambiguous *paths* made of easy *steps*: racing across Wikipedia, finishing a checkout on
 a site you haven't seen, finding the right page in unfamiliar docs. The next move depends on what
 the last one revealed, but each move is a small pick among described options. A decision model makes
-each pick without generating text, cheaply and fast, and a run stops when the model says the goal is
-met or halts on a stall, the budget, an error or nothing left to pick. The big model works once per
+each pick without generating text, cheaply and fast, and a run stops when the goal is met or halts on a stall, the budget, an error or nothing left to pick. The big model works once per
 run, not once per step.
 
 ## Features
@@ -39,15 +38,16 @@ run, not once per step.
   that returns what the model reads and the moves allowed right now. gut runs the loop.
 - **More options than a model can take.** Hand gut every option, at any length; the model still
   sees each one (below).
-- **The goal is the finish line.** Each tick's first request also asks whether the goal is met, at
-  no extra request, and the run ends as `achieved` for the caller to check.
+- **The goal is the finish line.** A task that can check it in code does (`isGoalAchieved`), and
+  the model is never asked. Otherwise each tick's first request also asks the model whether the
+  goal is met, at no extra request, and the run ends as `achieved` for the caller to check.
 - **Cheap and fast.** Decision models never generate and charge only for input: Jev on OpenRouter
   answers in about 255 ms at $0.042 per million input tokens, and clef-flash runs free on a laptop.
 - **Bounded.** An input-token budget, stall detection, and a result that says how the run ended and
   what it spent.
 - **Any `/v1/systemone` model.** Clef on a local Ollama, TypeSafe's Jev, Jev on OpenRouter; nothing
   is tuned per model.
-- **A fraction of the code.** The wiki race is 36 lines with gut and about 160 without
+- **A fraction of the code.** The wiki race is 39 lines with gut and about 145 without
   ([the comparison](#a-task)).
 
 ### More options than a model can take
@@ -72,8 +72,8 @@ The main use needs no script: `gut task` takes a goal, plus plugins that supply 
 and can do.
 
 **A goal is the end state you want to see**, written so it can be checked against the context: "the
-page lists this month's trending repositories", not "find the top repos". The goal is the only
-finish line; there is no separate done check.
+page lists this month's trending repositories", not "find the top repos". A task with no code to
+check it, as on the command line, leaves the model to judge it from the context.
 
 ```sh
 gut task "The page lists this month's trending GitHub repositories" \
@@ -128,71 +128,69 @@ import { readArticle } from './wikipedia.ts';
 const target = 'Roman Empire';
 const path = ['Banana'];
 
-await task(async () => {
-  const article = await readArticle(path.at(-1) ?? '');
-  path.splice(-1, 1, article.title); // a link can name a redirect; keep the real title
+await task(
+  async () => {
+    const article = await readArticle(path.at(-1) ?? '');
+    path.splice(-1, 1, article.title); // a link can name a redirect; keep the real title
 
-  return {
-    context: {
-      system:
-        'You are helping the user decide the next step for their wiki race by picking the most relevant link to click to reach their goal',
-      goal: `The current article is "${target}"`,
-      currentArticle: article.title,
-    },
+    return {
+      context: {
+        instruction:
+          'You are helping the user decide the next step for their wiki race by picking the most relevant link to click to reach their goal',
+        goal: `The current article is "${target}"`,
+        currentArticle: article.title,
+      },
 
-    ops: [
-      op({
-        id: 'openLink',
-        description: 'Open a link on the current article',
-        choices: article.links.filter((link) => !path.includes(link)),
-        invoke: (link) => {
-          path.push(link);
-        },
-      }),
-
-      path.length > 1 &&
+      ops: [
         op({
-          id: 'restart',
-          description: 'Go back to the starting article',
-          invoke: () => {
-            path.splice(1);
+          id: 'openLink',
+          description: 'Open a link on the current article',
+          choices: article.links.filter((link) => !path.includes(link)),
+          invoke: (link) => {
+            path.push(link);
           },
         }),
-    ],
-  };
-});
+      ],
+    };
+  },
+  { isGoalAchieved: () => path.at(-1) === target },
+);
 ```
 
 A run on clef-flash, one line per tick, with a probability per level: the op (1.00, the only one,
-so not asked), a bundle (asked with the goal), then a link inside it:
+so not asked), a bundle, then a link inside it. The last tick is the title check, with no
+request:
 
 ```
-tick 1  openLink("Columbian exchange")          1.00/0.12/0.42   2967 input tokens
-tick 2  openLink("Christopher Columbus")        1.00/0.13/0.34   1793 input tokens
-tick 3  openLink("Paolo dal Pozzo Toscanelli")  1.00/0.11/0.18   3055 input tokens
-tick 4  openLink("Strabo")                      1.00/0.11/0.79    917 input tokens
-tick 5  openLink("Roman Empire")                1.00/0.18/0.83   1236 input tokens
-tick 6  achieved                                1.00/0.98        4941 input tokens
-achieved  14909 input tokens in 11 requests
+tick 1  openLink("Columbian exchange")  1.00/0.15/0.38  10.5s  2889 input tokens
+tick 2  openLink("Christopher Columbus")  1.00/0.21/0.32  4.7s  1715 input tokens
+tick 3  openLink("Paolo dal Pozzo Toscanelli")  1.00/0.13/0.18  8.3s  2977 input tokens
+tick 4  openLink("Strabo")  1.00/0.13/0.78  2.6s  839 input tokens
+tick 5  openLink("Roman Empire")  1.00/0.22/0.83  3.1s  1158 input tokens
+tick 6  achieved  checked  0.9s
+achieved  9578 input tokens in 10 requests
 ```
 
 [`examples/wikirace.plain.ts`](examples/wikirace.plain.ts) is the same race as a plain one-off
 script on TypeSafe's SDK (`@typesafe-ai/sdk`), making the same requests (the same picks,
-probabilities and tokens on clef-flash) in 174 lines: bundles, splitting on refusal, the goal
-question, the budget and the log, written out. [`examples/wikirace.advocaat.ts`](examples/wikirace.advocaat.ts)
-does it with [advocaat](https://github.com/pithings/advocaat)'s `ask` in 161: a client, `ask.if`
-style or not, saves the HTTP code, not the loop around it. (Both stop where gut would split a refused
-first request of a tick.)
+probabilities and tokens on clef-flash) in 150 lines: bundles, splitting on refusal, the budget
+and the log, written out. [`examples/wikirace.advocaat.ts`](examples/wikirace.advocaat.ts) does it
+with [advocaat](https://github.com/pithings/advocaat)'s `ask` in 143: a client saves the HTTP code,
+not the loop around it.
 
 - `task(tick, options?)` calls `tick` at the start of every tick and resolves when the run ends,
   with its outcome, its steps, the last context and its `usage` (input tokens and requests).
   - `inputTokenBudget` (default 50,000) is how many input tokens the run may spend on the decision
     model. It is checked before each request, so a run overshoots by at most one request. Decision
     models charge only for input, and their time scales with it.
+  - `isGoalAchieved` checks the goal in code, each tick after `tick` and before any request: true
+    ends the run as `achieved`. Set it whenever the task can check its goal; the model is then
+    never asked about the goal, so it can't stop a run on a near miss, and `goal` only gives it
+    direction. Unset, the model judges the goal ([What the model receives](#what-the-model-receives)).
   - `plugins` (planned) add their own context and ops; see [Plugins](#plugins).
 - `tick` returns this tick's `context` and `ops`.
   - `context` is `{ goal: string, ...rest }`, where everything in `rest` must be JSON. It is exactly
-    what the model reads. A line saying what the user is doing and what a good pick is (the `system`
+    what the model reads. A line saying what the user is doing and what a good pick is (the `instruction`
     above) is what gives the model direction; without it, picks drift. The wiki race keeps it to one
     line; a real task should say more: the rules, what a good move looks like, and preferences.
   - `ops` is an array; falsy entries are skipped, so `cond && op(…)` is the conditional.
@@ -310,7 +308,7 @@ path. Levels the runtime adds to split a long list stay out of the name.
 ```jsonc
 {
   "state": {
-    "system": "You are helping the user decide the next step for their wiki race by picking the most relevant link to click to reach their goal",
+    "instruction": "You are helping the user decide the next step for their wiki race by picking the most relevant link to click to reach their goal",
     "goal": "The current article is \"Roman Empire\"",
     "currentArticle": "Fruit"
   },
@@ -339,7 +337,8 @@ path. Levels the runtime adds to split a long list stay out of the name.
 the goal is achieved, and the tick's first real choice (a level with one option has nothing to
 ask). They are answered together and independently, so checking the goal costs no extra request
 and sends the context once; only a tick with nothing to choose asks the goal alone. When the goal is achieved the run ends and the move is
-ignored; there is no other completion check. Later requests in the tick ask only the move, one level
+ignored. A task with `isGoalAchieved` (the wiki race) is never asked the `achieved` question;
+its requests carry only the move. Later requests in the tick ask only the move, one level
 further down, worded "Current action: Open a link on the current article. Which one?" (the ids'
 descriptions down to this level), since an option alone, such as a city, may not say what it is for.
 Every request carries the whole state again: the API keeps nothing between requests. Measured on Jev over 15 articles (the start, a near miss and the target, for five
@@ -348,8 +347,9 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
 ## One tick
 
 1. **Read.** Each plugin reads, then the task's `tick` runs.
-2. **Choose.** The goal rides with the tick's first question; a tick with nothing to choose asks
-   it alone. Each op's choices count as
+2. **Check.** `isGoalAchieved`, if set, runs; true ends the run as `achieved`, with no request.
+3. **Choose.** Without `isGoalAchieved`, the goal rides with the tick's first question, and a tick
+   with nothing to choose asks it alone. Each op's choices count as
    moves of their own: if every move fits in one question (26 options), every move is an option;
    otherwise it is asked level by level (a group, then an op, then its choice), and a level with
    one option is skipped. A long list is split into bundles that each list everything they hold
@@ -357,11 +357,11 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
    cost far less than 26 options. A level the server refuses as too large (Ollama: over 64 KiB, or
    past the model's context) is split in half, each half picks its best, and the two winners are
    asked. Refused requests are not billed, so no size is estimated per model.
-3. **Gate.** A goal answered as achieved ends the run as `achieved`, for the caller to check. The
+4. **Gate.** A goal answered as achieved ends the run as `achieved`, for the caller to check. The
    run halts with a reason when there are no options, anything throws (never retried), the run
    stalls (the same context and the same pick three times), or the input-token budget runs out.
    There is no confidence threshold: every pick runs, and its probabilities are logged.
-4. **Invoke** the picked op with its choice.
+5. **Invoke** the picked op with its choice.
 
 ## Trace
 

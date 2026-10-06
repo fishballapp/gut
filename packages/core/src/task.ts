@@ -27,7 +27,14 @@ export type TaskResult = Outcome & { steps: string[]; context: Context | null; u
 export type TaskOptions = {
   /** Input tokens the run may spend on the decision model; it may overshoot by one request. */
   inputTokenBudget?: number;
+  /**
+   * Checks the goal in code, after each tick's `tick` and before any request. When it is set, the
+   * model is never asked whether the goal is met: only this check ends a run as `achieved`.
+   */
+  isGoalAchieved?: () => boolean | Promise<boolean>;
 };
+
+const secondsSince = (started: number) => `${((performance.now() - started) / 1000).toFixed(1)}s`;
 
 const errorOutcome = (error: unknown): Extract<Outcome, { reason: 'error' }> => ({
   status: 'halted',
@@ -36,14 +43,15 @@ const errorOutcome = (error: unknown): Extract<Outcome, { reason: 'error' }> => 
 });
 
 /**
- * Runs a task until the model picks the goal, or the run halts. `tick` runs at the start of every
- * tick and returns what the model reads (`context`) and the moves it may pick (`ops`).
+ * Runs a task until the goal is met, or the run halts. `tick` runs at the start of every tick and
+ * returns what the model reads (`context`) and the moves it may pick (`ops`). The model judges the
+ * goal, unless `options.isGoalAchieved` checks it in code.
  *
  * The decision model comes from gut.config.json; what a run may spend, from `options`.
  */
 export const task = async (
   tick: () => Promise<{ context: Context; ops: readonly OpEntry[] }>,
-  { inputTokenBudget = 50_000 }: TaskOptions = {},
+  { inputTokenBudget = 50_000, isGoalAchieved }: TaskOptions = {},
 ): Promise<TaskResult> => {
   const asker = { decisionModel: (await loadConfig()).decisionModel, inputTokenBudget };
   const seen = new Map<string, number>(); // context + step → how many times it was picked
@@ -72,13 +80,24 @@ export const task = async (
     started: number;
   }): Promise<{ usage: Usage } & (Outcome | { status: 'continue'; step: string })> => {
     try {
-      const picked = await pick({ asker, context, ops, usage });
+      if (isGoalAchieved !== undefined && (await isGoalAchieved())) {
+        process.stderr.write(`tick ${tickNumber}  achieved  checked  ${secondsSince(started)}\n`);
+        return { status: 'achieved', usage };
+      }
+
+      const picked = await pick({
+        asker,
+        context,
+        ops,
+        usage,
+        isGoalAsked: isGoalAchieved === undefined,
+      });
       if (picked.status === 'halted') return picked;
       if (picked.status === 'failed') return { ...errorOutcome(picked.error), usage: picked.usage };
 
       const step = picked.status === 'achieved' ? 'achieved' : picked.step.name;
       process.stderr.write(
-        `tick ${tickNumber}  ${step}  ${picked.probabilities.map(p => p.toFixed(2)).join('/')}  ${((performance.now() - started) / 1000).toFixed(1)}s  ${picked.usage.inputTokens - usage.inputTokens} input tokens\n`,
+        `tick ${tickNumber}  ${step}  ${picked.probabilities.map(p => p.toFixed(2)).join('/')}  ${secondsSince(started)}  ${picked.usage.inputTokens - usage.inputTokens} input tokens\n`,
       );
       if (picked.status === 'achieved') return { status: 'achieved', usage: picked.usage };
 

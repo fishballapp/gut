@@ -1,15 +1,12 @@
 // The Wikipedia race without gut: what wikirace.gut.ts does, written as a plain one-off script on
 // TypeSafe's SDK. It began as an agent's version, written from the decision-model knowledge and
 // wikipedia.ts alone without seeing gut, and was then aligned to make the same requests as
-// wikirace.gut.ts under gut. One difference on an error path: if the server refuses a tick's
-// first request (the goal and the first question), this stops where gut would split it.
-// node projects/gut/examples/wikirace.plain.ts
+// wikirace.gut.ts under gut.
+// node projects/gut/examples/wikirace.plain.ts [from=Banana] [to="Roman Empire"]
 import { APIError, choice, type EntryType, TypeSafeClient } from '@typesafe-ai/sdk';
 import { readArticle } from './wikipedia.ts';
 
-const from = 'Banana';
-const target = 'Roman Empire';
-const goal = `The current article is "${target}"`;
+const [from = 'Banana', target = 'Roman Empire'] = process.argv.slice(2);
 const OPEN_LINK = 'Open a link on the current article';
 const path = [from]; // the articles visited, by their real titles
 let inputTokens = 0;
@@ -121,53 +118,31 @@ for (let tick = 1; ; tick++) {
 
   const article = await readArticle(path.at(-1) ?? from);
   path.splice(-1, 1, article.title); // a link can name a redirect; keep the real title
+  if (article.title === target) {
+    process.stderr.write(
+      `tick ${tick}  achieved  checked  ${((performance.now() - started) / 1000).toFixed(1)}s\n`,
+    );
+    finish('achieved');
+  }
   const state = {
-    system:
+    instruction:
       'You are helping the user decide the next step for their wiki race by picking the most relevant link to click to reach their goal',
-    goal,
+    goal: `The current article is "${target}"`,
     currentArticle: article.title,
   };
   const links = article.links.filter(link => !path.includes(link));
   if (links.length === 0) finish('halted: noOptions');
 
-  // The goal rides with the tick's first question: every link when they fit in one, else their
-  // bundles. A lone link needs no question, so then the goal is asked alone. gut passes a lone link,
-  // or its lone openLink op when there are more than 26 links, and logs it as 1.
-  const isOneQuestion = links.length <= 26;
-  const bundles = bundlesOf(links);
-  const passed = isOneQuestion && links.length > 1 ? [] : [1];
-  const answers = await ask(state, {
-    achieved: {
-      instructions: 'Is the goal achieved?',
-      criteria: { achieved: `Goal achieved: ${goal}`, notYet: 'Goal not achieved yet' },
-    },
-    ...(links.length > 1
-      ? {
-          next: isOneQuestion
-            ? {
-                instructions: 'What should happen next?',
-                criteria: asOptions(links.map(link => `${OPEN_LINK} › ${link}`)),
-              }
-            : {
-                instructions: `Current action: ${OPEN_LINK}. Which one?`,
-                criteria: asOptions(bundles.map(contentsOf)),
-              },
-        }
-      : {}),
-  });
-  if (answers === undefined) throw new Error('the first request is too large');
-  if (answers.achieved?.choice === 'achieved') {
-    log('achieved', [...passed, answers.achieved.probabilities.achieved ?? 0]);
-    finish('achieved');
-  }
-
-  const next = answers.next;
+  // Every link in one question when they fit, as gut asks them; else gut passes its lone openLink
+  // op, logged as 1, and asks bundles of links.
   const { link, probabilities } = await (async () => {
-    if (next === undefined) return { link: links[0] ?? '', probabilities: passed };
-    const index = Number(next.choice.slice(1)) - 1;
-    const picked = [...passed, next.probabilities[next.choice] ?? 0];
-    if (isOneQuestion) return { link: links[index] ?? '', probabilities: picked };
-    return pickLink(state, bundles[index] ?? [], picked);
+    if (links.length > 26) return pickLink(state, links, [1]);
+    const { index, probability } = await choose(
+      state,
+      'What should happen next?',
+      links.map(link => `${OPEN_LINK} › ${link}`),
+    );
+    return { link: links[index] ?? '', probabilities: [probability] };
   })();
   log(`openLink(${JSON.stringify(link)})`, probabilities);
   path.push(link);
