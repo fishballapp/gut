@@ -1,5 +1,5 @@
 export { ListStrategy } from './list-strategy.ts';
-export { group, type Op, type OpEntry, op } from './ops.ts';
+export { group, type Op, type OpEntry, type Ops, op } from './ops.ts';
 export {
   type Context,
   type Json,

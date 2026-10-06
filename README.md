@@ -141,16 +141,14 @@ await task(
         currentArticle: article.title,
       },
 
-      ops: [
-        op({
-          id: 'openLink',
-          description: 'Open a link on the current article',
+      ops: {
+        openLink: op('Open a link on the current article', {
           choices: article.links.filter((link) => !path.includes(link)),
           invoke: (link) => {
             path.push(link);
           },
         }),
-      ],
+      },
     };
   },
   { isGoalAchieved: () => path.at(-1) === target },
@@ -193,14 +191,15 @@ not the loop around it.
     what the model reads. A line saying what the user is doing and what a good pick is (the `instruction`
     above) is what gives the model direction; without it, picks drift. The wiki race keeps it to one
     line; a real task should say more: the rules, what a good move looks like, and preferences.
-  - `ops` is an array; falsy entries are skipped, so `cond && op(…)` is the conditional.
-- `op({ id, description, choices?, strategy?, invoke })` is a move.
+  - `ops` is a keyed record of moves; falsy entries (`false`, `null`, `undefined`) are skipped, so
+    `key: cond && op(…)` is the conditional.
+- `op(description, invoke)` or `op(description, { choices, strategy?, invoke })` is a move.
   - `choices` is a list of strings, or `{ label: value }` for values that aren't strings. The model
     picks one and `invoke` receives it. An empty list hides the op.
   - `strategy` is how choices that don't fit one question are asked: `ListStrategy.bundle` (the
     default; "Contains: …" bundles, then the choice inside one) or `ListStrategy.knockout` (pages of
     26 choices, then the page winners).
-- `group({ id, description }, ops)` groups ops, for example one group per form on a page.
+- `group(description, ops)` groups ops, for example one group per form on a page.
 - State is ordinary variables. Nothing is serialised.
 
 ## Plugins (planned)
@@ -227,13 +226,11 @@ const browser = browserPlugin(async () => ({
 await task(
   async () => ({
     context: { goal: 'The page shows flights from London to Tokyo next Friday, sorted by price' },
-    ops: [
-      op({
-        id: 'home',
-        description: 'Go back to the search page',
-        invoke: () => browser.goto('https://www.google.com/travel/flights'),
-      }),
-    ],
+    ops: {
+      home: op('Go back to the search page', () =>
+        browser.goto('https://www.google.com/travel/flights'),
+      ),
+    },
   }),
   { plugins: [browser] },
 );
@@ -241,9 +238,9 @@ await task(
 
 ```ts
 type Plugin = {
-  name: string; // its context key and its group id
+  name: string; // its context key and its ops key
   setup?: () => Promise<void>; // before the first tick
-  read: () => Promise<{ context: Json; ops: Op[] }>; // every tick, before the task's tick
+  read: () => Promise<{ context: Json; ops: Ops }>; // every tick, before the task's tick
   teardown?: () => Promise<void>; // when the run ends, achieved or halted
 };
 ```
@@ -255,7 +252,7 @@ type Plugin = {
   `--use-browser '{…}'` and `browserPlugin({…})` are the same call. `gut task` is that plugin with a
   task that only has a goal.
 - Options read once say so in their name, as in `initialUrl`.
-- A plugin's name sharing an id or context key with the task is an error on the first tick.
+- A plugin's name sharing a context key or ops key with the task is an error on the first tick.
 
 ### acpx: supervising a coding agent
 
@@ -289,9 +286,9 @@ acpx.permission.deny
 Permission requests are settled by acpx's own policy (`approve-reads` by default). Only the tools
 the options list are offered to the model to approve.
 
-## Ids
+## Names
 
-A step is named by its id path, which is how the log, the trace and the model's options refer to
+A step is named by its key path, which is how the log, the trace and the model's options refer to
 it:
 
 ```
@@ -300,8 +297,9 @@ tick 4  browser.searchForm.submit              0.97   0.8s
 tick 5  browser.results.select("BA 7, £420")   0.71   1.9s
 ```
 
-Ids only need to be unique among siblings. An op reused in different groups takes each group’s id
-path. Levels the runtime adds to split a long list stay out of the name.
+Keys are unique among siblings by construction. An op reused under different keys takes each key
+path. Options are offered in the order the keys were written, except that integer-like keys come
+first, as in any JS object. Levels the runtime adds to split a long list stay out of the name.
 
 ## What the model receives
 
@@ -339,7 +337,7 @@ ask). They are answered together and independently, so checking the goal costs n
 and sends the context once; only a tick with nothing to choose asks the goal alone. When the goal is achieved the run ends and the move is
 ignored. A task with `isGoalAchieved` (the wiki race) is never asked the `achieved` question;
 its requests carry only the move. Later requests in the tick ask only the move, one level
-further down, worded "Current action: Open a link on the current article. Which one?" (the ids'
+further down, worded "Current action: Open a link on the current article. Which one?" (the
 descriptions down to this level), since an option alone, such as a city, may not say what it is for.
 Every request carries the whole state again: the API keeps nothing between requests. Measured on Jev over 15 articles (the start, a near miss and the target, for five
 races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewhere.

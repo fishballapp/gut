@@ -104,9 +104,9 @@ describe('task', () => {
 
     const result = await task(async () => ({
       context: { goal: 'the counter is 1', value: counter.value },
-      ops: [
-        op({ id: 'add', description: 'Add one to the counter', invoke: () => counter.value++ }),
-      ],
+      ops: {
+        add: op('Add one to the counter', () => counter.value++),
+      },
     }));
 
     expect(result).toMatchObject({ status: 'achieved', steps: ['add'] });
@@ -125,10 +125,10 @@ describe('task', () => {
     const result = await task(
       async () => ({
         context: { goal: 'the counter is 2', value: counter.value },
-        ops: [
-          op({ id: 'add', description: 'Add one', invoke: () => counter.value++ }),
-          op({ id: 'reset', description: 'Reset', invoke: () => (counter.value = 0) }),
-        ],
+        ops: {
+          add: op('Add one', () => counter.value++),
+          reset: op('Reset', () => (counter.value = 0)),
+        },
       }),
       { isGoalAchieved: () => counter.value === 2 },
     );
@@ -149,7 +149,9 @@ describe('task', () => {
     const result = await task(
       async () => ({
         context: { goal: 'the counter is 2', value: counter.value },
-        ops: [op({ id: 'add', description: 'Add one', invoke: () => counter.value++ })],
+        ops: {
+          add: op('Add one', () => counter.value++),
+        },
       }),
       { isGoalAchieved: async () => counter.value === 2 },
     );
@@ -179,14 +181,12 @@ describe('task', () => {
     const result = await task(
       async () => ({
         context: { goal: 'item 42 is picked', picked: picked[0] ?? null },
-        ops: [
-          op({
-            id: 'pick',
-            description: 'Pick an item',
+        ops: {
+          pick: op('Pick an item', {
             choices: items,
             invoke: item => picked.push(item),
           }),
-        ],
+        },
       }),
       { isGoalAchieved: () => picked.includes('item 42') },
     );
@@ -200,7 +200,9 @@ describe('task', () => {
     const result = await task(
       async () => ({
         context: { goal: 'never' },
-        ops: [op({ id: 'wait', description: 'Wait', invoke: () => {} })],
+        ops: {
+          wait: op('Wait', () => {}),
+        },
       }),
       {
         isGoalAchieved: () => {
@@ -230,14 +232,12 @@ describe('task', () => {
 
     const result = await task(async () => ({
       context: { goal: 'item 42 is picked', picked: picked[0] ?? null },
-      ops: [
-        op({
-          id: 'pick',
-          description: 'Pick an item',
+      ops: {
+        pick: op('Pick an item', {
           choices: items,
           invoke: item => picked.push(item),
         }),
-      ],
+      },
     }));
 
     expect(result).toMatchObject({ status: 'achieved', steps: ['pick("item 42")'] });
@@ -264,15 +264,13 @@ describe('task', () => {
 
     const result = await task(async () => ({
       context: { goal: 'item 42 is picked', picked: picked[0] ?? null },
-      ops: [
-        op({
-          id: 'pick',
-          description: 'Pick an item',
+      ops: {
+        pick: op('Pick an item', {
           choices: items,
           strategy: ListStrategy.knockout,
           invoke: item => picked.push(item),
         }),
-      ],
+      },
     }));
 
     expect(result).toMatchObject({ status: 'achieved', steps: ['pick("item 42")'] });
@@ -289,15 +287,56 @@ describe('task', () => {
 
     await task(async () => ({
       context: { goal: 'never' },
-      ops: [
-        op({ id: 'wait', description: 'Wait', invoke: () => {} }),
-        op({ id: 'open', description: 'Open', choices: [], invoke: () => {} }),
-        false,
-        op({ id: 'rest', description: 'Rest', invoke: () => {} }),
-      ],
+      ops: {
+        wait: op('Wait', () => {}),
+        open: op('Open', { choices: [], invoke: () => {} }),
+        hidden: false,
+        rest: op('Rest', () => {}),
+      },
     }));
 
     expect(Object.values(questions[0]?.criteria ?? {})).toEqual(['Wait', 'Rest']);
+  });
+
+  it('names a nested step by its key path and skips falsy entries', async () => {
+    const invoke = vi.fn();
+    decide = () => ({ pick: 'Outer › Inner › Deep' });
+
+    const result = await task(async () => ({
+      context: { goal: 'never' },
+      ops: {
+        skippedFalse: false,
+        skippedNull: null,
+        skippedUndefined: undefined,
+        outer: group('Outer', {
+          innerSkipped: false,
+          inner: group('Inner', {
+            deep: op('Deep', invoke),
+          }),
+        }),
+      },
+    }));
+
+    expect(result).toMatchObject({
+      reason: 'stalled',
+      steps: ['outer.inner.deep', 'outer.inner.deep'],
+    });
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves key order when showing options to the model', async () => {
+    decide = () => ({ pick: 'First' });
+
+    await task(async () => ({
+      context: { goal: 'never' },
+      ops: {
+        first: op('First', () => {}),
+        second: op('Second', () => {}),
+        third: op('Third', () => {}),
+      },
+    }));
+
+    expect(Object.values(questions[0]?.criteria ?? {})).toEqual(['First', 'Second', 'Third']);
   });
 
   it('runs a pick however unsure the model is', async () => {
@@ -307,10 +346,10 @@ describe('task', () => {
 
     const result = await task(async () => ({
       context: { goal: 'done', isDone: state.isDone },
-      ops: [
-        op({ id: 'finish', description: 'Finish', invoke: () => (state.isDone = true) }),
-        op({ id: 'rest', description: 'Rest', invoke: () => {} }),
-      ],
+      ops: {
+        finish: op('Finish', () => (state.isDone = true)),
+        rest: op('Rest', () => {}),
+      },
     }));
 
     expect(result).toMatchObject({ status: 'achieved', steps: ['finish'] });
@@ -322,16 +361,12 @@ describe('task', () => {
     const context = { goal: 'never', values: ['before'] };
     const result = await task(async () => ({
       context,
-      ops: [
-        op({
-          id: 'break',
-          description: 'Break',
-          invoke: () => {
-            context.values.push('after');
-            throw new Error('boom');
-          },
+      ops: {
+        break: op('Break', () => {
+          context.values.push('after');
+          throw new Error('boom');
         }),
-      ],
+      },
     }));
 
     expect(result).toEqual({
@@ -349,7 +384,9 @@ describe('task', () => {
 
     const result = await task(async () => ({
       context: { goal: 'never' },
-      ops: [op({ id: 'wait', description: 'Wait', invoke: () => {} })],
+      ops: {
+        wait: op('Wait', () => {}),
+      },
     }));
 
     expect(result).toMatchObject({ status: 'halted', reason: 'stalled', steps: ['wait', 'wait'] });
@@ -358,9 +395,7 @@ describe('task', () => {
   it('names a shared op by the group where it was picked and preserves a record choice value', async () => {
     const destination = { city: 'Tokyo' };
     const invoke = vi.fn();
-    const shared = op({
-      id: 'to',
-      description: 'Choose destination',
+    const shared = op('Choose destination', {
       choices: { Tokyo: destination },
       invoke,
     });
@@ -368,10 +403,10 @@ describe('task', () => {
 
     const result = await task(async () => ({
       context: { goal: 'never' },
-      ops: [
-        group({ id: 'searchForm', description: 'Search form' }, [shared]),
-        group({ id: 'otherForm', description: 'Other form' }, [shared]),
-      ],
+      ops: {
+        searchForm: group('Search form', { to: shared }),
+        otherForm: group('Other form', { to: shared }),
+      },
     }));
 
     expect(result).toMatchObject({
@@ -397,14 +432,12 @@ describe('task', () => {
 
     const result = await task(async () => ({
       context: { goal: 'an item is picked', picked: picked[0] ?? null },
-      ops: [
-        op({
-          id: 'pick',
-          description: 'Pick an item',
+      ops: {
+        pick: op('Pick an item', {
           choices: items,
           invoke: item => picked.push(item),
         }),
-      ],
+      },
     }));
 
     expect(result).toMatchObject({ status: 'achieved', steps: ['pick("item 0")'] });
@@ -419,16 +452,14 @@ describe('task', () => {
     });
     const result = await task(async () => ({
       context: { goal: 'never' },
-      ops: [
-        group({ id: 'form', description: 'Form' }, [
-          op({
-            id: 'pick',
-            description: 'Pick an item',
+      ops: {
+        form: group('Form', {
+          pick: op('Pick an item', {
             choices: Array.from({ length: 100 }, (_, i) => `item ${i}`),
             invoke: () => {},
           }),
-        ]),
-      ],
+        }),
+      },
     }));
 
     expect(result).toMatchObject({
@@ -446,14 +477,14 @@ describe('task', () => {
   it('halts without asking the model when every branch is empty', async () => {
     const result = await task(async () => ({
       context: { goal: 'never' },
-      ops: [
-        false,
-        null,
-        undefined,
-        group({ id: 'empty', description: 'Empty' }, [
-          op({ id: 'pick', description: 'Pick', choices: {}, invoke: () => {} }),
-        ]),
-      ],
+      ops: {
+        falsyFalse: false,
+        falsyNull: null,
+        falsyUndefined: undefined,
+        empty: group('Empty', {
+          pick: op('Pick', { choices: {}, invoke: () => {} }),
+        }),
+      },
     }));
 
     expect(result).toEqual({
@@ -473,7 +504,9 @@ describe('task', () => {
       if (context.count === 1) throw new Error('read failed');
       return {
         context,
-        ops: [op({ id: 'add', description: 'Add', invoke: () => context.count++ })],
+        ops: {
+          add: op('Add', () => context.count++),
+        },
       };
     });
 
@@ -508,7 +541,9 @@ describe('task', () => {
     const result = await task(
       async () => ({
         context,
-        ops: [op({ id: 'add', description: 'Add', invoke: () => context.count++ })],
+        ops: {
+          add: op('Add', () => context.count++),
+        },
       }),
       { inputTokenBudget: 300 },
     );
@@ -542,14 +577,12 @@ describe('task', () => {
 
     const result = await task(async () => ({
       context: { goal: 'the item is picked', picked: picked[0] ?? null },
-      ops: [
-        op({
-          id: 'pick',
-          description: 'Pick an item',
+      ops: {
+        pick: op('Pick an item', {
           choices: items,
           invoke: item => picked.push(item),
         }),
-      ],
+      },
     }));
 
     expect(result).toMatchObject({ status: 'achieved' });
@@ -579,11 +612,11 @@ describe('task', () => {
 
     const result = await task(async () => ({
       context: { goal: 'done', isDone: state.isDone },
-      ops: [
-        op({ id: 'finish', description: 'Finish', invoke: () => (state.isDone = true) }),
-        op({ id: 'rest', description: 'Rest', invoke: () => {} }),
-        op({ id: 'wait', description: 'Wait', invoke: () => {} }),
-      ],
+      ops: {
+        finish: op('Finish', () => (state.isDone = true)),
+        rest: op('Rest', () => {}),
+        wait: op('Wait', () => {}),
+      },
     }));
 
     expect(result).toMatchObject({ status: 'achieved', steps: ['finish'] });
@@ -606,10 +639,10 @@ describe('task', () => {
 
     const result = await task(async () => ({
       context: { goal: 'never' },
-      ops: [
-        op({ id: 'wait', description: 'Wait', invoke }),
-        op({ id: 'rest', description: 'Rest', invoke }),
-      ],
+      ops: {
+        wait: op('Wait', invoke),
+        rest: op('Rest', invoke),
+      },
     }));
 
     expect(result).toMatchObject({ status: 'halted', reason: 'error' });
@@ -648,10 +681,10 @@ describe('task', () => {
 
     const result = await task(async () => ({
       context: { goal: 'never' },
-      ops: [
-        op({ id: 'wait', description: 'Wait', invoke }),
-        op({ id: 'rest', description: 'Rest', invoke }),
-      ],
+      ops: {
+        wait: op('Wait', invoke),
+        rest: op('Rest', invoke),
+      },
     }));
 
     expect(result).toMatchObject({ status: 'halted', reason: 'error' });
@@ -673,7 +706,9 @@ describe('task', () => {
     const result = await task(
       async () => ({
         context: { goal: 'never' },
-        ops: [op({ id: 'pick', description: 'Pick an item', choices: items, invoke })],
+        ops: {
+          pick: op('Pick an item', { choices: items, invoke }),
+        },
       }),
       { inputTokenBudget: 100 },
     );
@@ -703,7 +738,9 @@ describe('task', () => {
 
     await task(async () => ({
       context: { goal: 'done' },
-      ops: [op({ id: 'wait', description: 'Wait', invoke: () => {} })],
+      ops: {
+        wait: op('Wait', () => {}),
+      },
     }));
 
     expect(new Headers(vi.mocked(fetch).mock.lastCall?.[1]?.headers).get('authorization')).toBe(
@@ -727,10 +764,10 @@ describe('task', () => {
     const invoke = vi.fn();
     const result = await task(async () => ({
       context: { goal: 'never' },
-      ops: [
-        op({ id: 'wait', description: 'Wait', invoke }),
-        op({ id: 'rest', description: 'Rest', invoke }),
-      ],
+      ops: {
+        wait: op('Wait', invoke),
+        rest: op('Rest', invoke),
+      },
     }));
 
     expect(result).toMatchObject({

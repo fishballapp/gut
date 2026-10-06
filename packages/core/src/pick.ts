@@ -9,11 +9,11 @@ import {
   requestAnswers,
 } from './decision-model.ts';
 import { knockoutInPagesOf, ListStrategy, type Questions } from './list-strategy.ts';
-import { isOp, type OpEntry } from './ops.ts';
+import { isOp, type Ops } from './ops.ts';
 import type { Context, Usage } from './task.ts';
 import { mapLeaves, type Tree } from './tree.ts';
 
-/** An executable move, named by its id path, e.g. `openLink("Rome")`. */
+/** An executable move, named by its key path, e.g. `openLink("Rome")`. */
 export type Step = { name: string; invoke: () => unknown };
 
 type StepTree = Tree<
@@ -26,11 +26,12 @@ type StepTree = Tree<
  * long list can be asked as a level of its own. Every leaf is a named step, and a node with no step
  * under it is dropped.
  */
-const toStepTrees = (entries: readonly OpEntry[], parentName?: string): StepTree[] =>
-  entries.filter(isOp).flatMap((op): StepTree[] => {
-    const name = parentName === undefined ? op.id : `${parentName}.${op.id}`;
+const toStepTrees = (ops: Ops, parentName?: string): StepTree[] =>
+  Object.entries(ops).flatMap(([key, op]): StepTree[] => {
+    if (!isOp(op)) return [];
+    const name = parentName === undefined ? key : `${parentName}.${key}`;
     if (op.kind === 'node') {
-      const children = toStepTrees(op.children, name);
+      const children = toStepTrees(op.ops, name);
       if (children.length === 0) return [];
       return [{ kind: 'node', description: op.description, children }];
     }
@@ -251,7 +252,7 @@ export const pick = async ({
 }: {
   asker: Asker;
   context: Context;
-  ops: readonly OpEntry[];
+  ops: Ops;
   usage: Usage;
   isGoalAsked: boolean;
 }): Promise<

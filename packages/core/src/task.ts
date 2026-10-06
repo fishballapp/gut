@@ -1,6 +1,6 @@
 // Each tick: observe, let the decision model pick a move, invoke it.
 import { loadConfig } from './config.ts';
-import type { OpEntry } from './ops.ts';
+import type { Ops } from './ops.ts';
 import { pick, type Step } from './pick.ts';
 
 export type Json =
@@ -50,7 +50,7 @@ const errorOutcome = (error: unknown): Extract<Outcome, { reason: 'error' }> => 
  * The decision model comes from gut.config.json; what a run may spend, from `options`.
  */
 export const task = async (
-  tick: () => Promise<{ context: Context; ops: readonly OpEntry[] }>,
+  tick: () => Promise<{ context: Context; ops: Ops }>,
   { inputTokenBudget = 50_000, isGoalAchieved }: TaskOptions = {},
 ): Promise<TaskResult> => {
   const asker = { decisionModel: (await loadConfig()).decisionModel, inputTokenBudget };
@@ -74,7 +74,7 @@ export const task = async (
     started,
   }: {
     context: Context;
-    ops: readonly OpEntry[];
+    ops: Ops;
     usage: Usage;
     tickNumber: number;
     started: number;

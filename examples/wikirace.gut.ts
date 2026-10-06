@@ -23,16 +23,14 @@ await task(
         currentArticle: article.title,
       },
 
-      ops: [
-        op({
-          id: 'openLink',
-          description: 'Open a link on the current article',
+      ops: {
+        openLink: op('Open a link on the current article', {
           choices: article.links.filter(link => !path.includes(link)),
           invoke: link => {
             path.push(link);
           },
         }),
-      ],
+      },
     };
   },
   { isGoalAchieved: () => path.at(-1) === target },
