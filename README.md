@@ -334,7 +334,7 @@ first, as in any JS object. Levels the runtime adds to split a long list stay ou
 `state` is the context, nothing added. A tick's first request asks two questions about it: whether
 the goal is achieved, and the tick's first real choice (a level with one option has nothing to
 ask). They are answered together and independently, so checking the goal costs no extra request
-and sends the context once; only a tick with nothing to choose asks the goal alone. When the goal is achieved the run ends and the move is
+and sends the context once; only a tick with nothing to choose (one move, or none at all) asks the goal alone. When the goal is achieved the run ends and the move is
 ignored. A task with `isGoalAchieved` (the wiki race) is never asked the `achieved` question;
 its requests carry only the move. Later requests in the tick ask only the move, one level
 further down, worded "Current action: Open a link on the current article. Which one?" (the
@@ -347,7 +347,7 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
 1. **Read.** Each plugin reads, then the task's `tick` runs.
 2. **Check.** `isGoalAchieved`, if set, runs; true ends the run as `achieved`, with no request.
 3. **Choose.** Without `isGoalAchieved`, the goal rides with the tick's first question, and a tick
-   with nothing to choose asks it alone. Each op's choices count as
+   with nothing to choose (one move, or none at all) asks it alone. Each op's choices count as
    moves of their own: if every move fits in one question (26 options), every move is an option;
    otherwise it is asked level by level (a group, then an op, then its choice), and a level with
    one option is skipped. A long list is split into bundles that each list everything they hold
@@ -356,7 +356,7 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
    past the model's context) is split in half, each half picks its best, and the two winners are
    asked. Refused requests are not billed, so no size is estimated per model.
 4. **Gate.** A goal answered as achieved ends the run as `achieved`, for the caller to check. The
-   run halts with a reason when there are no options, anything throws (never retried), the run
+   run halts with a reason when there are no options (once the goal is asked), anything throws (never retried), the run
    stalls (the same context and the same pick three times), or the input-token budget runs out.
    There is no confidence threshold: every pick runs, and its probabilities are logged.
 5. **Invoke** the picked op with its choice.

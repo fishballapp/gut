@@ -474,7 +474,7 @@ describe('task', () => {
     ]);
   });
 
-  it('halts without asking the model when every branch is empty', async () => {
+  it('asks the goal alone, then halts, when every branch is empty', async () => {
     const result = await task(async () => ({
       context: { goal: 'never' },
       ops: {
@@ -492,9 +492,34 @@ describe('task', () => {
       reason: 'noOptions',
       steps: [],
       context: { goal: 'never' },
+      usage: { inputTokens: 100, requests: 1 },
+    });
+    expect(requests.map(request => Object.keys(request.questions))).toEqual([['achieved']]);
+  });
+
+  it('ends achieved on a tick with no ops when the model finds the goal met', async () => {
+    decide = () => ({ pick: 'Goal achieved: The page says "Thank you"' });
+
+    const result = await task(async () => ({
+      context: { goal: 'The page says "Thank you"' },
+      ops: {},
+    }));
+
+    expect(result).toMatchObject({ status: 'achieved', steps: [] });
+    expect(requests.map(request => Object.keys(request.questions))).toEqual([['achieved']]);
+  });
+
+  it('halts without asking the model when there are no ops and isGoalAchieved is set', async () => {
+    const result = await task(async () => ({ context: { goal: 'never' }, ops: {} }), {
+      isGoalAchieved: () => false,
+    });
+
+    expect(result).toMatchObject({
+      status: 'halted',
+      reason: 'noOptions',
       usage: { inputTokens: 0, requests: 0 },
     });
-    expect(questions).toEqual([]);
+    expect(requests).toEqual([]);
   });
 
   it('keeps the last snapshot and successful steps when reading the next tick fails', async () => {

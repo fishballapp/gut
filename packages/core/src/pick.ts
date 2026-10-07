@@ -197,7 +197,7 @@ const createPickSession = ({
     return option;
   };
 
-  /** A tick with nothing to choose still asks the goal, alone, before its step runs. */
+  /** A tick with nothing to choose still asks the goal, alone, before its step runs or it halts. */
   const checkGoal = async () => {
     if (isGoalPending) await send({});
   };
@@ -241,7 +241,8 @@ const pickAt = async (session: PickSession, level: Level, maxOptions: number): P
 
 /**
  * Picks the tick's step among its ops, or finds the goal met when `isGoalAsked`; no ops halts the
- * run. Whatever ends the pick, it reports what the pick spent, a failure included.
+ * run, once the goal is asked. Whatever ends the pick, it reports what the pick spent, a failure
+ * included.
  */
 export const pick = async ({
   asker,
@@ -264,10 +265,14 @@ export const pick = async ({
   )
 > => {
   const trees = toStepTrees(ops);
-  if (trees.length === 0) return { status: 'halted', reason: 'noOptions', usage };
   const session = createPickSession({ asker, context, usage, isGoalAsked });
   const maxOptions = asker.decisionModel.capabilities.choiceQuestions.maxOptions;
   try {
+    // A page with nothing left to do may be the finish line, so the goal is asked before halting.
+    if (trees.length === 0) {
+      await session.checkGoal();
+      return { status: 'halted', reason: 'noOptions', usage: session.snapshot().usage };
+    }
     const step = await pickAt(session, { trail: [], trees }, maxOptions);
     await session.checkGoal();
     return { status: 'picked', step, ...session.snapshot() };
