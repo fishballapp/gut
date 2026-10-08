@@ -3,6 +3,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from './config.ts';
+import { DEFAULT_MAX_OPTIONS } from './decision-model.ts';
 
 vi.mock('node:os', async importOriginal => ({
   ...(await importOriginal<typeof import('node:os')>()),
@@ -32,7 +33,7 @@ const configFor = (name: string, port = 1) => ({
 const loadedFor = (name: string, port = 1) => ({
   decisionModel: {
     ...configFor(name, port).decisionModel,
-    capabilities: { image: false, choiceQuestions: { maxOptions: 26 } },
+    capabilities: { image: false, choiceQuestions: { maxOptions: DEFAULT_MAX_OPTIONS } },
   },
 });
 
@@ -63,7 +64,7 @@ describe('loadConfig', () => {
     await write({ image: true });
     expect((await loadConfig(root)).decisionModel.capabilities).toEqual({
       image: true,
-      choiceQuestions: { maxOptions: 26 },
+      choiceQuestions: { maxOptions: DEFAULT_MAX_OPTIONS },
     });
 
     await write({ choiceQuestions: { maxOptions: 1 } });

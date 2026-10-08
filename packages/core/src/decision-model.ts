@@ -1,6 +1,9 @@
 // The decision model: any `/v1/systemone` server (a local Ollama, TypeSafe, OpenRouter).
 import { z } from 'zod';
 
+/** The most options one choice question takes, unless configured: TypeSafe's limit for Jev. */
+export const DEFAULT_MAX_OPTIONS = 255;
+
 /**
  * Where the decision model is and what it can take: gut.config.json's `decisionModel`. Strict, so
  * a key gut doesn't read (or a typo) fails instead of being ignored.
@@ -19,8 +22,8 @@ export const DecisionModelSchema = z.strictObject({
       image: z.boolean().default(false),
       choiceQuestions: z
         .strictObject({
-          /** The most options one choice question takes: 26 on Jev and Clef. */
-          maxOptions: z.int().min(2).default(26),
+          /** The most options one choice question takes; Ollama takes 26. */
+          maxOptions: z.int().min(2).default(DEFAULT_MAX_OPTIONS),
         })
         .prefault({}),
     })

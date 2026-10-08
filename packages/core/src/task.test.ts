@@ -46,7 +46,12 @@ beforeAll(async () => {
   await writeFile(
     join(dir, 'gut.config.json'),
     JSON.stringify({
-      decisionModel: { endpoint: 'http://decision-model.invalid/v1/systemone', name: 'fake' },
+      // Like Ollama, a choice takes at most 26 options.
+      decisionModel: {
+        endpoint: 'http://decision-model.invalid/v1/systemone',
+        name: 'fake',
+        capabilities: { choiceQuestions: { maxOptions: 26 } },
+      },
     }),
   );
   vi.spyOn(process, 'cwd').mockReturnValue(dir);

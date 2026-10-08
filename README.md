@@ -52,8 +52,8 @@ run, not once per step.
 
 ### More options than a model can take
 
-A decision model answers questions of at most 26 options, within a size limit per request (clef-flash
-on Ollama: a 16,384-token context), and every option costs it about 18 tokens of framing. A Wikipedia
+A decision model answers questions of a limited number of options (255 on TypeSafe's Jev, 26 on
+Ollama), within a size limit per request (clef-flash on Ollama: a 16,384-token context), and every option costs it about 18 tokens of framing. A Wikipedia
 article has hundreds of links; a page or a menu can have thousands of choices. Ops and `choices` can
 be any length, and gut makes sure the model sees every one:
 
@@ -198,7 +198,7 @@ not the loop around it.
     picks one and `invoke` receives it. An empty list hides the op.
   - `strategy` is how choices that don't fit one question are asked: `ListStrategy.bundle` (the
     default; "Contains: …" bundles, then the choice inside one) or `ListStrategy.knockout` (pages of
-    26 choices, then the page winners).
+    `maxOptions` choices, then the page winners).
 - `group(description, ops)` groups ops, for example one group per form on a page.
 - State is ordinary variables. Nothing is serialised.
 
@@ -348,7 +348,7 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
 2. **Check.** `isGoalAchieved`, if set, runs; true ends the run as `achieved`, with no request.
 3. **Choose.** Without `isGoalAchieved`, the goal rides with the tick's first question, and a tick
    with nothing to choose (one move, or none at all) asks it alone. Each op's choices count as
-   moves of their own: if every move fits in one question (26 options), every move is an option;
+   moves of their own: if every move fits in one question (`maxOptions`), every move is an option;
    otherwise it is asked level by level (a group, then an op, then its choice), and a level with
    one option is skipped. A long list is split into bundles that each list everything they hold
    ("Contains: Ancient Rome, Augustus, …"); Clef wraps every option in about 18 tokens of framing, so 26 titles in one bundle
@@ -404,8 +404,9 @@ Only that one file is read; files don't merge.
 - `name` is the model the server runs: `clef-flash`, or `~typesafe/jev-latest` on OpenRouter.
 - `apiKey`, optional, is sent as `Authorization: Bearer <apiKey>` (TypeSafe's API, OpenRouter).
 - `capabilities`, optional, says what the model can take; every field has a default:
-  - `choiceQuestions.maxOptions` is the most options one choice question takes: 26 (the default)
-    on Jev and Clef. Every list strategy asks within it.
+  - `choiceQuestions.maxOptions` is the most options one choice question takes: 255 by default, as
+    TypeSafe's Jev takes. Ollama takes at most 26 and rejects more ("criteria must contain 2–26
+    candidates"), so an Ollama config sets 26, as above. Every list strategy asks within it.
   - `image` is whether the state may hold images (default `false`). Nothing in gut sends one yet.
 
 The file says where the model is and what it takes, nothing else; what a run may spend is the
