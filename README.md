@@ -58,10 +58,11 @@ article has hundreds of links; a page or a menu can have thousands of choices. O
 be any length, and gut makes sure every one is within the model's reach:
 
 - **Bundles.** A list too long for one question is asked as bundles: options that each list
-  everything they hold ("Contains: Ancient Rome, Augustus, …"), so many titles share one option's
+  everything they hold, one per line under "Contains:", so many titles share one option's
   framing. The model picks a bundle, then an option inside it.
-- **Groups.** A question opens the smallest groups while they fit; a closed group shows its first
-  8 moves and how many more it holds, and choosing it asks every move inside.
+- **Groups.** A question opens the smallest groups while they fit; a closed group shows an
+  indented outline of its first 8 moves and how many more it holds, and choosing it asks every move
+  inside.
 - **Split on refusal.** A question the server refuses as too large is split in half, each half picks
   its best, and the two winners are asked. Refusals aren't billed, so this needs no token counting
   and adapts to any model.
@@ -359,11 +360,11 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
    with nothing to choose (one move, or none at all) asks it alone. Each op's choices count as
    moves of their own. A question starts with every group closed and opens the smallest first, at
    any depth, while it stays within `maxOptions`: an open group's moves read with their path
-   ("Header › Open link "Home""), a closed one with what it contains, and choosing a closed group
-   asks inside it. Its first question ends with "None of these: go back" while a level above has
-   anything else to choose (at `maxOptions` 2 it is an ordinary option, and may be bundled). A
+   ("Header › Open link "Home""), a closed one with what it contains (an indented outline of its
+   first 8 moves), and choosing a closed group asks inside it. Its first question ends with "None
+   of these: go back" while a level above has anything else to choose (at `maxOptions` 2 it is an ordinary option, and may be bundled). A
    level with one option is skipped. A long list is split into bundles that each list everything they hold
-   ("Contains: Ancient Rome, Augustus, …"); Clef wraps every option in about 18 tokens of framing, so 26 titles in one bundle
+   (each on its own line under "Contains:"); Clef wraps every option in about 18 tokens of framing, so 26 titles in one bundle
    cost far less than 26 options. A level the server refuses as too large (Ollama: over 64 KiB, or
    past the model's context) is split in half, each half picks its best, and the two winners are
    asked. Refused requests are not billed, so no size is estimated per model.

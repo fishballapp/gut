@@ -15,6 +15,17 @@ export const mapLeaves = <Leaf extends object, Node extends object, Result>(
     return mapLeaves(tree.children, map, [...path, tree]);
   });
 
+/** The forest with only the leaves `keep` accepts; parents left with no children drop out. */
+export const keepLeaves = <Leaf extends object, Node extends object>(
+  trees: readonly Tree<Leaf, Node>[],
+  keep: (leaf: Leaf) => boolean,
+): Tree<Leaf, Node>[] =>
+  trees.flatMap((tree): Tree<Leaf, Node>[] => {
+    if (tree.kind === 'leaf') return keep(tree) ? [tree] : [];
+    const children = keepLeaves(tree.children, keep);
+    return children.length === 0 ? [] : [{ ...tree, children }];
+  });
+
 /** Removes a tree from a forest; parents left with no children drop out too. */
 export const pruneTree = <Leaf extends object, Node extends object>(
   trees: readonly Tree<Leaf, Node>[],

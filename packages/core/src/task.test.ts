@@ -38,6 +38,15 @@ const answer = (
   };
 };
 
+/** What a bundle's option lists: the lines under "Contains:", or nothing for any other option. */
+const bundled = (description: string): string[] =>
+  description.startsWith('Contains:\n')
+    ? description
+        .split('\n')
+        .slice(1)
+        .map(line => line.trim())
+    : [];
+
 // Like Ollama, a choice takes at most 26 options.
 const fakeConfig = {
   decisionModel: {
@@ -171,7 +180,7 @@ describe('task', () => {
       return {
         pick:
           descriptions.find(d => d === 'item 42') ??
-          descriptions.find(d => d.startsWith('Contains:') && d.split(', ').includes('item 42')) ??
+          descriptions.find(d => bundled(d).includes('item 42')) ??
           '',
       };
     };
@@ -222,8 +231,15 @@ describe('task', () => {
       return {
         pick:
           descriptions.find(d => d === 'item 42') ??
-          descriptions.find(d => d.startsWith('Contains:') && d.split(', ').includes('item 42')) ??
-          descriptions.find(d => d.startsWith('Contains: item 40')) ??
+          descriptions.find(
+            d =>
+              d.startsWith('Contains:') &&
+              d
+                .split('\n')
+                .map(l => l.trim())
+                .includes('item 42'),
+          ) ??
+          descriptions.find(d => d.startsWith('Contains:\n  item 40\n')) ??
           'Pick an item',
       };
     };
@@ -452,7 +468,11 @@ describe('task', () => {
     expect(questions.slice(0, 3).map(question => Object.values(question.criteria))).toEqual([
       [
         ...Array.from({ length: 14 }, (_, i) => `Wrong box › wrong ${i}`),
-        'Right box — contains: right 0, right 1, right 2, right 3, right 4, right 5, right 6, right 7, … (+6 more)',
+        [
+          'Right box — contains:',
+          ...Array.from({ length: 8 }, (_, i) => `  right ${i}`),
+          '  … (+6 more)',
+        ].join('\n'),
       ],
       [...Array.from({ length: 14 }, (_, i) => `right ${i}`), 'None of these: go back'],
       Array.from({ length: 14 }, (_, i) => `Wrong box › wrong ${i}`),
@@ -472,7 +492,7 @@ describe('task', () => {
       expect(Object.values(questions[0]?.criteria ?? {})).toEqual([
         'a › a 0',
         'a › a 1',
-        'b — contains: b 0, b 1, b 2, b 3',
+        'b — contains:\n  b 0\n  b 1\n  b 2\n  b 3',
       ]);
     });
   });
@@ -488,7 +508,7 @@ describe('task', () => {
         },
       }));
       expect(Object.values(questions[0]?.criteria ?? {})).toEqual([
-        'a — contains: a 0, a 1, a 2, a 3',
+        'a — contains:\n  a 0\n  a 1\n  a 2\n  a 3',
         'b › b 0',
         'b › b 1',
       ]);
@@ -508,7 +528,11 @@ describe('task', () => {
         },
       }));
       expect(Object.values(questions[0]?.criteria ?? {})).toEqual([
-        'Big — contains: big 0, big 1, big 2, big 3, big 4, big 5, big 6, big 7, … (+2 more)',
+        [
+          'Big — contains:',
+          ...Array.from({ length: 8 }, (_, i) => `  big ${i}`),
+          '  … (+2 more)',
+        ].join('\n'),
         'Container › Small › small 0',
         'Container › Small › small 1',
       ]);
@@ -525,7 +549,11 @@ describe('task', () => {
       },
     }));
     expect(Object.values(questions[0]?.criteria ?? {})).toEqual([
-      'Big — contains: big 0, big 1, big 2, big 3, big 4, big 5, big 6, big 7, … (+12 more)',
+      [
+        'Big — contains:',
+        ...Array.from({ length: 8 }, (_, i) => `  big ${i}`),
+        '  … (+12 more)',
+      ].join('\n'),
       ...Array.from({ length: 10 }, (_, i) => `Small › small ${i}`),
     ]);
   });
@@ -554,11 +582,118 @@ describe('task', () => {
         [
           'Outer › first',
           'Outer › second',
-          'Outer › Nested — contains: nested 0, nested 1, nested 2',
+          'Outer › Nested — contains:\n  nested 0\n  nested 1\n  nested 2',
         ],
         ['nested 0', 'nested 1', 'nested 2', 'None of these: go back'],
         ['Outer › first', 'Outer › second'],
       ]);
+    });
+  });
+
+  it('previews a closed group as an indented outline, omitting inner groups with no shown moves', async () => {
+    await withMaxOptions(2, async runTask => {
+      decide = () => ({ pick: 'Other' });
+      await runTask(async () => ({
+        context: { goal: 'never' },
+        ops: {
+          other: op('Other', () => {}),
+          main: group('Main content', {
+            offices: group('Offices', {
+              leeds: group('Leeds', {
+                details: op('Open link "Details"', () => {}),
+                directions: op('Open link "Directions"', () => {}),
+              }),
+              manchester: group('Manchester', {
+                details: op('Open link "Details"', () => {}),
+              }),
+            }),
+            extra: group('Extra', items('extra', 5)),
+            omitted: group('Omitted', items('omitted', 4)),
+          }),
+        },
+      }));
+      expect(Object.values(questions[0]?.criteria ?? {})[1]).toBe(
+        [
+          'Main content — contains:',
+          '  Offices',
+          '    Leeds',
+          '      Open link "Details"',
+          '      Open link "Directions"',
+          '    Manchester',
+          '      Open link "Details"',
+          '  Extra',
+          '    extra 0',
+          '    extra 1',
+          '    extra 2',
+          '    extra 3',
+          '    extra 4',
+          '  … (+4 more)',
+        ].join('\n'),
+      );
+    });
+  });
+
+  it('shows an op with choices as a level in the group outline', async () => {
+    await withMaxOptions(2, async runTask => {
+      decide = () => ({ pick: 'Other' });
+      await runTask(async () => ({
+        context: { goal: 'never' },
+        ops: {
+          other: op('Other', () => {}),
+          form: group('Form', {
+            country: op('Select country', {
+              choices: ['France', 'Germany', 'Spain'],
+              invoke: () => {},
+            }),
+            submit: op('Submit', () => {}),
+          }),
+        },
+      }));
+      expect(Object.values(questions[0]?.criteria ?? {})[1]).toBe(
+        [
+          'Form — contains:',
+          '  Select country',
+          '    France',
+          '    Germany',
+          '    Spain',
+          '  Submit',
+        ].join('\n'),
+      );
+    });
+  });
+
+  it('omits the more line when a group has 8 or fewer moves, and adds it when overflowing', async () => {
+    await withMaxOptions(2, async runTask => {
+      decide = () => ({ pick: 'Other' });
+      await runTask(async () => ({
+        context: { goal: 'never' },
+        ops: {
+          other: op('Other', () => {}),
+          exact8: group('Exact 8', items('item', 8)),
+        },
+      }));
+      expect(Object.values(questions[0]?.criteria ?? {})[1]).toBe(
+        ['Exact 8 — contains:', ...Array.from({ length: 8 }, (_, i) => `  item ${i}`)].join('\n'),
+      );
+    });
+
+    questions.length = 0;
+    await withMaxOptions(2, async runTask => {
+      decide = () => ({ pick: 'Other' });
+      await runTask(async () => ({
+        context: { goal: 'never' },
+        ops: {
+          other: op('Other', () => {}),
+          overflow: group('Overflow', items('item', 9)),
+        },
+      }));
+      expect(Object.values(questions[0]?.criteria ?? {})[1]).toBe(
+        [
+          'Overflow — contains:',
+          ...Array.from({ length: 8 }, (_, i) => `  item ${i}`),
+          '  … (+1 more)',
+        ].join('\n'),
+      );
     });
   });
 
@@ -576,7 +711,18 @@ describe('task', () => {
           g3: group('G3', items('g3', 2)),
         },
       }));
-      expect(Object.values(questions[0]?.criteria ?? {})[0]).toMatch(/^Contains: G1/);
+      // Each group keeps its outline inside the bundle, one block under the other.
+      expect(Object.values(questions[0]?.criteria ?? {})[0]).toBe(
+        [
+          'Contains:',
+          '  G1 — contains:',
+          '    g1 0',
+          '    g1 1',
+          '  G2 — contains:',
+          '    g2 0',
+          '    g2 1',
+        ].join('\n'),
+      );
     });
   });
 
@@ -611,7 +757,7 @@ describe('task', () => {
           ? 'Goal achieved: an item is picked'
           : (Object.values(criteria).find(
               description =>
-                description.endsWith('item 0') || description.startsWith('Contains: item 0,'),
+                description.endsWith('item 0') || description.startsWith('Contains:\n  item 0\n'),
             ) ?? 'Pick an item'),
     });
 
@@ -779,7 +925,7 @@ describe('task', () => {
       return {
         pick:
           descriptions.find(d => d === target) ??
-          descriptions.find(d => d.startsWith('Contains:') && d.split(', ').includes(target)) ??
+          descriptions.find(d => bundled(d).includes(target)) ??
           descriptions.find(d => d.startsWith('Contains:')) ??
           '',
       };
@@ -805,7 +951,7 @@ describe('task', () => {
       .flatMap(q => Object.values(q.criteria))
       .filter(d => d.startsWith('Contains:'));
     expect(parts.length).toBeGreaterThan(26);
-    expect(parts.every(d => [100, 4].includes(d.split(', ').length))).toBe(true);
+    expect(parts.every(d => [100, 4].includes(bundled(d).length))).toBe(true);
   });
 
   it("splits a level when the model's context is too small for it", async () => {
@@ -994,7 +1140,7 @@ describe('task', () => {
         const descriptions = Object.values(criteria);
         const picked =
           descriptions.find(d => d.startsWith('Group')) ??
-          descriptions.find(d => d.startsWith('Contains: m1')) ??
+          descriptions.find(d => d.startsWith('Contains:\n  m1')) ??
           descriptions.find(d => d === 'm1');
         return { pick: picked ?? '' };
       };

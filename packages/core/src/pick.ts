@@ -13,7 +13,7 @@ import {
 import { knockoutInPagesOf, ListStrategy, type Questions } from './list-strategy.ts';
 import { isOp, type Ops } from './ops.ts';
 import type { Context, Usage } from './task.ts';
-import { mapLeaves, pruneTree, type Tree } from './tree.ts';
+import { keepLeaves, mapLeaves, pruneTree, type Tree } from './tree.ts';
 
 /** An executable move, named by its key path, e.g. `openLink("Rome")`. */
 export type Step = { name: string; invoke: () => unknown };
@@ -90,15 +90,28 @@ const goBackAt = ({ back }: Level): Extract<Option, { kind: 'level' }> | undefin
 /** How many of a group's moves its option names before "+N more". */
 const PREVIEW_SIZE = 8;
 
+/** One line per group and move, each indented 2 more spaces than its group. */
+const formatOutline = (trees: readonly StepTree[], indent = 2): string[] =>
+  trees.flatMap(tree => {
+    const line = `${' '.repeat(indent)}${tree.description}`;
+    if (tree.kind === 'leaf') return [line];
+    return [line, ...formatOutline(tree.children, indent + 2)];
+  });
+
 /**
  * What a group holds, in its own option only, so the model can tell where to look: the trail and
- * breadcrumbs inside it name the group alone.
+ * breadcrumbs inside it name the group alone. Its first 8 moves, as an outline under the groups
+ * inside it: a move's group names it ("Manchester", "Details") where its own name can't.
  */
 const previewOf = (trees: readonly StepTree[]) => {
-  const names = mapLeaves(trees, ({ description }) => description);
-  const shown = names.slice(0, PREVIEW_SIZE).join(', ');
-  const more = names.length - PREVIEW_SIZE;
-  return more > 0 ? `contains: ${shown}, … (+${more} more)` : `contains: ${shown}`;
+  const leaves = mapLeaves(trees, leaf => leaf);
+  const shown = new Set(leaves.slice(0, PREVIEW_SIZE));
+  const more = leaves.length - PREVIEW_SIZE;
+  const lines = [
+    ...formatOutline(keepLeaves(trees, leaf => shown.has(leaf))),
+    ...(more > 0 ? [`  … (+${more} more)`] : []),
+  ];
+  return `contains:\n${lines.join('\n')}`;
 };
 
 type NodeTree = Extract<StepTree, { kind: 'node' }>;

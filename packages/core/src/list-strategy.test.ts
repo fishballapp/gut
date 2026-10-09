@@ -11,7 +11,14 @@ const questionsFor = (maxOptions: number, asked: number[]): Questions => ({
     asked.push(options.length);
     const [first] = options;
     if (first === undefined) throw new Error('no options');
-    return options.find(option => option.description.split(/: |, /).includes('item 742')) ?? first;
+    return (
+      options.find(option =>
+        option.description
+          .split('\n')
+          .map(line => line.trim())
+          .includes('item 742'),
+      ) ?? first
+    );
   },
 });
 

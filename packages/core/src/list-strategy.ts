@@ -24,8 +24,18 @@ const chunk = <T>(items: readonly T[], size: number): T[][] =>
   );
 
 /**
+ * A bundle's option: "Contains:", then each item it holds on lines of its own, indented under it,
+ * so an item that is itself an outline (a closed group's preview) keeps its shape.
+ */
+const bundleDescription = (items: readonly Described[]) =>
+  [
+    'Contains:',
+    ...items.flatMap(item => item.description.split('\n').map(line => `  ${line}`)),
+  ].join('\n');
+
+/**
  * The list is cut into at most `maxOptions` bundles that each list everything they hold
- * ("Contains: …"); the model picks a bundle, then picks within it. Every option costs framing
+ * (`bundleDescription`); the model picks a bundle, then picks within it. Every option costs framing
  * tokens, so a bundle of 26 titles costs far less than 26 options.
  */
 const bundle: ListStrategy = async (options, questions) => {
@@ -33,7 +43,7 @@ const bundle: ListStrategy = async (options, questions) => {
   const size = Math.ceil(options.length / questions.maxOptions);
   const chosen = await questions.ask(
     chunk(options, size).map(items => ({
-      description: `Contains: ${items.map(option => option.description).join(', ')}`,
+      description: bundleDescription(items),
       items,
     })),
   );
