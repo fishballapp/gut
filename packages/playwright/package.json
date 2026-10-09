@@ -1,14 +1,14 @@
 {
-  "name": "@gut.run/core",
+  "name": "@gut.run/playwright",
   "version": "0.3.0",
   "type": "module",
-  "description": "A non-deterministic runtime: you write the moves, a decision model writes the order.",
+  "description": "Playwright observation and ops for gut.",
   "license": "MIT",
   "homepage": "https://github.com/fishballapp/gut",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/fishballapp/gut.git",
-    "directory": "packages/core"
+    "directory": "packages/playwright"
   },
   "files": [
     "dist",
@@ -38,13 +38,18 @@
     "prepack": "pnpm build",
     "test": "vitest run"
   },
+  "peerDependencies": {
+    "@gut.run/core": "workspace:^",
+    "playwright": "^1.63.0"
+  },
   "dependencies": {
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@gut.run/core": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
-    "type-fest": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "playwright": "catalog:"
   }
 }

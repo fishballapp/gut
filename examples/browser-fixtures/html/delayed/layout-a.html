@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Delayed Job - Layout A</title></head>
+<body>
+  <div id="modal" role="dialog" aria-label="Cookie Preferences">
+    <h2>Cookie Settings</h2>
+    <p>Please accept cookies to proceed.</p>
+    <button type="button">Manage preferences</button>
+    <button id="close-modal" type="button">Accept All</button>
+  </div>
+  <div id="content" style="display:none">
+    <section id="loading" aria-busy="true" aria-label="Loading Results">
+      <p>Fetching delayed results from server...</p>
+    </section>
+    <div id="results"></div>
+  </div>
+  <script>
+    document.getElementById('close-modal').addEventListener('click', () => {
+      document.getElementById('modal').remove();
+      document.getElementById('content').style.display = 'block';
+      setTimeout(() => {
+        document.getElementById('loading').remove();
+        const results = document.getElementById('results');
+        results.innerHTML = '<h2>Delayed Results Ready</h2><button type="button">Download CSV</button><button id="view-btn" type="button">View Results</button><button type="button">Share</button>';
+        document.getElementById('view-btn').addEventListener('click', () => {
+          fetch('/delayed/layout-a/complete', { method: 'POST' }).then(() => {
+            results.innerHTML = '<h1>Delayed Complete</h1>';
+          });
+        });
+      }, 800);
+    });
+  </script>
+</body>
+</html>

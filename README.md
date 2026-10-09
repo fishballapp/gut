@@ -11,8 +11,9 @@ goal, what the world looks like now, and the moves available. The model picks on
 until the goal is met (checked by the task's code, or claimed by the model when code can't check
 it) or gut halts back to the agent. The model only ever *picks*: it never writes text.
 
-> **Status:** core v0 is built: `initGut`, `op`, `group`, `gut run`, and the examples below. `gut
-> task`, plugins, the JSON result on stdout and the JSONL trace are designed here but not built.
+> **Status:** core v0 is built: `initGut`, `op`, `group`, `gut run`, and the examples below, and so
+> is `@gut.run/playwright` v0 (`observe`). `gut browser`, the JSON result
+> on stdout and the JSONL trace are designed here but not built.
 > This file is the current design; it changes in place.
 
 ## When gut fits
@@ -72,52 +73,25 @@ group it passed over, never dropped.
 
 ## From the command line (planned)
 
-The main use needs no script: `gut task` takes a goal, plus plugins that supply what the model sees
-and can do.
+The main use needs no script: `gut browser` takes a goal and a page to start from, and runs the
+same task a script would write with [the browser library](#the-browser).
 
 **A goal is the end state you want to see**, written so it can be checked against the context: "the
-page lists this month's trending repositories", not "find the top repos". A task with no code to
-check it, as on the command line, leaves the model to judge it from the context.
+page shows the Rate limits documentation", not "find the rate limits". A check in code is better:
 
 ```sh
-gut task "The page lists this month's trending GitHub repositories" \
-  --use-browser '{ "initialUrl": "https://github.com" }'
+gut browser 'The current documentation page is the Rate limits page' \
+  --url 'https://docs.example.com/' \
+  --until-url 'https://docs.example.com/reference/rate-limits'
 
-gut task 'The page shows flights from London to Tokyo on 3 March 2027, sorted by price' \
-  --use-browser '{
-    "initialUrl": "https://www.google.com/travel/flights",
-    "typing": {
-      "text": {
-        "locations": { "lhr": "London", "tyo": "Tokyo" },
-        "departure": { "humanReadable": "3 March", "iso": "2027-03-03" }
-      }
-    }
-  }'
+gut browser --request /absolute/path/route-search.browser.json   # values to type, buttons to allow, checks
 ```
 
-`--use-<plugin> [options]` adds a plugin, with its options as JSON. The browser opens `initialUrl` first.
-`typing.text` is everything it may type into an input or a textarea; the model never invents text.
-Objects nest into groups and the strings are the values, so a value can come in several formats and
-the model picks the one the field wants: `browser.searchForm.date.type(departure.iso)`.
-`typing.secrets` has the same shape, but only its key paths reach the model and the trace
-(`browser.login.password.type(github.password)`); the values are typed and never shown.
-
-The calling agent supplies the starting point (a URL, the text options for a search) and so settles
-what an ambiguous goal means; gut does the clicking. The run prints JSON when it ends, and the
-agent reads the answer from the final context and checks the claim:
-
-```jsonc
-{
-  "status": "achieved", // the model claims the goal is met; or "halted", with a reason and the top options
-  "steps": [
-    "browser.nav.openSource.open",
-    "browser.nav.openSource.trending",
-    "browser.dateRange.open",
-    "browser.dateRange.pick(\"This month\")"
-  ],
-  "context": { "goal": "…", "browser": { "url": "https://github.com/trending?since=monthly", "elements": [/* … */] } }
-}
-```
+By default only links to the starting origin are offered. A request file names the buttons it allows
+and binds each value to the field it may be typed into. The run prints JSON when it ends:
+`achieved` when the `--until` check passed, `claimed` when only the model judged the goal met, or
+`halted` with a reason. The calling agent reads the answer from the final context. Anything more
+dynamic is a script for `gut run`.
 
 ## A task
 
@@ -131,6 +105,9 @@ import { readArticle } from './wikipedia.ts';
 
 const target = 'Roman Empire';
 const path = ['Banana'];
+const instruction =
+  'You are helping the user decide the next step for their wiki race ' +
+  'by picking the most relevant link to click to reach their goal';
 
 const { runTask } = await initGut();
 
@@ -141,16 +118,15 @@ await runTask(
 
     return {
       context: {
-        instruction:
-          'You are helping the user decide the next step for their wiki race by picking the most relevant link to click to reach their goal',
+        instruction,
         goal: `The current article is "${target}"`,
         currentArticle: article.title,
       },
 
       ops: {
         openLink: op('Open a link on the current article', {
-          choices: article.links.filter((link) => !path.includes(link)),
-          invoke: (link) => {
+          choices: article.links.filter(link => !path.includes(link)),
+          invoke: link => {
             path.push(link);
           },
         }),
@@ -193,7 +169,6 @@ not the loop around it.
     ends the run as `achieved`. Set it whenever the task can check its goal; the model is then
     never asked about the goal, so it can't stop a run on a near miss, and `goal` only gives it
     direction. Unset, the model judges the goal ([What the model receives](#what-the-model-receives)).
-  - `plugins` (planned) add their own context and ops; see [Plugins](#plugins).
 - `tick` returns this tick's `context` and `ops`.
   - `context` is `{ goal: string, ...rest }`, where everything in `rest` must be JSON. It is exactly
     what the model reads. A line saying what the user is doing and what a good pick is (the `instruction`
@@ -210,91 +185,115 @@ not the loop around it.
 - `group(description, ops)` groups ops, for example one group per form on a page.
 - State is ordinary variables. Nothing is serialised.
 
-## Plugins (planned)
+## The browser
 
-A plugin brings its own context and ops, so a task only adds what is specific to it:
+`@gut.run/playwright` turns a Playwright page into what a tick returns. A caller knows a start URL,
+a goal in words and maybe some values to type, not the site's URLs or field names, so that is all a
+task needs; the model judges when the goal is met:
 
 ```ts
-import { initGut, op } from '@gut.run/core';
-import { browserPlugin } from '@gut.run/browser';
+import { initGut } from '@gut.run/core';
+import { type Control, observe, secret } from '@gut.run/playwright';
+import { chromium } from 'playwright';
 
-const trip = { departure: nextFriday() }; // ordinary state, which ops may change
-
-const browser = browserPlugin(async () => ({
-  initialUrl: 'https://www.google.com/travel/flights',
-  typing: {
-    text: {
-      locations: { lhr: 'London', tyo: 'Tokyo' },
-      departure: { humanReadable: format(trip.departure, 'd MMMM'), iso: toIsoDate(trip.departure) },
-    },
-    secrets: { google: { password: await keychain.get('google') } },
-  },
-}));
+const goal = 'A flight search for Tokyo on 2026-10-15 is submitted';
+const values = {
+  destination: 'Tokyo',
+  date: '2026-10-15',
+  password: secret(process.env.PASSWORD ?? ''),
+};
 
 const { runTask } = await initGut();
+await using browser = await chromium.launch();
+const page = await browser.newPage();
+await page.goto('https://flights.example.com/');
 
-await runTask(
-  async () => ({
-    context: { goal: 'The page shows flights from London to Tokyo next Friday, sorted by price' },
-    ops: {
-      home: op('Go back to the search page', () =>
-        browser.goto('https://www.google.com/travel/flights'),
-      ),
-    },
-  }),
-  { plugins: [browser] },
-);
-```
-
-```ts
-type Plugin = {
-  name: string; // its context key and its ops key
-  setup?: () => Promise<void>; // before the first tick
-  read: () => Promise<{ context: Json; ops: Ops }>; // every tick, before the task's tick
-  teardown?: () => Promise<void>; // when the run ends, achieved or halted
+// Links stay on the site the task started on.
+const site = new URL(page.url()).host;
+const isOnSite = (control: Control) => {
+  if (control.url === undefined) return true; // not a link
+  return URL.canParse(control.url) && new URL(control.url).host === site;
 };
+
+const result = await runTask(async () => {
+  const { context, ops } = await observe(page, { values, shouldOffer: isOnSite });
+  return { context: { goal, page: context }, ops };
+});
+// The final page's visible text is in result.context.page.text.
 ```
 
-- The browser plugin gives one group per on-screen element, holding only that element's real
-  affordances: a text field offers typing, a button offers a click.
-- A plugin package's factory takes its options as JSON, or as a function returning them that the
-  plugin calls every tick, so values set by earlier ops are there to use. It validates them, so
-  `--use-browser '{…}'` and `browserPlugin({…})` are the same call. `gut task` is that plugin with a
-  task that only has a goal.
-- Options read once say so in their name, as in `initialUrl`.
-- A plugin's name sharing a context key or ops key with the task is an error on the first tick.
-
-### acpx: supervising a coding agent
-
-The acpx plugin drives a coding agent through [acpx](https://github.com/openclaw/acpx). The
-decision model runs the loop and the agent does the reasoning, so no big model is paid to decide
-"now run the tests".
+`examples/browser.gut.ts` is that task from the command line:
 
 ```sh
-gut task 'CI on PR #55 is green' --use-acpx '{
-  "agent": "claude",
-  "cwd": "~/code/my-app",
-  "prompts": {
-    "ci": { "read": "Read the failing CI logs and summarise the cause", "fix": "Fix that cause, then run pnpm test" },
-    "git": { "push": "Commit and push the fix" },
-    "nudge": { "continue": "Continue", "smaller": "That is too broad; make the smallest change that fixes it" }
-  }
-}'
+gut run projects/gut/examples/browser.gut.ts https://news.ycombinator.com \
+  "The comments page of the top story on the front page is open"
 ```
 
-Its context is the agent's `status` (idle, running, or waiting for permission), its trimmed
-`lastReply`, and any `pendingPermission`. Its ops are offered only when they apply:
+- `observe(target, { values?, shouldOffer? })` settles the page and returns `{ context, ops }`. The
+  context is the page's `url`, `title`, `headings`, visible `text` (blank lines collapsed, cut at
+  4,000 characters) and `fields` (each field's value, a checkbox's `checked` or `unchecked`, a
+  select's chosen option, keyed by its path: "Sign in › Email"). It has no `goal`: the task adds
+  one, and reshapes the rest as it likes (`const { text, ...page } = context` leaves the text out).
+  A `Locator` as the target keeps one part of the page; it must match exactly one element.
+- The ops are every enabled control on the page, nested as groups along its path: the named
+  landmarks (Header, Navigation "Global", Main content, Footer, a dialog or form), the headings
+  above it, and the item it sits in. An item is a row, list item or article, or a box shaped like
+  its siblings (a shop's product cards), and it is named by its first heading, else its longest
+  control name ("View details for Sauce Labs Backpack"), unless it has a name of its own. Core opens as much of that tree as a
+  question takes, so a page of any size is asked the same way.
+- A move says what it does: `Open link "X"`, `Click "X"`, `Check` or `Uncheck "X"` by its state,
+  `Choose "X"` (a radio, tab, menu item or option), `Fill "X"`, `Select in "X"` (its visible
+  options), and `Open "X"` for a dropdown whose options aren't on the page until it opens.
+- `values` is what the model may type, by what it is. Every text field is offered every value,
+  labelled "destination: Tokyo"; a value a field already holds is not offered again, and a number
+  field takes only numbers. A `secret(…)` goes to password fields only, offered by its name
+  ("password"), and is replaced by `[secret]` wherever the model would read it: the context, the
+  moves, their paths and an error an op throws.
+- `shouldOffer(control)` decides which controls become moves; every one does by default. A
+  `Control` is its `role`, `name`, `path` and, for a link, its absolute `url` (`<base>` included).
+  Keeping links on the start site, as above, is one line, and worth it: offered every link, the
+  Hacker News FAQ task ended on Y Combinator's FAQ.
+- An op acts on the exact element it was read from. If that element is gone (the page moved on, or
+  re-rendered it), the op throws at once and the run halts; it never clicks something else with
+  the same label, and it never retries.
+- Settling waits for the DOM to stop changing (100 ms, at most 2 s) and for `aria-busy="true"` to
+  clear (at most 5 s); a page still busy says `busy: true`. Password values never reach the
+  context, and a field whose type can't be read is treated as a password.
 
-```
-acpx.prompt(ci.fix)        the prompts tree, the same shape as the browser's typing.text
-acpx.wait                  while the agent is running
-acpx.cancel                while the agent is running
-acpx.permission.approve    while a permission request is pending
-acpx.permission.deny
-```
+### How it does
 
-Permission requests are settled by acpx's own policy (`approve-reads` by default). Only the tools
-the options list are offered to the model to approve.
+The measured run was 14 of the bench's tasks (8 on local fixture sites — a docs site with a page of
+30 links, an office directory of identical "Details" links, a two-field form, and results behind a
+dialog, each in two layouts — and 6 on live sites; the bench also has a Wikipedia race and an arXiv
+task). Each run gets only what a caller knows: the start URL, the goal in words and the values to
+type, with links kept on the start site. The model decides when it is done; a check in code that
+knows the answer grades the run afterwards. On Jev, 3 runs each, with questions of up to 255
+options (Jev's limit) and of up to 26 (measured 2026-10-09);
+[jev-ultrafast](https://github.com/browser-use/jev-ultrafast), TypeSafe and Browser Use's own Jev
+browser agent, was given the same goal and values (measured 2026-10-08):
+
+| Task | gut, 255 | gut, 26 | jev-ultrafast |
+| --- | --- | --- | --- |
+| 8 fixture runs (docs, directory, form, delayed × 2 layouts) | 24/24 | 24/24 | 19/22 |
+| Wikipedia: search for an article | 3/3 | 3/3 | 3/3 |
+| Hacker News: the top story's comments | 3/3 | 3/3 | 3/3 |
+| Hacker News: the FAQ (a footer link) | 3/3 | 3/3 | 0/3 |
+| GitHub: a repository's newest release | 3/3 | 3/3 | 0/1 |
+| GitHub: Trending | 3/3 | 2/3 | 0/2 |
+| saucedemo: log in, add two products, check out | 3/3 | 3/3 | 0/3 |
+| **All** | **42/42** | **41/42** | **25/37** |
+| Jev requests and tokens per run | 3.4, 6.9k | 4.2, 5.9k | 3.3, 11.6k |
+
+No run of either ended by claiming a goal that wasn't met. gut's one miss opened GitHub's search
+overlay and then clicked a menu it covered, and a failed click ends a run. jev-ultrafast offers only what is in the
+viewport and stopped as `BLOCKED` at a footer link, at a dialog, and at a login form its text model
+returned no value for; 5 of its 42 runs failed in its browser harness and are left out. These tasks
+need no scrolling, which it supports and gut doesn't yet. Running the bench is in
+[AGENTS.md](AGENTS.md); the measurements and what was rejected are in [DECISIONS.md](DECISIONS.md).
+
+Other capabilities, such as a desktop through its accessibility tree or a coding agent through
+[acpx](https://github.com/openclaw/acpx), are planned the same way: a library that observes and
+builds ops, which a task mixes with its own in ordinary code.
 
 ## Names
 
@@ -354,7 +353,7 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
 
 ## One tick
 
-1. **Read.** Each plugin reads, then the task's `tick` runs.
+1. **Read.** The task's `tick` runs, observing what it needs (a page, through `observe`).
 2. **Check.** `isGoalAchieved`, if set, runs; true ends the run as `achieved`, with no request.
 3. **Choose.** Without `isGoalAchieved`, the goal rides with the tick's first question, and a tick
    with nothing to choose (one move, or none at all) asks it alone. Each op's choices count as
@@ -386,8 +385,8 @@ browser page) has moved on; run again instead.
 | Package | What it is |
 | --- | --- |
 | `@gut.run/core` | `initGut`, `op`, `group`, the decision-model client |
-| `@gut.run/browser`, `@gut.run/cua`, … | plugins (planned) |
-| `@gut.run/cli` (bin `gut`) | `gut run task.gut.ts`; planned: `gut task '<goal>' --use-<plugin> …`, with every plugin bundled and heavy plugin dependencies (a browser) loaded on first use |
+| `@gut.run/playwright` | `observe` over a Playwright page or locator; `playwright` is yours to install |
+| `@gut.run/cli` (bin `gut`) | `gut run task.gut.ts`; planned: `gut browser '<goal>' …` |
 
 The API is plain TypeScript.
 
@@ -435,12 +434,10 @@ With no file, `initGut()` fails before any task runs and says where to put one.
 
 ## Open questions
 
-1. One `tick` returning `{ context, ops }`, or two functions, one for each?
-2. The browser's other options: allowed origins (links elsewhere aren't offered), and attaching to
-   an existing signed-in Chrome. Should it also offer values it finds on the page (autocomplete
-   suggestions)?
-3. Is a decision model a better picker than a small LLM? Unmeasured; the API doesn't depend on it.
-4. Ops with side effects that can't be undone (paying, sending): does a run need permission to pick
+1. Should the browser offer values it finds on the page (autocomplete suggestions) as choices, and
+   what does a page need beyond its controls (scrolling, uploads)?
+2. Is a decision model a better picker than a small LLM? Unmeasured; the API doesn't depend on it.
+3. Ops with side effects that can't be undone (paying, sending): does a run need permission to pick
    them?
-5. Parked: tasks that collect, or find a minimum or maximum, as a fold over the stream of ticks
+4. Parked: tasks that collect, or find a minimum or maximum, as a fold over the stream of ticks
    (`for await (const tick of run)`, where `break` ends the run).

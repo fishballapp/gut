@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Delayed Job - Layout B</title></head>
+<body>
+  <div id="dialog" role="dialog" aria-label="Important Notice">
+    <h2>Maintenance Notice</h2>
+    <p>Maintenance scheduled tonight.</p>
+    <button type="button">Read more</button>
+    <button id="dismiss" type="button">Dismiss</button>
+  </div>
+  <div id="panel" style="display:none">
+    <section id="busy-section" aria-busy="true" aria-label="Generating Reports">
+      <p>Generating summary report...</p>
+    </section>
+    <div id="delayed-container"></div>
+  </div>
+  <script>
+    document.getElementById('dismiss').addEventListener('click', () => {
+      document.getElementById('dialog').remove();
+      document.getElementById('panel').style.display = 'block';
+      setTimeout(() => {
+        document.getElementById('busy-section').remove();
+        const container = document.getElementById('delayed-container');
+        container.innerHTML = '<h3>Report Center</h3><button type="button">Schedule a report</button><button id="access-btn" type="button">Access Reports</button>';
+        document.getElementById('access-btn').addEventListener('click', () => {
+          fetch('/delayed/layout-b/complete', { method: 'POST' }).then(() => {
+            document.getElementById('panel').innerHTML = '<h1>Delayed Complete</h1>';
+          });
+        });
+      }, 800);
+    });
+  </script>
+</body>
+</html>

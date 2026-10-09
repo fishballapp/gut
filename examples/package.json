@@ -8,9 +8,15 @@
     "@gut.run/core": "workspace:*",
     "@typesafe-ai/sdk": "catalog:",
     "advocaat": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@gut.run/playwright": "workspace:*",
+    "playwright": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "catalog:"
+    "@types/node": "catalog:",
+    "vitest": "catalog:"
+  },
+  "scripts": {
+    "test": "vitest run"
   }
 }

@@ -6,6 +6,10 @@ import { readArticle } from './wikipedia.ts';
 const [from = 'Banana', target = 'Roman Empire'] = process.argv.slice(2);
 const path = [from]; // the articles visited, by their real titles; the model doesn't need them
 
+const instruction =
+  'You are helping the user decide the next step for their wiki race ' +
+  'by picking the most relevant link to click to reach their goal';
+
 const { runTask } = await initGut();
 
 await runTask(
@@ -19,8 +23,7 @@ await runTask(
 
     return {
       context: {
-        instruction:
-          'You are helping the user decide the next step for their wiki race by picking the most relevant link to click to reach their goal',
+        instruction,
         goal: `The current article is "${target}"`,
         currentArticle: article.title,
       },
