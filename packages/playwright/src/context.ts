@@ -9,6 +9,11 @@ import type { AriaSnapshotNode } from './snapshot.ts';
 
 export const MAX_VISIBLE_TEXT_CHARS = 4_000;
 
+export type FailedMove = {
+  readonly move: string;
+  readonly error: string;
+};
+
 export type PageContext = {
   readonly url: string;
   readonly title: string;
@@ -16,6 +21,7 @@ export type PageContext = {
   readonly text: string;
   readonly fields: Readonly<Record<string, string>>;
   readonly busy?: true;
+  readonly failedMove?: FailedMove;
 };
 
 export const formatVisibleText = (raw: string, redact: (text: string) => string): string => {

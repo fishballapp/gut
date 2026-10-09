@@ -299,15 +299,27 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  const tasksArg = parseFlag('--tasks');
-  const tasksToRun = (() => {
-    if (tasksArg === undefined || tasksArg === 'fixtures') return fixtureTasks;
-    if (tasksArg === 'live') return liveTasks;
-    const selectedTaskNames = tasksArg.split(',');
-    return selectedTaskNames
-      .map(name => allTasks.find(t => t.name === name))
-      .filter((t): t is (typeof allTasks)[number] => t !== undefined);
-  })();
+  const tasksArg = parseFlag('--tasks') ?? 'fixtures';
+  const tokens = tasksArg
+    .split(',')
+    .map(t => t.trim())
+    .filter(t => t.length > 0);
+  const tasksToRun = Array.from(
+    new Map(
+      tokens
+        .flatMap(token => {
+          if (token === 'fixtures') return fixtureTasks;
+          if (token === 'live') return liveTasks;
+          if (token === 'all') return allTasks;
+          const found = allTasks.find(t => t.name === token);
+          if (found === undefined) {
+            throw new Error(`Unknown benchmark task: "${token}"`);
+          }
+          return [found];
+        })
+        .map(t => [t.name, t]),
+    ).values(),
+  );
 
   const variantsArg = parseFlag('--variants') ?? '255,26';
   const variants = variantsArg.split(',').map(parseVariant);

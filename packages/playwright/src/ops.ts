@@ -3,7 +3,8 @@
  */
 
 import { group, type Op, type Ops, op } from '@gut.run/core';
-import type { Locator, Page } from 'playwright';
+import { errors, type Locator, type Page } from 'playwright';
+import type { FailedMove } from './context.ts';
 import { claim, sanitizeKeyPart } from './keys.ts';
 import type { RawCandidate, SelectOption } from './paths.ts';
 import { isSecret, readSecret, redactError, type Secret } from './secret.ts';
@@ -14,10 +15,96 @@ export type CandidateWithField = {
   /** A link's absolute URL, resolved as the browser would. */
   readonly url?: string;
   readonly field?: FieldRead;
+  readonly isCovered: boolean;
 };
 
-/** How long an action waits for its element before the op throws. */
+/** How long an action waits for its element before the move fails. */
 const ACT_TIMEOUT_MS = 5_000;
+
+/** The element a move was read from is gone: the page moved on, or re-rendered it. */
+export class StaleElementError extends Error {}
+
+/** Each page's last failed move, until the next `observe` of that page reports it. */
+const failedMovesByPage = new WeakMap<Page, FailedMove>();
+
+export const takeFailedMove = (page: Page): FailedMove | undefined => {
+  const failedMove = failedMovesByPage.get(page);
+  failedMovesByPage.delete(page);
+  return failedMove;
+};
+
+/** A failed action's reason in one line the model can act on, without Playwright's call log. */
+export const formatActionError = (error: unknown): string => {
+  if (error instanceof StaleElementError) {
+    return 'the element is no longer on the page';
+  }
+
+  const rawMessage = error instanceof Error ? error.message : String(error);
+
+  if (/intercepts pointer events/i.test(rawMessage)) {
+    const interceptLine = rawMessage
+      .split('\n')
+      .find(line => line.includes('intercepts pointer events'));
+    const match = interceptLine?.match(/<([a-zA-Z0-9-]+)([^>]*)>/);
+    if (match !== null && match !== undefined) {
+      const tagName = match[1];
+      const rawAttrs = match[2] ?? '';
+      const attrs = ['id', 'class', 'role']
+        .flatMap(name => {
+          const val = rawAttrs.match(new RegExp(`\\b${name}="([^"]+)"`))?.[1];
+          return val !== undefined ? [`${name}="${val}"`] : [];
+        })
+        .join(' ');
+      return `the control is covered by ${attrs.length > 0 ? `<${tagName} ${attrs}>` : `<${tagName}>`}`;
+    }
+    return 'the control is covered by another element';
+  }
+
+  // The click landed, and the page it opened is slow to start loading; the next observe reads it.
+  if (/waiting for scheduled navigations to finish/i.test(rawMessage)) {
+    return 'the page took too long to load after the click';
+  }
+
+  if (/element is not visible/i.test(rawMessage)) {
+    return 'the element is not visible';
+  }
+
+  if (/element is not enabled/i.test(rawMessage)) {
+    return 'the element is not enabled';
+  }
+
+  if (/element is not stable/i.test(rawMessage)) {
+    return 'the element is not stable';
+  }
+
+  if (/element is not editable/i.test(rawMessage)) {
+    return 'the element is not editable';
+  }
+
+  return 'the action timed out';
+};
+
+/**
+ * Runs a move's action. A failure about the page (the element covered, gone, or not ready in time)
+ * is recorded for the next `observe` instead of thrown, so the model can pick again; anything else
+ * (a closed browser) still throws and halts the run.
+ */
+const runOpAction = async (
+  page: Page,
+  description: string,
+  redact: (text: string) => string,
+  action: () => Promise<unknown>,
+): Promise<void> => {
+  try {
+    await action();
+  } catch (error) {
+    if (error instanceof errors.TimeoutError || error instanceof StaleElementError) {
+      failedMovesByPage.set(page, { move: description, error: redact(formatActionError(error)) });
+      return;
+    }
+    throw error;
+  }
+};
 
 export const actOn = async <T>(
   page: Page,
@@ -28,7 +115,7 @@ export const actOn = async <T>(
   try {
     const loc = page.locator(`aria-ref=${ref}`);
     if ((await loc.count()) === 0) {
-      throw new Error(`Element with aria-ref=${ref} is stale (no longer attached)`);
+      throw new StaleElementError(`Element with aria-ref=${ref} is stale (no longer attached)`);
     }
     // ponytail: a bound element handle would remove the detachment race between count and action if stalls show up.
     return await action(loc);
@@ -130,7 +217,9 @@ export const buildControlEntries = (
       path,
       key,
       op: op(description, () =>
-        actOn(page, ref, loc => loc.click({ timeout: ACT_TIMEOUT_MS }), redact),
+        runOpAction(page, description, redact, () =>
+          actOn(page, ref, loc => loc.click({ timeout: ACT_TIMEOUT_MS }), redact),
+        ),
       ),
     });
   } else if (role !== undefined && role in ROLE_ACTIONS) {
@@ -142,7 +231,9 @@ export const buildControlEntries = (
         path,
         key,
         op: op(description, () =>
-          actOn(page, ref, loc => loc.click({ timeout: ACT_TIMEOUT_MS }), redact),
+          runOpAction(page, description, redact, () =>
+            actOn(page, ref, loc => loc.click({ timeout: ACT_TIMEOUT_MS }), redact),
+          ),
         ),
       });
     }
@@ -176,18 +267,20 @@ export const buildControlEntries = (
       op: op(description, {
         choices,
         invoke: async (option: SelectOption) => {
-          if (option.ref !== undefined) {
-            await actOn(page, option.ref, loc => loc.click({ timeout: ACT_TIMEOUT_MS }), redact);
-          } else {
-            // ponytail: an option the page adds or removes before the pick shifts this index to a
-            // neighbour; the next tick shows the field's value. Bind the option element if seen.
-            await actOn(
-              page,
-              ref,
-              loc => loc.selectOption({ index: option.index }, { timeout: ACT_TIMEOUT_MS }),
-              redact,
-            );
-          }
+          await runOpAction(page, description, redact, async () => {
+            if (option.ref !== undefined) {
+              await actOn(page, option.ref, loc => loc.click({ timeout: ACT_TIMEOUT_MS }), redact);
+            } else {
+              // ponytail: an option the page adds or removes before the pick shifts this index to a
+              // neighbour; the next tick shows the field's value. Bind the option element if seen.
+              await actOn(
+                page,
+                ref,
+                loc => loc.selectOption({ index: option.index }, { timeout: ACT_TIMEOUT_MS }),
+                redact,
+              );
+            }
+          });
         },
       }),
     });
@@ -236,7 +329,9 @@ export const buildControlEntries = (
         op: op(description, {
           choices,
           invoke: async (value: string) => {
-            await actOn(page, ref, loc => loc.fill(value, { timeout: ACT_TIMEOUT_MS }), redact);
+            await runOpAction(page, description, redact, () =>
+              actOn(page, ref, loc => loc.fill(value, { timeout: ACT_TIMEOUT_MS }), redact),
+            );
           },
         }),
       });
@@ -257,7 +352,9 @@ export const buildControlEntries = (
       path,
       key,
       op: op(description, () =>
-        actOn(page, ref, loc => loc.click({ timeout: ACT_TIMEOUT_MS }), redact),
+        runOpAction(page, description, redact, () =>
+          actOn(page, ref, loc => loc.click({ timeout: ACT_TIMEOUT_MS }), redact),
+        ),
       ),
     });
   }

@@ -60,48 +60,78 @@ const ResponseSchema = z.object({
   usage: z.object({ input_tokens: z.int().nonnegative() }),
 });
 
+/** How long to wait before each retry of a request that failed on the way (3 retries). */
+const RETRY_DELAYS_MS = [1_000, 2_000, 4_000] as const;
+
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+/** An outage or rate limit, which a later request may get past; any other refusal won't. */
+const isTransient = (status: number) => status === 429 || (status >= 500 && status < 600);
+
 /**
  * Asks choice questions about one state, in one request. Every option gets a probability, and a
  * question's sum to 1. The questions are answered together, so none may depend on another's
  * answer. Only input tokens are counted: decision models charge nothing for output.
+ *
+ * A request that can't reach the server, or is answered 429 or 5xx, is sent again after 1, 2
+ * and 4 s.
  */
 export const requestAnswers = async (
   { endpoint, name, apiKey }: DecisionModel,
   request: Request,
-) => {
-  const response = await (async () => {
-    try {
-      return await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...(apiKey === undefined ? {} : { authorization: `Bearer ${apiKey}` }),
-        },
-        body: JSON.stringify({
-          model: name,
-          state: request.state,
-          questions: Object.fromEntries(
-            Object.entries(request.questions).map(([key, question]) => [
-              key,
-              { type: 'choice', ...question },
-            ]),
-          ),
-        }),
-      });
-    } catch (error) {
+): Promise<{ answers: Record<string, Answer>; inputTokens: number }> => {
+  const body = JSON.stringify({
+    model: name,
+    state: request.state,
+    questions: Object.fromEntries(
+      Object.entries(request.questions).map(([key, question]) => [
+        key,
+        { type: 'choice', ...question },
+      ]),
+    ),
+  });
+
+  // The body is read here too: a connection that drops mid-body is as unreachable as a refused one.
+  const post = async () => {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(apiKey === undefined ? {} : { authorization: `Bearer ${apiKey}` }),
+      },
+      body,
+    });
+    return { status: response.status, isOk: response.ok, text: await response.text() };
+  };
+
+  const ask = async ([delay, ...laterDelays]: readonly number[]): ReturnType<
+    typeof requestAnswers
+  > => {
+    const retry =
+      delay === undefined
+        ? undefined
+        : async () => {
+            await sleep(delay);
+            return ask(laterDelays);
+          };
+    const reply = await post().catch((error: unknown) => ({ error }));
+    if ('error' in reply) {
+      if (retry !== undefined) return retry();
+      const { error } = reply;
       throw new Error(
         `can't reach the decision model at ${endpoint}: ${error instanceof Error ? error.message : String(error)}`,
         { cause: error },
       );
     }
-  })();
-  if (!response.ok) {
-    const body = await response.text();
-    const message = `decision model answered ${response.status}: ${body}`;
-    throw isTooLarge(response.status, body)
-      ? new RequestTooLargeError(message)
-      : new Error(message);
-  }
-  const { answers, usage } = ResponseSchema.parse(await response.json());
-  return { answers, inputTokens: usage.input_tokens };
+    if (!reply.isOk) {
+      const message = `decision model answered ${reply.status}: ${reply.text}`;
+      if (isTooLarge(reply.status, reply.text)) throw new RequestTooLargeError(message);
+      if (isTransient(reply.status) && retry !== undefined) return retry();
+      throw new Error(message);
+    }
+    const { answers, usage } = ResponseSchema.parse(JSON.parse(reply.text));
+    return { answers, inputTokens: usage.input_tokens };
+  };
+
+  return ask(RETRY_DELAYS_MS);
 };

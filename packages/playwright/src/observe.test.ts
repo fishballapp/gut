@@ -182,8 +182,8 @@ describe('@gut.run/playwright observe', () => {
     }
   });
 
-  // 3. a re-rendered target throws stale quickly instead of retargeting
-  it('a re-rendered target throws stale quickly instead of retargeting', async () => {
+  // 3. a re-rendered target records failedMove in next context instead of throwing
+  it('a re-rendered target records failedMove in next context instead of throwing', async () => {
     const page = await browser.newPage();
     try {
       await page.setContent(`
@@ -200,17 +200,18 @@ describe('@gut.run/playwright observe', () => {
       });
 
       const startTime = Date.now();
-      let errorThrown: Error | null = null;
-      try {
-        await invokeLeaf(btnOp);
-      } catch (err) {
-        errorThrown = err as Error;
-      }
+      await expect(invokeLeaf(btnOp)).resolves.not.toThrow();
       const durationMs = Date.now() - startTime;
-
-      expect(errorThrown).not.toBeNull();
-      expect(errorThrown?.message).toMatch(/stale/i);
       expect(durationMs).toBeLessThan(1_000);
+
+      const { context: nextContext } = await observe(page);
+      expect(nextContext.failedMove).toEqual({
+        move: 'Click "Click me"',
+        error: 'the element is no longer on the page',
+      });
+
+      const { context: subsequentContext } = await observe(page);
+      expect(subsequentContext.failedMove).toBeUndefined();
     } finally {
       await page.close();
     }
@@ -1660,5 +1661,313 @@ line two</textarea></label>
     } finally {
       await page.close();
     }
+  });
+  it('withholds covered button under overlay, and offers it once overlay is removed', async () => {
+    const page = await browser.newPage();
+    try {
+      await page.setContent(`
+        <html><body>
+          <button id="btn">Click me</button>
+          <div id="overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;"><button style="position:absolute;right:0;bottom:0;">Dismiss</button></div>
+        </body></html>
+      `);
+      const initial = await observe(page);
+      const coveredOp = findLeafOp(initial.ops, o => o.description === 'Click "Click me"');
+      expect(coveredOp).toBeUndefined();
+
+      await page.evaluate(() => document.getElementById('overlay')?.remove());
+
+      const revealed = await observe(page);
+      const revealedOp = findLeafOp(revealed.ops, o => o.description === 'Click "Click me"');
+      expect(revealedOp).toBeDefined();
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('still offers a button below the viewport fold', async () => {
+    const page = await browser.newPage();
+    try {
+      await page.setContent(`
+        <html><body>
+          <div style="height: 3000px;">Tall content</div>
+          <button id="deep-btn">Bottom Action</button>
+        </body></html>
+      `);
+      const { ops } = await observe(page);
+      const deepOp = findLeafOp(ops, o => o.description === 'Click "Bottom Action"');
+      expect(deepOp).toBeDefined();
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('waits for a modal still filling in, rather than offer nothing', async () => {
+    const page = await browser.newPage();
+    try {
+      await page.setContent(`
+        <html><body>
+          <button>Page action</button>
+          <div role="dialog" aria-modal="true" aria-label="Search" id="search"
+            style="position:fixed;inset:0;background:white;"></div>
+          <script>
+            // Like a search dialog fetching its suggestions once it is open.
+            setTimeout(() => {
+              document.getElementById('search').innerHTML = '<button>Suggestion</button>';
+            }, 600);
+          </script>
+        </body></html>
+      `);
+      const { ops } = await observe(page);
+      expect(findLeafOp(ops, o => o.description === 'Click "Suggestion"')).toBeDefined();
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('offers controls in any open modal, and ignores a hidden one', async () => {
+    const page = await browser.newPage();
+    try {
+      await page.setContent(`
+        <html><body>
+          <button>Page action</button>
+          <div role="dialog" aria-modal="true" aria-label="Dormant" style="visibility:hidden;">
+            <button>Dormant action</button>
+          </div>
+        </body></html>
+      `);
+      const dormant = await observe(page);
+      expect(findLeafOp(dormant.ops, o => o.description === 'Click "Page action"')).toBeDefined();
+
+      // Two native modals, the later-opened one first in the DOM, so on top.
+      await page.setContent(`
+        <html><body>
+          <dialog id="top"><button>Top action</button></dialog>
+          <dialog id="lower" style="width:80vw;height:80vh;"><button>Lower action</button></dialog>
+          <script>
+            document.getElementById('lower').showModal();
+            document.getElementById('top').showModal();
+          </script>
+        </body></html>
+      `);
+      const stacked = await observe(page);
+      expect(findLeafOp(stacked.ops, o => o.description === 'Click "Top action"')).toBeDefined();
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('offers a link wrapped over two lines and a display: contents button', async () => {
+    const page = await browser.newPage();
+    try {
+      await page.setContent(`
+        <html><body>
+          <p style="width:120px;line-height:3;">
+            Some text <a href="#x">a link that wraps onto the next line</a>
+          </p>
+          <button style="display:contents;"><span>Contents button</span></button>
+        </body></html>
+      `);
+      const { ops } = await observe(page);
+      expect(
+        findLeafOp(ops, o => o.description === 'Open link "a link that wraps onto the next line"'),
+      ).toBeDefined();
+      expect(findLeafOp(ops, o => o.description === 'Click "Contents button"')).toBeDefined();
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('withholds every control outside an open modal dialog, below the fold too', async () => {
+    const page = await browser.newPage();
+    try {
+      await page.setContent(`
+        <html><body>
+          <div style="height: 3000px;">Tall content</div>
+          <a href="#features">Features</a>
+          <div role="dialog" aria-modal="true" aria-label="Search" style="position:fixed;top:0;left:0;">
+            <button>Close search</button>
+          </div>
+        </body></html>
+      `);
+      const { ops } = await observe(page);
+      expect(findLeafOp(ops, o => o.description === 'Open link "Features"')).toBeUndefined();
+      expect(findLeafOp(ops, o => o.description === 'Click "Close search"')).toBeDefined();
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('still offers a custom checkbox visually hidden behind its label', async () => {
+    const page = await browser.newPage();
+    try {
+      await page.setContent(`
+        <html><body>
+          <label style="position:relative;display:inline-block;padding:10px;">
+            <input type="checkbox" id="chk" style="position:absolute;opacity:0;z-index:-1;" />
+            <span style="display:inline-block;width:20px;height:20px;background:#ccc;"></span>
+            Agree to terms
+          </label>
+        </body></html>
+      `);
+      const { ops } = await observe(page);
+      const checkOp = findLeafOp(ops, o => o.description === 'Check "Agree to terms"');
+      expect(checkOp).toBeDefined();
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('still includes covered controls in context.fields', async () => {
+    const page = await browser.newPage();
+    try {
+      await page.setContent(`
+        <html><body>
+          <label for="inp">Secret Field</label>
+          <input id="inp" type="text" value="visible-data" />
+          <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;"><button style="position:absolute;right:0;bottom:0;">Dismiss</button></div>
+        </body></html>
+      `);
+      const { context, ops } = await observe(page, { values: { newVal: 'test' } });
+      expect(context.fields['Secret Field']).toBe('visible-data');
+      const fillOp = findLeafOp(ops, o => o.description === 'Fill "Secret Field"');
+      expect(fillOp).toBeUndefined();
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('records failedMove when an op is covered after observe, without throwing', {
+    timeout: 15_000,
+  }, async () => {
+    const page = await browser.newPage();
+    try {
+      await page.setContent(`
+        <html><body>
+          <button id="btn">Submit</button>
+        </body></html>
+      `);
+      const initial = await observe(page);
+      const submitOp = findLeafOp(initial.ops, o => o.description === 'Click "Submit"');
+      expect(submitOp).toBeDefined();
+
+      await page.evaluate(() => {
+        const overlay = document.createElement('div');
+        overlay.className = 'overlay';
+        overlay.innerHTML = '<button style="position:absolute;right:0;bottom:0;">Dismiss</button>';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:red;';
+        document.body.appendChild(overlay);
+      });
+
+      await expect(invokeLeaf(submitOp)).resolves.not.toThrow();
+
+      const next = await observe(page);
+      expect(next.context.failedMove).toEqual({
+        move: 'Click "Submit"',
+        error: 'the control is covered by <div class="overlay">',
+      });
+
+      const subsequent = await observe(page);
+      expect(subsequent.context.failedMove).toBeUndefined();
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('redacts secret in failedMove.error when covering element contains secret value', {
+    timeout: 15_000,
+  }, async () => {
+    const page = await browser.newPage();
+    try {
+      await page.setContent(`
+        <html><body>
+          <button id="btn">Pay</button>
+        </body></html>
+      `);
+      const secretVal = 'token-xyz-secret-999';
+      const initial = await observe(page, {
+        values: { secretToken: secret(secretVal) },
+      });
+      const payOp = findLeafOp(initial.ops, o => o.description === 'Click "Pay"');
+      expect(payOp).toBeDefined();
+
+      await page.evaluate(token => {
+        const overlay = document.createElement('div');
+        overlay.id = token;
+        overlay.className = 'backdrop';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:999;';
+        overlay.innerHTML = '<button style="position:absolute;right:0;bottom:0;">Dismiss</button>';
+        document.body.appendChild(overlay);
+      }, secretVal);
+
+      await expect(invokeLeaf(payOp)).resolves.not.toThrow();
+
+      const next = await observe(page, {
+        values: { secretToken: secret(secretVal) },
+      });
+      expect(next.context.failedMove).toEqual({
+        move: 'Click "Pay"',
+        error: 'the control is covered by <div id="[secret]" class="backdrop">',
+      });
+      expect(next.context.failedMove?.error).not.toContain(secretVal);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('reads the new page when a navigation replaces the document mid-read', async () => {
+    const page = await browser.newPage();
+    try {
+      await page.route('https://site.test/**', route =>
+        route.fulfill({
+          contentType: 'text/html',
+          body:
+            new URL(route.request().url()).pathname === '/start'
+              ? `<title>Page One</title><h1>Page One</h1><button>Button One</button>
+                <input aria-label="Trap">
+                <script>
+                  // Reading the field's value (after the snapshot) starts a navigation, and keeps
+                  // the page busy long enough for it to arrive before the read ends.
+                  const trap = document.querySelector('input');
+                  let isSprung = false;
+                  Object.defineProperty(trap, 'value', {
+                    get() {
+                      if (!isSprung) {
+                        isSprung = true;
+                        location.href = '/dest';
+                        const until = Date.now() + 300;
+                        while (Date.now() < until) {}
+                      }
+                      return '';
+                    },
+                  });
+                </script>`
+              : '<title>Page Two</title><h1>Page Two</h1><button>Button Two</button>',
+        }),
+      );
+      await page.goto('https://site.test/start');
+
+      const { context, ops } = await observe(page);
+
+      expect(context.title).toBe('Page Two');
+      expect(context.headings).toEqual([{ level: 1, text: 'Page Two' }]);
+      expect(findLeafOp(ops, o => o.description === 'Click "Button Two"')).toBeDefined();
+      expect(findLeafOp(ops, o => o.description === 'Click "Button One"')).toBeUndefined();
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('still throws non-timeout errors like page closed', async () => {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <html><body><button id="btn">Click me</button></body></html>
+    `);
+    const { ops } = await observe(page);
+    const btnOp = findLeafOp(ops, o => o.description === 'Click "Click me"');
+    expect(btnOp).toBeDefined();
+
+    await page.close();
+    await expect(invokeLeaf(btnOp)).rejects.toThrow();
   });
 });

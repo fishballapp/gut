@@ -231,9 +231,11 @@ gut run projects/gut/examples/browser.gut.ts https://news.ycombinator.com \
 
 - `observe(target, { values?, shouldOffer? })` settles the page and returns `{ context, ops }`. The
   context is the page's `url`, `title`, `headings`, visible `text` (blank lines collapsed, cut at
-  4,000 characters) and `fields` (each field's value, a checkbox's `checked` or `unchecked`, a
-  select's chosen option, keyed by its path: "Sign in › Email"). It has no `goal`: the task adds
-  one, and reshapes the rest as it likes (`const { text, ...page } = context` leaves the text out).
+  4,000 characters), `fields` (each field's value, a checkbox's `checked` or `unchecked`, a
+  select's chosen option, keyed by its path: "Sign in › Email") and, when the last move on this
+  page failed, `failedMove` (`{ move: 'Click "Menu"', error: 'the control is covered by <div
+  class="backdrop">' }`). It has no `goal`: the task adds one, and reshapes the rest as it likes
+  (`const { text, ...page } = context` leaves the text out).
   A `Locator` as the target keeps one part of the page; it must match exactly one element.
 - The ops are every enabled control on the page, nested as groups along its path: the named
   landmarks (Header, Navigation "Global", Main content, Footer, a dialog or form), the headings
@@ -241,6 +243,10 @@ gut run projects/gut/examples/browser.gut.ts https://news.ycombinator.com \
   its siblings (a shop's product cards), and it is named by its first heading, else its longest
   control name ("View details for Sauce Labs Backpack"), unless it has a name of its own. Core opens as much of that tree as a
   question takes, so a page of any size is asked the same way.
+- A control a click can't reach is not offered: one that is hidden, outside every open modal
+  dialog, or in the viewport under something else (an overlay, a backdrop) on each of its lines. A
+  covered field still shows in `fields`. A control outside the viewport is offered, as the click
+  scrolls to it.
 - A move says what it does: `Open link "X"`, `Click "X"`, `Check` or `Uncheck "X"` by its state,
   `Choose "X"` (a radio, tab, menu item or option), `Fill "X"`, `Select in "X"` (its visible
   options), and `Open "X"` for a dropdown whose options aren't on the page until it opens.
@@ -253,22 +259,25 @@ gut run projects/gut/examples/browser.gut.ts https://news.ycombinator.com \
   `Control` is its `role`, `name`, `path` and, for a link, its absolute `url` (`<base>` included).
   Keeping links on the start site, as above, is one line, and worth it: offered every link, the
   Hacker News FAQ task ended on Y Combinator's FAQ.
-- An op acts on the exact element it was read from. If that element is gone (the page moved on, or
-  re-rendered it), the op throws at once and the run halts; it never clicks something else with
-  the same label, and it never retries.
+- An op acts on the exact element it was read from, and never clicks something else with the same
+  label. A move that fails on the page (its element covered, gone after a re-render, or not ready
+  within 5 s) doesn't throw: the next `observe` reports it as `failedMove`, and the model picks
+  again. Anything else, such as a closed browser, throws and halts the run.
 - Settling waits for the DOM to stop changing (100 ms, at most 2 s) and for `aria-busy="true"` to
-  clear (at most 5 s); a page still busy says `busy: true`. Password values never reach the
-  context, and a field whose type can't be read is treated as a password.
+  clear (at most 5 s); a page still busy says `busy: true`. A page that navigates while `observe`
+  reads it is read again, for up to 10 s, and so is one with every control covered (a dialog still
+  loading its content over the page), for up to 3 s. Password values never reach the context, and a
+  field whose type can't be read is treated as a password.
 
 ### How it does
 
-The measured run was 14 of the bench's tasks (8 on local fixture sites — a docs site with a page of
+The measured run was 15 of the bench's tasks (8 on local fixture sites — a docs site with a page of
 30 links, an office directory of identical "Details" links, a two-field form, and results behind a
-dialog, each in two layouts — and 6 on live sites; the bench also has a Wikipedia race and an arXiv
-task). Each run gets only what a caller knows: the start URL, the goal in words and the values to
-type, with links kept on the start site. The model decides when it is done; a check in code that
-knows the answer grades the run afterwards. On Jev, 3 runs each, with questions of up to 255
-options (Jev's limit) and of up to 26 (measured 2026-10-09);
+dialog, each in two layouts — and 7 on live sites; the bench also has a Wikipedia race). Each run
+gets only what a caller knows: the start URL, the goal in words and the values to type, with links
+kept on the start site. The model decides when it is done; a check in code that knows the answer
+grades the run afterwards. On Jev, 3 runs each, with questions of up to 255 options (Jev's limit)
+and of up to 26 (measured 2026-10-09);
 [jev-ultrafast](https://github.com/browser-use/jev-ultrafast), TypeSafe and Browser Use's own Jev
 browser agent, was given the same goal and values (measured 2026-10-08):
 
@@ -279,17 +288,23 @@ browser agent, was given the same goal and values (measured 2026-10-08):
 | Hacker News: the top story's comments | 3/3 | 3/3 | 3/3 |
 | Hacker News: the FAQ (a footer link) | 3/3 | 3/3 | 0/3 |
 | GitHub: a repository's newest release | 3/3 | 3/3 | 0/1 |
-| GitHub: Trending | 3/3 | 2/3 | 0/2 |
+| GitHub: Trending | 3/3 | 3/3 | 0/2 |
 | saucedemo: log in, add two products, check out | 3/3 | 3/3 | 0/3 |
-| **All** | **42/42** | **41/42** | **25/37** |
-| Jev requests and tokens per run | 3.4, 6.9k | 4.2, 5.9k | 3.3, 11.6k |
+| **All above** | **42/42** | **42/42** | **25/37** |
+| Jev requests and tokens per run | 3.4, 8.1k | 4.2, 7.2k | 3.3, 11.6k |
+| arXiv: open the GPT-4 Technical Report | 0/3 | 0/3 | not run |
 
-No run of either ended by claiming a goal that wasn't met. gut's one miss opened GitHub's search
-overlay and then clicked a menu it covered, and a failed click ends a run. jev-ultrafast offers only what is in the
-viewport and stopped as `BLOCKED` at a footer link, at a dialog, and at a login form its text model
-returned no value for; 5 of its 42 runs failed in its browser harness and are left out. These tasks
-need no scrolling, which it supports and gut doesn't yet. Running the bench is in
-[AGENTS.md](AGENTS.md); the measurements and what was rejected are in [DECISIONS.md](DECISIONS.md).
+No run of gut ended by claiming a goal that wasn't met. Its misses were all arXiv's, which stalled
+between its search forms and results: a result's link is named by its id ("arXiv:2303.08774"), and
+the title beside it isn't (HANDOFF). A move failed on the page in 2 runs, both arXiv clicks that
+timed out, and came back to the model. Before failed moves came back, every arXiv run halted on a
+click or a navigation. Runs on a live site vary: other runs that day went 2/3 and 1/3 on arXiv, and
+1/3 to 3/3 on GitHub Trending at 26 before an open dialog still loading its content was waited for.
+jev-ultrafast offers only what is in the viewport and stopped as `BLOCKED` at a footer link, at a
+dialog, and at a login form its text model returned no value for; 5 of its 42 runs failed in its
+browser harness and are left out. These tasks need no scrolling, which it supports and gut doesn't
+yet. Running the bench is in [AGENTS.md](AGENTS.md); the measurements and what was rejected are in
+[DECISIONS.md](DECISIONS.md).
 
 Other capabilities, such as a desktop through its accessibility tree or a coding agent through
 [acpx](https://github.com/openclaw/acpx), are planned the same way: a library that observes and
@@ -368,7 +383,7 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
    past the model's context) is split in half, each half picks its best, and the two winners are
    asked. Refused requests are not billed, so no size is estimated per model.
 4. **Gate.** A goal answered as achieved ends the run as `achieved`, for the caller to check. The
-   run halts with a reason when there are no options (once the goal is asked), anything throws (never retried), the run
+   run halts with a reason when there are no options (once the goal is asked), anything throws, the run
    stalls (the same context and the same pick three times), or the input-token budget runs out.
    There is no confidence threshold: every pick runs, and its probabilities are logged.
 5. **Invoke** the picked op with its choice.
@@ -418,7 +433,8 @@ Files don't merge.
 `decisionModel` is everything about the model, in one place:
 
 - `endpoint` is any `/v1/systemone` server: a local Ollama, or TypeSafe. It must report
-  `usage.input_tokens`, which the token budget counts.
+  `usage.input_tokens`, which the token budget counts. A network error, 429 or 5xx is retried 3
+  times, after 1, 2 and 4 s.
 - `name` is the model the server runs: `clef-flash`, or `~typesafe/jev-latest` on OpenRouter.
 - `apiKey`, optional, is sent as `Authorization: Bearer <apiKey>` (TypeSafe's API, OpenRouter).
 - `capabilities`, optional, says what the model can take; every field has a default:

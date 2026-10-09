@@ -731,7 +731,9 @@ describe('task', () => {
       const options = Object.values(criteria);
       const wrong = options.find(option => option.startsWith('Wrong box'));
       if (wrong !== undefined) return { pick: wrong };
-      return { pick: 'None of these: go back' };
+      const goBack = options.find(option => option.includes('go back'));
+      if (goBack !== undefined) return { pick: goBack };
+      return { pick: options.find(option => option.startsWith('Right box')) ?? '' };
     };
 
     await runTask(async () => ({
