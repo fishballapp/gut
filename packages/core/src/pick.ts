@@ -1,6 +1,8 @@
 // How a tick picks its step: the tick's ops are shown to the decision model level by level (a group,
-// an op, its choice) until a step is picked or the goal is met. A level longer than one question
-// takes is asked by its op's ListStrategy (list-strategy.ts), else by `ListStrategy.bundle`.
+// an op, its choice) until a step is picked or the goal is met. Closed groups open one by one
+// (smallest first) within the question limit; a level longer than one question takes is asked by
+// its op's ListStrategy (list-strategy.ts), else by `ListStrategy.bundle`.
+import type { Merge } from 'type-fest';
 import {
   type Answer,
   type DecisionModel,
@@ -11,14 +13,14 @@ import {
 import { knockoutInPagesOf, ListStrategy, type Questions } from './list-strategy.ts';
 import { isOp, type Ops } from './ops.ts';
 import type { Context, Usage } from './task.ts';
-import { mapLeaves, type Tree } from './tree.ts';
+import { mapLeaves, pruneTree, type Tree } from './tree.ts';
 
 /** An executable move, named by its key path, e.g. `openLink("Rome")`. */
 export type Step = { name: string; invoke: () => unknown };
 
 type StepTree = Tree<
   { description: string; step: Step },
-  { description: string; strategy?: ListStrategy }
+  { description: string; strategy?: ListStrategy; isGroup?: true }
 >;
 
 /**
@@ -33,7 +35,7 @@ const toStepTrees = (ops: Ops, parentName?: string): StepTree[] =>
     if (op.kind === 'node') {
       const children = toStepTrees(op.ops, name);
       if (children.length === 0) return [];
-      return [{ kind: 'node', description: op.description, children }];
+      return [{ kind: 'node', description: op.description, children, isGroup: true }];
     }
     if (op.choices === undefined) {
       return [{ kind: 'leaf', description: op.description, step: { name, invoke: op.invoke } }];
@@ -50,38 +52,119 @@ const toStepTrees = (ops: Ops, parentName?: string): StepTree[] =>
   });
 
 /**
- * Where a pick stands: the action chosen so far, the trees still to choose among, and how to ask
- * them when they don't fit one question.
+ * Where a pick stands: the action chosen so far, the trees still to choose among, how to ask them
+ * when they don't fit one question, and, inside a group, the level to go back to: the one above,
+ * without this group. It is built only when the group is entered: built for every closed group of
+ * a question, it would copy the level's trees once per group.
  */
-type Level = { trail: readonly string[]; trees: readonly StepTree[]; strategy?: ListStrategy };
+type Level = {
+  trail: readonly string[];
+  trees: readonly StepTree[];
+  strategy?: ListStrategy;
+  back?: () => Level;
+};
+
+/** Offered last inside a group, so a wrong group costs one more question instead of a wrong move. */
+const GO_BACK = 'None of these: go back';
 
 /** What the model reads as one option, and what choosing it leads to: a step, or another level. */
 type Option =
   | { kind: 'step'; description: string; step: Step }
   | { kind: 'level'; description: string; level: Level };
 
-/** A level's options: every step under it if they fit in one question, else its trees. */
-const optionsAt = ({ trail, trees }: Level, maxOptions: number): Option[] => {
-  const leaves = mapLeaves(
-    trees,
-    ({ description, step }, path): Option => ({
-      kind: 'step',
-      description: [...path.map(node => node.description), description].join(' › '),
-      step,
-    }),
-  );
-  if (leaves.length <= maxOptions) return leaves;
-  return trees.map((tree): Option => {
-    if (tree.kind === 'leaf') {
-      return { kind: 'step', description: tree.description, step: tree.step };
-    }
-    const level = {
-      trail: [...trail, tree.description],
-      trees: tree.children,
-      strategy: tree.strategy,
-    };
-    return { kind: 'level', description: tree.description, level };
-  });
+/** The nearest level above that still has something to choose among. */
+const nearestBack = (level: Level | undefined): Level | undefined => {
+  if (level === undefined) return undefined;
+  if (level.trees.length > 0) return level;
+  return nearestBack(level.back?.());
+};
+
+/** Going back out of a group, to the nearest level above with anything left to choose. */
+const goBackAt = ({ back }: Level): Extract<Option, { kind: 'level' }> | undefined => {
+  const ancestor = nearestBack(back?.());
+  return ancestor === undefined
+    ? undefined
+    : { kind: 'level', description: GO_BACK, level: ancestor };
+};
+
+/** How many of a group's moves its option names before "+N more". */
+const PREVIEW_SIZE = 8;
+
+/**
+ * What a group holds, in its own option only, so the model can tell where to look: the trail and
+ * breadcrumbs inside it name the group alone.
+ */
+const previewOf = (trees: readonly StepTree[]) => {
+  const names = mapLeaves(trees, ({ description }) => description);
+  const shown = names.slice(0, PREVIEW_SIZE).join(', ');
+  const more = names.length - PREVIEW_SIZE;
+  return more > 0 ? `contains: ${shown}, … (+${more} more)` : `contains: ${shown}`;
+};
+
+type NodeTree = Extract<StepTree, { kind: 'node' }>;
+
+const nodesOf = (trees: readonly StepTree[]): NodeTree[] =>
+  trees.filter((tree): tree is NodeTree => tree.kind === 'node');
+
+/** How many options opening a node adds: one per child, in place of its own. */
+const costOf = (node: NodeTree) => node.children.length - 1;
+
+/**
+ * Opens closed nodes one by one, picking the one whose opening adds the fewest options, as long as
+ * the total number of options stays within maxOptions. Ties break by tree order. The candidates are
+ * the closed nodes under open ones, in tree order; the total only grows, so a node too big to open
+ * now never will be, and is dropped. A loop, not recursion: a page can hold thousands of groups.
+ */
+const openNodes = (trees: readonly StepTree[], maxOptions: number): ReadonlySet<StepTree> => {
+  const opened = new Set<StepTree>();
+  let count = trees.length;
+  let candidates = nodesOf(trees);
+  for (;;) {
+    candidates = candidates.filter(node => count + costOf(node) <= maxOptions);
+    const best = candidates.reduce<NodeTree | undefined>(
+      (min, node) => (min === undefined || costOf(node) < costOf(min) ? node : min),
+      undefined,
+    );
+    if (best === undefined) return opened;
+    opened.add(best);
+    count += costOf(best);
+    candidates = candidates.flatMap(node => (node === best ? nodesOf(best.children) : [node]));
+  }
+};
+
+/**
+ * A level's moves: closed nodes open one by one (fewest options first) within maxOptions. If all
+ * leaves fit, everything opens flat; if everything closed exceeds the limit, all are returned closed.
+ */
+const movesAt = (level: Level, maxOptions: number): Option[] => {
+  const opened = openNodes(level.trees, maxOptions);
+
+  const toOptions = (trees: readonly StepTree[], path: readonly NodeTree[] = []): Option[] =>
+    trees.flatMap((tree): Option[] => {
+      if (tree.kind === 'leaf') {
+        const description = [...path.map(node => node.description), tree.description].join(' › ');
+        return [{ kind: 'step', description, step: tree.step }];
+      }
+      if (opened.has(tree)) {
+        return toOptions(tree.children, [...path, tree]);
+      }
+      const inside: Level = {
+        trail: [...level.trail, ...path.map(node => node.description), tree.description],
+        trees: tree.children,
+        strategy: tree.strategy,
+        ...(tree.isGroup === true
+          ? { back: () => ({ ...level, trees: pruneTree(level.trees, tree) }) }
+          : {}),
+      };
+      const nodeDescription =
+        tree.isGroup === true
+          ? `${tree.description} — ${previewOf(tree.children)}`
+          : tree.description;
+      const description = [...path.map(node => node.description), nodeDescription].join(' › ');
+      return [{ kind: 'level', description, level: inside }];
+    });
+
+  return toOptions(level.trees);
 };
 
 /**
@@ -223,21 +306,62 @@ const questionsAt = (
     } catch (error) {
       if (!(error instanceof RequestTooLargeError) || options.length <= 2) throw error;
       // ponytail: every refusal costs a round trip; learn a size from `usage` if they show up in timings.
+      // ponytail: inside a group, going back chosen in one half still plays the final, which may pick
+      // a move instead (askWithGoBack sees only the final answer). Refusals are rare and a wrong move
+      // shows next tick; thread go-back through here if traces show a refused group's first question.
       return knockoutInPagesOf(Math.ceil(options.length / 2))(options, { ask, maxOptions });
     }
   };
   return { ask, maxOptions };
 };
 
+/** Thrown from a level's first question when the model goes back out of the group. */
+class WentBack extends Error {}
+
+/**
+ * Asks a level's moves by its strategy, with going back offered in the first question only: the
+ * strategy's questions are one option shorter to leave it room, and it is never bundled.
+ */
+const askWithGoBack = (questions: Questions, goBack: Option): Questions => {
+  let hasAskedFirst = false;
+  const ask: Questions['ask'] = async options => {
+    if (hasAskedFirst) return questions.ask(options);
+    hasAskedFirst = true;
+    const isMove = <T>(option: T | Option): option is T => option !== goBack;
+    const chosen = await questions.ask([...options, goBack]);
+    if (!isMove(chosen)) throw new WentBack();
+    return chosen;
+  };
+  return { ask, maxOptions: questions.maxOptions - 1 };
+};
+
 /** Asks level by level until a step is picked. */
 const pickAt = async (session: PickSession, level: Level, maxOptions: number): Promise<Step> => {
-  const option = await (level.strategy ?? ListStrategy.bundle)(
-    optionsAt(level, maxOptions),
-    questionsAt(session, level.trail, maxOptions),
-  );
-  if (option.kind === 'step') return option.step;
-  return pickAt(session, option.level, maxOptions);
+  const goBack = goBackAt(level);
+  const questions = questionsAt(session, level.trail, maxOptions);
+  const strategy = level.strategy ?? ListStrategy.bundle;
+  if (goBack === undefined) {
+    const moves = movesAt(level, maxOptions);
+    return descend(session, await strategy(moves, questions), maxOptions);
+  }
+  // Pin going back beside the strategy's questions only when that leaves room for a real question
+  // (maxOptions - 1 >= 2); otherwise offer it as an ordinary last option among the level's moves,
+  // asked by the strategy like any other (it may then be bundled at such tiny limits).
+  if (maxOptions - 1 >= 2) {
+    const moves = movesAt(level, maxOptions - 1);
+    try {
+      return descend(session, await strategy(moves, askWithGoBack(questions, goBack)), maxOptions);
+    } catch (error) {
+      if (!(error instanceof WentBack)) throw error;
+      return pickAt(session, goBack.level, maxOptions);
+    }
+  }
+  const moves = [...movesAt(level, maxOptions - 1), goBack];
+  return descend(session, await strategy(moves, questions), maxOptions);
 };
+
+const descend = async (session: PickSession, option: Option, maxOptions: number): Promise<Step> =>
+  option.kind === 'step' ? option.step : pickAt(session, option.level, maxOptions);
 
 /**
  * Picks the tick's step among its ops, or finds the goal met when `isGoalAsked`; no ops halts the
@@ -257,12 +381,13 @@ export const pick = async ({
   usage: Usage;
   isGoalAsked: boolean;
 }): Promise<
-  { usage: Usage } & (
+  Merge<
     | { status: 'picked'; step: Step; probabilities: number[] }
     | { status: 'achieved'; probabilities: number[] }
     | { status: 'halted'; reason: 'noOptions' | 'budget' }
-    | { status: 'failed'; error: unknown }
-  )
+    | { status: 'failed'; error: unknown },
+    { usage: Usage }
+  >
 > => {
   const trees = toStepTrees(ops);
   const session = createPickSession({ asker, context, usage, isGoalAsked });

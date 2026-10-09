@@ -2,8 +2,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { loadConfig } from './config.ts';
+import { type ConfigInput, loadConfig } from './config.ts';
 import { DEFAULT_MAX_OPTIONS } from './decision-model.ts';
+import { initGut } from './init-gut.ts';
 
 vi.mock('node:os', async importOriginal => ({
   ...(await importOriginal<typeof import('node:os')>()),
@@ -18,12 +19,14 @@ const fixture = async () => {
   const home = join(root, 'home');
   await mkdir(home);
   vi.mocked(homedir).mockReturnValue(home);
+  vi.spyOn(process, 'cwd').mockReturnValue(root);
   return { root, home };
 };
 
 afterEach(async () => {
   await Promise.all(directories.splice(0).map(dir => rm(dir, { recursive: true, force: true })));
-  vi.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.mocked(homedir).mockReset(); // a module mock, which restoreAllMocks leaves as it is
 });
 
 // A config naming its decision model `name`, and what loading it gives back.
@@ -37,100 +40,167 @@ const loadedFor = (name: string, port = 1) => ({
   },
 });
 
-describe('loadConfig', () => {
+describe('no-arg lookup', () => {
   it("reads the directory's gut.config.json", async () => {
     const { root } = await fixture();
     await writeFile(join(root, 'gut.config.json'), JSON.stringify(configFor('local')));
+    expect(await loadConfig()).toEqual(loadedFor('local'));
 
-    expect(await loadConfig(root)).toEqual(loadedFor('local'));
-  });
-
-  it("reads the model's capabilities, defaulting what is left out", async () => {
-    const { root } = await fixture();
-    const write = (capabilities: unknown) =>
-      writeFile(
-        join(root, 'gut.config.json'),
-        JSON.stringify({
-          decisionModel: { ...configFor('local').decisionModel, capabilities },
-        }),
-      );
-
-    await write({ choiceQuestions: { maxOptions: 10 } });
-    expect((await loadConfig(root)).decisionModel.capabilities).toEqual({
-      image: false,
-      choiceQuestions: { maxOptions: 10 },
-    });
-
-    await write({ image: true });
-    expect((await loadConfig(root)).decisionModel.capabilities).toEqual({
-      image: true,
-      choiceQuestions: { maxOptions: DEFAULT_MAX_OPTIONS },
-    });
-
-    await write({ choiceQuestions: { maxOptions: 1 } });
-    await expect(loadConfig(root)).rejects.toThrow('maxOptions');
-  });
-
-  it("does not read a parent directory's config", async () => {
-    const { root } = await fixture();
-    const nested = join(root, 'a');
-    await mkdir(nested);
-    await writeFile(join(root, 'gut.config.json'), JSON.stringify(configFor('parent')));
-
-    await expect(loadConfig(nested)).rejects.toThrow('No gut config');
-  });
-
-  it('names an invalid file without falling back to the home config', async () => {
-    const { root, home } = await fixture();
-    await writeFile(
-      join(root, 'gut.config.json'),
-      JSON.stringify({ decisionModel: { name: 'clef-flash' } }),
-    );
-    await writeFile(join(home, 'gut.config.json'), JSON.stringify(configFor('home')));
-
-    await expect(loadConfig(root)).rejects.toThrow(join(root, 'gut.config.json'));
+    const { runTask } = await initGut();
+    expect(typeof runTask).toBe('function');
   });
 
   it('reads the home config when there is no local config', async () => {
-    const { root, home } = await fixture();
+    const { home } = await fixture();
     await writeFile(join(home, 'gut.config.json'), JSON.stringify(configFor('home')));
+    expect(await loadConfig()).toEqual(loadedFor('home'));
 
-    expect(await loadConfig(root)).toEqual(loadedFor('home'));
+    const { runTask } = await initGut();
+    expect(typeof runTask).toBe('function');
   });
 
   it("uses the directory's file over the home one, without merging", async () => {
     const { root, home } = await fixture();
+    await writeFile(join(root, 'gut.config.json'), JSON.stringify(configFor('local', 1)));
+    await writeFile(join(home, 'gut.config.json'), JSON.stringify(configFor('home', 2)));
+    expect(await loadConfig()).toEqual(loadedFor('local', 1));
+  });
+
+  it('names an invalid file without falling back to the home config', async () => {
+    const { root, home } = await fixture();
+    await writeFile(join(root, 'gut.config.json'), JSON.stringify({ broken: true }));
     await writeFile(join(home, 'gut.config.json'), JSON.stringify(configFor('home')));
-    await writeFile(join(root, 'gut.config.json'), JSON.stringify(configFor('local', 2)));
-
-    expect(await loadConfig(root)).toEqual(loadedFor('local', 2));
-  });
-
-  it('rejects a key gut does not read, at any level', async () => {
-    const { root } = await fixture();
-    await writeFile(
-      join(root, 'gut.config.json'),
-      JSON.stringify({ ...configFor('local'), maxTicks: 12 }),
-    );
-    await expect(loadConfig(root)).rejects.toThrow('maxTicks');
-
-    await writeFile(
-      join(root, 'gut.config.json'),
-      JSON.stringify({ decisionModel: { ...configFor('local').decisionModel, model: 'local' } }),
-    );
-    await expect(loadConfig(root)).rejects.toThrow('model');
-  });
-
-  it('reports how to configure gut when no file exists', async () => {
-    const { root } = await fixture();
-    await expect(loadConfig(root)).rejects.toThrow('No gut config: create gut.config.json');
+    await expect(loadConfig()).rejects.toThrow(join(root, 'gut.config.json'));
+    await expect(initGut()).rejects.toThrow(join(root, 'gut.config.json'));
   });
 
   it('does not search past a file with malformed JSON', async () => {
     const { root, home } = await fixture();
     await writeFile(join(root, 'gut.config.json'), '{');
     await writeFile(join(home, 'gut.config.json'), JSON.stringify(configFor('home')));
+    await expect(loadConfig()).rejects.toThrow(SyntaxError);
+    await expect(initGut()).rejects.toThrow(SyntaxError);
+  });
 
-    await expect(loadConfig(root)).rejects.toBeInstanceOf(SyntaxError);
+  it('reports how to configure gut when no file exists', async () => {
+    await fixture();
+    await expect(loadConfig()).rejects.toThrow(
+      'No gut config: create gut.config.json in this directory or ~/gut.config.json',
+    );
+    await expect(initGut()).rejects.toThrow(
+      'No gut config: create gut.config.json in this directory or ~/gut.config.json',
+    );
+  });
+});
+
+describe('configJsonPath', () => {
+  it('reads config from an explicit absolute path', async () => {
+    const { root } = await fixture();
+    const configPath = join(root, 'custom.json');
+    await writeFile(configPath, JSON.stringify(configFor('custom')));
+    expect(await loadConfig({ configJsonPath: configPath })).toEqual(loadedFor('custom'));
+
+    const { runTask } = await initGut({ configJsonPath: configPath });
+    expect(typeof runTask).toBe('function');
+  });
+
+  it('reads config from a relative path resolved from cwd', async () => {
+    const { root } = await fixture();
+    await writeFile(join(root, 'gut.rel.json'), JSON.stringify(configFor('relative')));
+    expect(await loadConfig({ configJsonPath: 'gut.rel.json' })).toEqual(loadedFor('relative'));
+
+    const { runTask } = await initGut({ configJsonPath: 'gut.rel.json' });
+    expect(typeof runTask).toBe('function');
+  });
+
+  it('throws when configJsonPath does not exist', async () => {
+    const { root } = await fixture();
+    const missingAbs = join(root, 'missing.json');
+    await expect(loadConfig({ configJsonPath: missingAbs })).rejects.toThrow(
+      `No gut config at ${missingAbs}`,
+    );
+    await expect(initGut({ configJsonPath: missingAbs })).rejects.toThrow(
+      `No gut config at ${missingAbs}`,
+    );
+
+    await expect(loadConfig({ configJsonPath: 'missing-rel.json' })).rejects.toThrow(
+      `No gut config at ${join(root, 'missing-rel.json')}`,
+    );
+    await expect(initGut({ configJsonPath: 'missing-rel.json' })).rejects.toThrow(
+      `No gut config at ${join(root, 'missing-rel.json')}`,
+    );
+  });
+
+  it('names an invalid file at configJsonPath', async () => {
+    const { root } = await fixture();
+    const badPath = join(root, 'bad.json');
+    await writeFile(badPath, JSON.stringify({ unknownKey: 1 }));
+    await expect(loadConfig({ configJsonPath: badPath })).rejects.toThrow(badPath);
+    await expect(initGut({ configJsonPath: badPath })).rejects.toThrow(badPath);
+  });
+});
+
+describe('inline config', () => {
+  it('applies defaults to capabilities when left out', async () => {
+    const config = await loadConfig({ config: configFor('inline') });
+    expect(config).toEqual(loadedFor('inline'));
+    expect(config.decisionModel.capabilities).toEqual({
+      image: false,
+      choiceQuestions: { maxOptions: DEFAULT_MAX_OPTIONS },
+    });
+
+    const { runTask } = await initGut({ config: configFor('inline') });
+    expect(typeof runTask).toBe('function');
+  });
+
+  it('preserves capabilities specified inline', async () => {
+    const config = await loadConfig({
+      config: {
+        decisionModel: {
+          endpoint: 'http://localhost:11434/v1/systemone',
+          name: 'clef',
+          capabilities: { image: true, choiceQuestions: { maxOptions: 10 } },
+        },
+      },
+    });
+    expect(config.decisionModel.capabilities).toEqual({
+      image: true,
+      choiceQuestions: { maxOptions: 10 },
+    });
+  });
+
+  it('rejects an invalid inline config with a readable error', async () => {
+    await expect(
+      loadConfig({ config: { decisionModel: { name: 'clef' } } as unknown as ConfigInput }),
+    ).rejects.toThrow('endpoint');
+    await expect(
+      initGut({ config: { decisionModel: { name: 'clef' } } as unknown as ConfigInput }),
+    ).rejects.toThrow('endpoint');
+
+    await expect(
+      loadConfig({
+        config: {
+          decisionModel: { ...configFor('bad').decisionModel, extraKey: true },
+        } as unknown as ConfigInput,
+      }),
+    ).rejects.toThrow('extraKey');
+    await expect(
+      initGut({
+        config: {
+          decisionModel: { ...configFor('bad').decisionModel, extraKey: true },
+        } as unknown as ConfigInput,
+      }),
+    ).rejects.toThrow('extraKey');
+
+    await expect(
+      loadConfig({
+        config: {
+          decisionModel: {
+            ...configFor('bad').decisionModel,
+            capabilities: { choiceQuestions: { maxOptions: 1 } },
+          },
+        } as unknown as ConfigInput,
+      }),
+    ).rejects.toThrow('maxOptions');
   });
 });

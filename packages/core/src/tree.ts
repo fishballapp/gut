@@ -14,3 +14,16 @@ export const mapLeaves = <Leaf extends object, Node extends object, Result>(
     if (tree.kind === 'leaf') return [map(tree, path)];
     return mapLeaves(tree.children, map, [...path, tree]);
   });
+
+/** Removes a tree from a forest; parents left with no children drop out too. */
+export const pruneTree = <Leaf extends object, Node extends object>(
+  trees: readonly Tree<Leaf, Node>[],
+  target: Tree<Leaf, Node>,
+): Tree<Leaf, Node>[] =>
+  trees.flatMap((tree): Tree<Leaf, Node>[] => {
+    if (tree === target) return [];
+    if (tree.kind === 'leaf') return [tree];
+    const children = pruneTree(tree.children, target);
+    if (children.length === 0) return [];
+    return [{ ...tree, children }];
+  });

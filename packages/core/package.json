@@ -43,7 +43,8 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "vitest": "catalog:",
-    "tsdown": "catalog:"
+    "tsdown": "catalog:",
+    "type-fest": "catalog:",
+    "vitest": "catalog:"
   }
 }

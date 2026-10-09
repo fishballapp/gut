@@ -1,5 +1,6 @@
 // Each tick: observe, let the decision model pick a move, invoke it.
-import { loadConfig } from './config.ts';
+import type { Merge } from 'type-fest';
+import type { Config } from './config.ts';
 import type { Ops } from './ops.ts';
 import { pick, type Step } from './pick.ts';
 
@@ -22,7 +23,13 @@ type Outcome =
 /** What a run spent on the decision model: input tokens (output is free) and requests. */
 export type Usage = { inputTokens: number; requests: number };
 
-export type TaskResult = Outcome & { steps: string[]; context: Context | null; usage: Usage };
+export type TaskResult = Merge<Outcome, { steps: string[]; context: Context | null; usage: Usage }>;
+
+/** A task run on the config `initGut` read: what `initGut` returns as `runTask`. */
+export type RunTask = (
+  tick: () => Promise<{ context: Context; ops: Ops }>,
+  options?: TaskOptions,
+) => Promise<TaskResult>;
 
 export type TaskOptions = {
   /** Input tokens the run may spend on the decision model; it may overshoot by one request. */
@@ -47,13 +54,14 @@ const errorOutcome = (error: unknown): Extract<Outcome, { reason: 'error' }> => 
  * returns what the model reads (`context`) and the moves it may pick (`ops`). The model judges the
  * goal, unless `options.isGoalAchieved` checks it in code.
  *
- * The decision model comes from gut.config.json; what a run may spend, from `options`.
+ * The decision model comes from `config`; what a run may spend, from `options`.
  */
-export const task = async (
+export const runTask = async (
+  config: Config,
   tick: () => Promise<{ context: Context; ops: Ops }>,
   { inputTokenBudget = 50_000, isGoalAchieved }: TaskOptions = {},
 ): Promise<TaskResult> => {
-  const asker = { decisionModel: (await loadConfig()).decisionModel, inputTokenBudget };
+  const asker = { decisionModel: config.decisionModel, inputTokenBudget };
   const seen = new Map<string, number>(); // context + step → how many times it was picked
 
   // Runs the picked op; a failure keeps what was spent picking it.
@@ -78,7 +86,7 @@ export const task = async (
     usage: Usage;
     tickNumber: number;
     started: number;
-  }): Promise<{ usage: Usage } & (Outcome | { status: 'continue'; step: string })> => {
+  }): Promise<Merge<Outcome | { status: 'continue'; step: string }, { usage: Usage }>> => {
     try {
       if (isGoalAchieved !== undefined && (await isGoalAchieved())) {
         process.stderr.write(`tick ${tickNumber}  achieved  checked  ${secondsSince(started)}\n`);

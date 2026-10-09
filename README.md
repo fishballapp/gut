@@ -11,7 +11,7 @@ goal, what the world looks like now, and the moves available. The model picks on
 until the goal is met (checked by the task's code, or claimed by the model when code can't check
 it) or gut halts back to the agent. The model only ever *picks*: it never writes text.
 
-> **Status:** core v0 is built: `task`, `op`, `group`, `gut run`, and the examples below. `gut
+> **Status:** core v0 is built: `initGut`, `op`, `group`, `gut run`, and the examples below. `gut
 > task`, plugins, the JSON result on stdout and the JSONL trace are designed here but not built.
 > This file is the current design; it changes in place.
 
@@ -55,16 +55,19 @@ run, not once per step.
 A decision model answers questions of a limited number of options (255 on TypeSafe's Jev, 26 on
 Ollama), within a size limit per request (clef-flash on Ollama: a 16,384-token context), and every option costs it about 18 tokens of framing. A Wikipedia
 article has hundreds of links; a page or a menu can have thousands of choices. Ops and `choices` can
-be any length, and gut makes sure the model sees every one:
+be any length, and gut makes sure every one is within the model's reach:
 
 - **Bundles.** A list too long for one question is asked as bundles: options that each list
   everything they hold ("Contains: Ancient Rome, Augustus, …"), so many titles share one option's
   framing. The model picks a bundle, then an option inside it.
+- **Groups.** A question opens the smallest groups while they fit; a closed group shows its first
+  8 moves and how many more it holds, and choosing it asks every move inside.
 - **Split on refusal.** A question the server refuses as too large is split in half, each half picks
   its best, and the two winners are asked. Refusals aren't billed, so this needs no token counting
   and adapts to any model.
 
-Nothing is cut, sampled or ranked away by code before the model sees it.
+Nothing is cut, sampled or ranked away by code: a move the model never reads sits in a bundle or
+group it passed over, never dropped.
 
 ## From the command line (planned)
 
@@ -122,13 +125,15 @@ links only.
 
 ```ts
 // wikirace.gut.ts     gut run wikirace.gut.ts
-import { task, op } from '@gut.run/core';
+import { initGut, op } from '@gut.run/core';
 import { readArticle } from './wikipedia.ts';
 
 const target = 'Roman Empire';
 const path = ['Banana'];
 
-await task(
+const { runTask } = await initGut();
+
+await runTask(
   async () => {
     const article = await readArticle(path.at(-1) ?? '');
     path.splice(-1, 1, article.title); // a link can name a redirect; keep the real title
@@ -176,7 +181,9 @@ and the log, written out. [`examples/wikirace.advocaat.ts`](examples/wikirace.ad
 with [advocaat](https://github.com/pithings/advocaat)'s `ask` in 143: a client saves the HTTP code,
 not the loop around it.
 
-- `task(tick, options?)` calls `tick` at the start of every tick and resolves when the run ends,
+- `initGut(options?)` reads the config once ([Configuration](#configuration)) and returns
+  `{ runTask }`, which runs tasks on it.
+- `runTask(tick, options?)` calls `tick` at the start of every tick and resolves when the run ends,
   with its outcome, its steps, the last context and its `usage` (input tokens and requests).
   - `inputTokenBudget` (default 50,000) is how many input tokens the run may spend on the decision
     model. It is checked before each request, so a run overshoots by at most one request. Decision
@@ -207,7 +214,7 @@ not the loop around it.
 A plugin brings its own context and ops, so a task only adds what is specific to it:
 
 ```ts
-import { task, op } from '@gut.run/core';
+import { initGut, op } from '@gut.run/core';
 import { browserPlugin } from '@gut.run/browser';
 
 const trip = { departure: nextFriday() }; // ordinary state, which ops may change
@@ -223,7 +230,9 @@ const browser = browserPlugin(async () => ({
   },
 }));
 
-await task(
+const { runTask } = await initGut();
+
+await runTask(
   async () => ({
     context: { goal: 'The page shows flights from London to Tokyo next Friday, sorted by price' },
     ops: {
@@ -348,9 +357,12 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
 2. **Check.** `isGoalAchieved`, if set, runs; true ends the run as `achieved`, with no request.
 3. **Choose.** Without `isGoalAchieved`, the goal rides with the tick's first question, and a tick
    with nothing to choose (one move, or none at all) asks it alone. Each op's choices count as
-   moves of their own: if every move fits in one question (`maxOptions`), every move is an option;
-   otherwise it is asked level by level (a group, then an op, then its choice), and a level with
-   one option is skipped. A long list is split into bundles that each list everything they hold
+   moves of their own. A question starts with every group closed and opens the smallest first, at
+   any depth, while it stays within `maxOptions`: an open group's moves read with their path
+   ("Header › Open link "Home""), a closed one with what it contains, and choosing a closed group
+   asks inside it. Its first question ends with "None of these: go back" while a level above has
+   anything else to choose (at `maxOptions` 2 it is an ordinary option, and may be bundled). A
+   level with one option is skipped. A long list is split into bundles that each list everything they hold
    ("Contains: Ancient Rome, Augustus, …"); Clef wraps every option in about 18 tokens of framing, so 26 titles in one bundle
    cost far less than 26 options. A level the server refuses as too large (Ollama: over 64 KiB, or
    past the model's context) is split in half, each half picks its best, and the two winners are
@@ -372,7 +384,7 @@ browser page) has moved on; run again instead.
 
 | Package | What it is |
 | --- | --- |
-| `@gut.run/core` | `task`, `op`, `group`, the decision-model client |
+| `@gut.run/core` | `initGut`, `op`, `group`, the decision-model client |
 | `@gut.run/browser`, `@gut.run/cua`, … | plugins (planned) |
 | `@gut.run/cli` (bin `gut`) | `gut run task.gut.ts`; planned: `gut task '<goal>' --use-<plugin> …`, with every plugin bundled and heavy plugin dependencies (a browser) loaded on first use |
 
@@ -384,8 +396,14 @@ npm install @gut.run/core && npm install --global @gut.run/cli
 
 ## Configuration
 
-gut reads `gut.config.json` in the working directory, else `~/gut.config.json`.
-Only that one file is read; files don't merge.
+A gut file says where its config comes from when it calls `initGut`:
+
+- `await initGut()` reads `gut.config.json` in the working directory, else `~/gut.config.json`.
+- `await initGut({ configJsonPath: '/path/to/gut.config.json' })` reads only that file; a relative
+  path resolves from the working directory.
+- `await initGut({ config: { decisionModel: … } })` takes it inline, checked like a file.
+
+Files don't merge.
 
 ```json
 {
@@ -412,7 +430,7 @@ Only that one file is read; files don't merge.
 The file says where the model is and what it takes, nothing else; what a run may spend is the
 task's option. Any other key, at any level, is an error.
 
-With no file, a run fails before its first tick and says where to put one.
+With no file, `initGut()` fails before any task runs and says where to put one.
 
 ## Open questions
 

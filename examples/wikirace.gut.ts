@@ -1,12 +1,14 @@
 // The Wikipedia race: reach one article from another by following links only.
 // gut run projects/gut/examples/wikirace.gut.ts [from=Banana] [to="Roman Empire"]
-import { op, task } from '@gut.run/core';
+import { initGut, op } from '@gut.run/core';
 import { readArticle } from './wikipedia.ts';
 
 const [from = 'Banana', target = 'Roman Empire'] = process.argv.slice(2);
 const path = [from]; // the articles visited, by their real titles; the model doesn't need them
 
-await task(
+const { runTask } = await initGut();
+
+await runTask(
   async () => {
     const article = await readArticle(path.at(-1) ?? from);
     // A link can name a redirect ("Chaturaṅga" for "Chaturanga"), so keep the article's real title,

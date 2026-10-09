@@ -1,9 +1,6 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { group, ListStrategy, op, task } from './index.ts';
+import { group, initGut, ListStrategy, op, type RunTask } from './index.ts';
 
 const QuestionSchema = z.object({
   instructions: z.string(),
@@ -41,20 +38,17 @@ const answer = (
   };
 };
 
+// Like Ollama, a choice takes at most 26 options.
+const fakeConfig = {
+  decisionModel: {
+    endpoint: 'http://decision-model.invalid/v1/systemone',
+    name: 'fake',
+    capabilities: { choiceQuestions: { maxOptions: 26 } },
+  },
+};
+const { runTask } = await initGut({ config: fakeConfig });
+
 beforeAll(async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'gut-'));
-  await writeFile(
-    join(dir, 'gut.config.json'),
-    JSON.stringify({
-      // Like Ollama, a choice takes at most 26 options.
-      decisionModel: {
-        endpoint: 'http://decision-model.invalid/v1/systemone',
-        name: 'fake',
-        capabilities: { choiceQuestions: { maxOptions: 26 } },
-      },
-    }),
-  );
-  vi.spyOn(process, 'cwd').mockReturnValue(dir);
   vi.spyOn(process.stderr, 'write').mockReturnValue(true);
   vi.stubGlobal(
     'fetch',
@@ -88,7 +82,6 @@ beforeAll(async () => {
       );
     }),
   );
-  return () => rm(dir, { recursive: true, force: true });
 });
 afterAll(() => {
   vi.unstubAllGlobals();
@@ -107,7 +100,7 @@ describe('task', () => {
       pick: state.value === 1 ? 'Goal achieved: the counter is 1' : 'Add one to the counter',
     });
 
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'the counter is 1', value: counter.value },
       ops: {
         add: op('Add one to the counter', () => counter.value++),
@@ -127,7 +120,7 @@ describe('task', () => {
       pick: Object.values(criteria).find(d => d.startsWith('Goal achieved')) ?? 'Add one',
     });
 
-    const result = await task(
+    const result = await runTask(
       async () => ({
         context: { goal: 'the counter is 2', value: counter.value },
         ops: {
@@ -151,7 +144,7 @@ describe('task', () => {
   it('runs a lone op with no request at all while an async isGoalAchieved checks the goal', async () => {
     const counter = { value: 0 };
 
-    const result = await task(
+    const result = await runTask(
       async () => ({
         context: { goal: 'the counter is 2', value: counter.value },
         ops: {
@@ -183,7 +176,7 @@ describe('task', () => {
       };
     };
 
-    const result = await task(
+    const result = await runTask(
       async () => ({
         context: { goal: 'item 42 is picked', picked: picked[0] ?? null },
         ops: {
@@ -202,7 +195,7 @@ describe('task', () => {
   });
 
   it('halts when isGoalAchieved throws', async () => {
-    const result = await task(
+    const result = await runTask(
       async () => ({
         context: { goal: 'never' },
         ops: {
@@ -235,7 +228,7 @@ describe('task', () => {
       };
     };
 
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'item 42 is picked', picked: picked[0] ?? null },
       ops: {
         pick: op('Pick an item', {
@@ -267,7 +260,7 @@ describe('task', () => {
       return { pick: offered.find(d => d === 'item 42') ?? offered[0] ?? 'not an item' };
     };
 
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'item 42 is picked', picked: picked[0] ?? null },
       ops: {
         pick: op('Pick an item', {
@@ -290,7 +283,7 @@ describe('task', () => {
   it('hides an op whose choices are empty, and a falsy entry', async () => {
     decide = () => ({ pick: 'Wait' });
 
-    await task(async () => ({
+    await runTask(async () => ({
       context: { goal: 'never' },
       ops: {
         wait: op('Wait', () => {}),
@@ -307,7 +300,7 @@ describe('task', () => {
     const invoke = vi.fn();
     decide = () => ({ pick: 'Outer › Inner › Deep' });
 
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'never' },
       ops: {
         skippedFalse: false,
@@ -332,7 +325,7 @@ describe('task', () => {
   it('preserves key order when showing options to the model', async () => {
     decide = () => ({ pick: 'First' });
 
-    await task(async () => ({
+    await runTask(async () => ({
       context: { goal: 'never' },
       ops: {
         first: op('First', () => {}),
@@ -349,7 +342,7 @@ describe('task', () => {
     decide = ({ state: seen }) =>
       seen.isDone === true ? { pick: 'Goal achieved: done' } : { pick: 'Finish', probability: 0.1 };
 
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'done', isDone: state.isDone },
       ops: {
         finish: op('Finish', () => (state.isDone = true)),
@@ -364,7 +357,7 @@ describe('task', () => {
     decide = () => ({ pick: 'Break' });
 
     const context = { goal: 'never', values: ['before'] };
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context,
       ops: {
         break: op('Break', () => {
@@ -387,7 +380,7 @@ describe('task', () => {
   it('halts a run that picks the same move on the same context a third time', async () => {
     decide = () => ({ pick: 'Wait' });
 
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'never' },
       ops: {
         wait: op('Wait', () => {}),
@@ -406,7 +399,7 @@ describe('task', () => {
     });
     decide = () => ({ pick: 'Search form › Choose destination › Tokyo' });
 
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'never' },
       ops: {
         searchForm: group('Search form', { to: shared }),
@@ -422,6 +415,193 @@ describe('task', () => {
     expect(invoke.mock.calls[0]?.[0]).toBe(destination);
   });
 
+  /** `count` ops named `${prefix} ${i}`, keyed `${prefix}${i}`. */
+  const items = (prefix: string, count: number) =>
+    Object.fromEntries(
+      Array.from({ length: count }, (_, i) => [`${prefix}${i}`, op(`${prefix} ${i}`, () => {})]),
+    );
+
+  /** Runs `run` with a `runTask` whose decision model takes at most `maxOptions` options. */
+  const withMaxOptions = async (maxOptions: number, run: (runTask: RunTask) => Promise<void>) => {
+    const decisionModel = {
+      ...fakeConfig.decisionModel,
+      capabilities: { choiceQuestions: { maxOptions } },
+    };
+    await run((await initGut({ config: { decisionModel } })).runTask);
+  };
+
+  it('goes back out of a wrong group, which is then gone, and enters the one left without asking', async () => {
+    decide = ({ criteria }) => {
+      const options = Object.values(criteria);
+      if (options.includes('None of these: go back')) return { pick: 'None of these: go back' };
+      const right = options.find(option => option.startsWith('Right box'));
+      if (right !== undefined) return { pick: right };
+      return { pick: options.find(option => option.endsWith('wrong 3')) ?? '' };
+    };
+
+    const result = await runTask(async () => ({
+      context: { goal: 'never' },
+      ops: {
+        wrong: group('Wrong box', items('wrong', 14)),
+        right: group('Right box', items('right', 14)),
+      },
+    }));
+
+    expect(result.steps[0]).toBe('wrong.wrong3');
+    // The first tick's questions; the next ticks repeat it until the run stalls.
+    expect(questions.slice(0, 3).map(question => Object.values(question.criteria))).toEqual([
+      [
+        ...Array.from({ length: 14 }, (_, i) => `Wrong box › wrong ${i}`),
+        'Right box — contains: right 0, right 1, right 2, right 3, right 4, right 5, right 6, right 7, … (+6 more)',
+      ],
+      [...Array.from({ length: 14 }, (_, i) => `right ${i}`), 'None of these: go back'],
+      Array.from({ length: 14 }, (_, i) => `Wrong box › wrong ${i}`),
+    ]);
+  });
+
+  it('opens a group adding fewest options when maxOptions is small, keeping the larger group closed', async () => {
+    await withMaxOptions(5, async runTask => {
+      decide = () => ({ pick: 'a › a 0' });
+      await runTask(async () => ({
+        context: { goal: 'never' },
+        ops: {
+          a: group('a', items('a', 2)),
+          b: group('b', items('b', 4)),
+        },
+      }));
+      expect(Object.values(questions[0]?.criteria ?? {})).toEqual([
+        'a › a 0',
+        'a › a 1',
+        'b — contains: b 0, b 1, b 2, b 3',
+      ]);
+    });
+  });
+
+  it('opens a group adding fewest options (smallest first) even when listed after a larger group', async () => {
+    await withMaxOptions(5, async runTask => {
+      decide = () => ({ pick: 'b › b 0' });
+      await runTask(async () => ({
+        context: { goal: 'never' },
+        ops: {
+          a: group('a', items('a', 4)),
+          b: group('b', items('b', 2)),
+        },
+      }));
+      expect(Object.values(questions[0]?.criteria ?? {})).toEqual([
+        'a — contains: a 0, a 1, a 2, a 3',
+        'b › b 0',
+        'b › b 1',
+      ]);
+    });
+  });
+
+  it('opens a closed node at depth while a big group stays closed', async () => {
+    await withMaxOptions(5, async runTask => {
+      decide = () => ({ pick: 'Container › Small › small 0' });
+      await runTask(async () => ({
+        context: { goal: 'never' },
+        ops: {
+          big: group('Big', items('big', 10)),
+          container: group('Container', {
+            small: group('Small', items('small', 2)),
+          }),
+        },
+      }));
+      expect(Object.values(questions[0]?.criteria ?? {})).toEqual([
+        'Big — contains: big 0, big 1, big 2, big 3, big 4, big 5, big 6, big 7, … (+2 more)',
+        'Container › Small › small 0',
+        'Container › Small › small 1',
+      ]);
+    });
+  });
+
+  it('opens the smaller group first when two closed groups do not both fit', async () => {
+    decide = () => ({ pick: 'Small › small 0' });
+    await runTask(async () => ({
+      context: { goal: 'never' },
+      ops: {
+        big: group('Big', items('big', 20)),
+        small: group('Small', items('small', 10)),
+      },
+    }));
+    expect(Object.values(questions[0]?.criteria ?? {})).toEqual([
+      'Big — contains: big 0, big 1, big 2, big 3, big 4, big 5, big 6, big 7, … (+12 more)',
+      ...Array.from({ length: 10 }, (_, i) => `Small › small ${i}`),
+    ]);
+  });
+
+  it('removes a closed group inside an opened parent when going back, and does not offer it next', async () => {
+    await withMaxOptions(4, async runTask => {
+      decide = ({ criteria }) => {
+        const options = Object.values(criteria);
+        if (options.includes('None of these: go back')) return { pick: 'None of these: go back' };
+        const nested = options.find(option => option.includes('Nested'));
+        if (nested !== undefined) return { pick: nested };
+        return { pick: options.find(option => option.endsWith('first')) ?? '' };
+      };
+      const result = await runTask(async () => ({
+        context: { goal: 'never' },
+        ops: {
+          outer: group('Outer', {
+            first: op('first', () => {}),
+            second: op('second', () => {}),
+            nested: group('Nested', items('nested', 3)),
+          }),
+        },
+      }));
+      expect(result.steps[0]).toBe('outer.first');
+      expect(questions.slice(0, 3).map(question => Object.values(question.criteria))).toEqual([
+        [
+          'Outer › first',
+          'Outer › second',
+          'Outer › Nested — contains: nested 0, nested 1, nested 2',
+        ],
+        ['nested 0', 'nested 1', 'nested 2', 'None of these: go back'],
+        ['Outer › first', 'Outer › second'],
+      ]);
+    });
+  });
+
+  it('bundles closed groups when even with everything closed they exceed maxOptions', async () => {
+    await withMaxOptions(2, async runTask => {
+      decide = ({ criteria }) => {
+        const options = Object.values(criteria);
+        return { pick: options[0] ?? '' };
+      };
+      await runTask(async () => ({
+        context: { goal: 'never' },
+        ops: {
+          g1: group('G1', items('g1', 2)),
+          g2: group('G2', items('g2', 2)),
+          g3: group('G3', items('g3', 2)),
+        },
+      }));
+      expect(Object.values(questions[0]?.criteria ?? {})[0]).toMatch(/^Contains: G1/);
+    });
+  });
+
+  it('offers going back beside the bundles of a group too long for one question, never inside one', async () => {
+    decide = ({ criteria }) => {
+      const options = Object.values(criteria);
+      const wrong = options.find(option => option.startsWith('Wrong box'));
+      if (wrong !== undefined) return { pick: wrong };
+      return { pick: 'None of these: go back' };
+    };
+
+    await runTask(async () => ({
+      context: { goal: 'never' },
+      ops: {
+        wrong: group('Wrong box', items('wrong', 30)),
+        right: group('Right box', items('right', 3)),
+      },
+    }));
+
+    const [, inside] = questions.map(question => Object.values(question.criteria));
+    expect(inside?.at(-1)).toBe('None of these: go back');
+    expect(inside?.filter(option => option.includes('go back'))).toHaveLength(1);
+    expect(inside?.length).toBeLessThanOrEqual(26);
+  });
+
   it.each([26, 27])('flattens up to 26 leaves into one question (%i leaves)', async count => {
     const items = Array.from({ length: count }, (_, i) => `item ${i}`);
     const picked: string[] = [];
@@ -435,7 +615,7 @@ describe('task', () => {
             ) ?? 'Pick an item'),
     });
 
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'an item is picked', picked: picked[0] ?? null },
       ops: {
         pick: op('Pick an item', {
@@ -455,7 +635,7 @@ describe('task', () => {
     decide = ({ criteria }) => ({
       pick: Object.values(criteria).find(d => !d.startsWith('Goal achieved')) ?? '',
     });
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'never' },
       ops: {
         form: group('Form', {
@@ -480,7 +660,7 @@ describe('task', () => {
   });
 
   it('asks the goal alone, then halts, when every branch is empty', async () => {
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'never' },
       ops: {
         falsyFalse: false,
@@ -505,7 +685,7 @@ describe('task', () => {
   it('ends achieved on a tick with no ops when the model finds the goal met', async () => {
     decide = () => ({ pick: 'Goal achieved: The page says "Thank you"' });
 
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'The page says "Thank you"' },
       ops: {},
     }));
@@ -515,7 +695,7 @@ describe('task', () => {
   });
 
   it('halts without asking the model when there are no ops and isGoalAchieved is set', async () => {
-    const result = await task(async () => ({ context: { goal: 'never' }, ops: {} }), {
+    const result = await runTask(async () => ({ context: { goal: 'never' }, ops: {} }), {
       isGoalAchieved: () => false,
     });
 
@@ -530,7 +710,7 @@ describe('task', () => {
   it('keeps the last snapshot and successful steps when reading the next tick fails', async () => {
     const context = { goal: 'never', count: 0 };
     decide = () => ({ pick: 'Add' });
-    const result = await task(async () => {
+    const result = await runTask(async () => {
       if (context.count === 1) throw new Error('read failed');
       return {
         context,
@@ -551,7 +731,7 @@ describe('task', () => {
   });
 
   it('returns a null context when the first tick fails', async () => {
-    const result = await task(async () => {
+    const result = await runTask(async () => {
       throw new Error('read failed');
     });
     expect(result).toEqual({
@@ -568,7 +748,7 @@ describe('task', () => {
   it('halts once the run has spent its token budget, before asking again', async () => {
     const context = { goal: 'never', count: 0 };
     decide = () => ({ pick: 'Add' });
-    const result = await task(
+    const result = await runTask(
       async () => ({
         context,
         ops: {
@@ -605,7 +785,7 @@ describe('task', () => {
       };
     };
 
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'the item is picked', picked: picked[0] ?? null },
       ops: {
         pick: op('Pick an item', {
@@ -640,7 +820,7 @@ describe('task', () => {
     decide = ({ state }) => (state.isDone ? { pick: 'Goal achieved: done' } : { pick: 'Finish' });
     const state = { isDone: false };
 
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'done', isDone: state.isDone },
       ops: {
         finish: op('Finish', () => (state.isDone = true)),
@@ -667,7 +847,7 @@ describe('task', () => {
     );
     const invoke = vi.fn();
 
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'never' },
       ops: {
         wait: op('Wait', invoke),
@@ -709,7 +889,7 @@ describe('task', () => {
     );
     const invoke = vi.fn();
 
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'never' },
       ops: {
         wait: op('Wait', invoke),
@@ -733,7 +913,7 @@ describe('task', () => {
       pick: Object.values(criteria).find(d => !d.startsWith('Goal achieved')) ?? '',
     });
 
-    const result = await task(
+    const result = await runTask(
       async () => ({
         context: { goal: 'never' },
         ops: {
@@ -752,21 +932,18 @@ describe('task', () => {
   });
 
   it('sends the configured API key as a bearer token', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'gut-'));
-    await writeFile(
-      join(dir, 'gut.config.json'),
-      JSON.stringify({
+    const { runTask: runWithApiKey } = await initGut({
+      config: {
         decisionModel: {
           endpoint: 'http://decision-model.invalid/v1/systemone',
           name: 'fake',
           apiKey: 'secret',
         },
-      }),
-    );
-    vi.mocked(process.cwd).mockReturnValueOnce(dir);
+      },
+    });
     decide = () => ({ pick: 'Goal achieved: done' });
 
-    await task(async () => ({
+    await runWithApiKey(async () => ({
       context: { goal: 'done' },
       ops: {
         wait: op('Wait', () => {}),
@@ -776,7 +953,6 @@ describe('task', () => {
     expect(new Headers(vi.mocked(fetch).mock.lastCall?.[1]?.headers).get('authorization')).toBe(
       'Bearer secret',
     );
-    await rm(dir, { recursive: true, force: true });
   });
 
   it('halts when the decision model returns an invalid option', async () => {
@@ -792,7 +968,7 @@ describe('task', () => {
       ),
     );
     const invoke = vi.fn();
-    const result = await task(async () => ({
+    const result = await runTask(async () => ({
       context: { goal: 'never' },
       ops: {
         wait: op('Wait', invoke),
@@ -809,5 +985,73 @@ describe('task', () => {
       usage: { inputTokens: 100, requests: 1 },
     });
     expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('terminates with maxOptions 2 when entering a group while another root option exists', async () => {
+    await withMaxOptions(2, async runTask => {
+      const executed: string[] = [];
+      decide = ({ criteria }) => {
+        const descriptions = Object.values(criteria);
+        const picked =
+          descriptions.find(d => d.startsWith('Group')) ??
+          descriptions.find(d => d.startsWith('Contains: m1')) ??
+          descriptions.find(d => d === 'm1');
+        return { pick: picked ?? '' };
+      };
+
+      const result = await runTask(async () => ({
+        context: { goal: 'never' },
+        ops: {
+          other: op('Other move', () => executed.push('other')),
+          grp: group('Group', {
+            m1: op('m1', () => executed.push('m1')),
+            m2: op('m2', () => executed.push('m2')),
+            m3: op('m3', () => executed.push('m3')),
+          }),
+        },
+      }));
+
+      expect(executed).toEqual(['m1', 'm1']);
+      expect(result).toMatchObject({ status: 'halted', reason: 'stalled' });
+    });
+  });
+
+  it('goes back out of a nested single-child group to an ancestor that still has trees', async () => {
+    await withMaxOptions(2, async runTask => {
+      const executed: string[] = [];
+      decide = ({ criteria }) => {
+        const descriptions = Object.values(criteria);
+        if (descriptions.some(d => d.startsWith('A'))) {
+          return { pick: descriptions.find(d => d.startsWith('A')) ?? '' };
+        }
+        if (descriptions.some(d => d.startsWith('B'))) {
+          return { pick: descriptions.find(d => d.startsWith('B')) ?? '' };
+        }
+        if (descriptions.some(d => d.includes('go back'))) {
+          return { pick: descriptions.find(d => d.includes('go back')) ?? '' };
+        }
+        if (descriptions.some(d => d.startsWith('C'))) {
+          return { pick: descriptions.find(d => d.startsWith('C')) ?? '' };
+        }
+        return { pick: '' };
+      };
+
+      const result = await runTask(async () => ({
+        context: { goal: 'never' },
+        ops: {
+          a: group('A', {
+            b: group('B', {
+              m1: op('m1', () => executed.push('m1')),
+              m2: op('m2', () => executed.push('m2')),
+              m3: op('m3', () => executed.push('m3')),
+            }),
+          }),
+          c: op('C', () => executed.push('c')),
+        },
+      }));
+
+      expect(executed).toEqual(['c', 'c']);
+      expect(result).toMatchObject({ status: 'halted', reason: 'stalled', steps: ['c', 'c'] });
+    });
   });
 });
