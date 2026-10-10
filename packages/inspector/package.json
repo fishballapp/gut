@@ -1,0 +1,45 @@
+{
+  "name": "@gut.run/inspector",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The page `gut run --inspect` serves: every round and turn of a gut run, live, and a way to answer them yourself.",
+  "license": "MIT",
+  "homepage": "https://github.com/fishballapp/gut",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fishballapp/gut.git",
+    "directory": "packages/inspector"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    "./index.html": "./dist/index.html"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "prepack": "pnpm build",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@base-ui/react": "catalog:",
+    "@fishballapps/cn": "workspace:*",
+    "@fontsource-variable/geist": "catalog:",
+    "@fontsource-variable/geist-mono": "catalog:",
+    "@gut.run/core": "workspace:*",
+    "@phosphor-icons/react": "catalog:",
+    "@tailwindcss/vite": "catalog:",
+    "@types/react": "catalog:web",
+    "@types/react-dom": "catalog:web",
+    "@vitejs/plugin-react": "catalog:",
+    "class-variance-authority": "catalog:",
+    "react": "catalog:web",
+    "react-dom": "catalog:web",
+    "tailwindcss": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

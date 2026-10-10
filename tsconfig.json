@@ -4,6 +4,8 @@
     { "path": "./packages/core" },
     { "path": "./packages/cli" },
     { "path": "./packages/playwright" },
-    { "path": "./examples" }
+    { "path": "./packages/inspector" },
+    { "path": "./examples" },
+    { "path": "./internal/cn" }
   ]
 }

@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@gut.run/core": "workspace:*",
+    "@gut.run/inspector": "workspace:*",
     "@stricli/core": "catalog:",
     "zod": "catalog:"
   },

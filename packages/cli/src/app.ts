@@ -9,5 +9,8 @@ export const app = buildApplication(
       brief: 'A non-deterministic runtime: you write the moves, a decision model writes the order',
     },
   }),
-  { name: 'gut', scanner: { allowArgumentEscapeSequence: true } },
+  {
+    name: 'gut',
+    scanner: { allowArgumentEscapeSequence: true, caseStyle: 'allow-kebab-for-camel' },
+  },
 );
