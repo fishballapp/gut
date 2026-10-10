@@ -5,7 +5,7 @@ import { RoundList } from './components/RoundList.tsx';
 import { RoundPanel } from './components/RoundPanel.tsx';
 import { RunHeader } from './components/RunHeader.tsx';
 import { TurnView } from './components/TurnView.tsx';
-import { useInspector } from './lib/connection.ts';
+import { act, useInspector } from './lib/connection.ts';
 import { resolveSelection, type Selection } from './lib/selection.ts';
 
 /**
@@ -20,7 +20,13 @@ export const App = () => {
     <div className="relative isolate grid h-full grid-cols-[264px_1fr_400px] grid-rows-[auto_auto_1fr]">
       <GutBackground />
       <AppBar model={selected.run?.model ?? state.pageModel} />
-      <RunHeader state={state} selected={selected} select={setSelection} status={status} />
+      <RunHeader
+        state={state}
+        selected={selected}
+        select={setSelection}
+        status={status}
+        act={act}
+      />
       <RoundList selected={selected} select={setSelection} />
       <TurnView state={state} selected={selected} />
       <RoundPanel selected={selected} />
