@@ -1,6 +1,6 @@
-// The CLI's side of an inspected session: Play or Step, the model set in the page, and the
-// decisions runs wait on. Runs attach through the global hook (`attach`); the page acts through
-// `act`. Hooks never throw: core treats whatever they return as the answer.
+// The CLI's side of an inspected session: Play or Step, the model set in the page, the decisions
+// runs wait on, and the task's process. Its runs attach through the link it gives the process; the
+// page acts through `act`. Hooks never throw: core treats whatever they return as the answer.
 import {
   type Action,
   answersFromYou,
@@ -8,11 +8,9 @@ import {
   DecisionModelSchema,
   type DecisionRequest,
   type InspectorEvent,
-  type InspectorGlobal,
   type Mode,
   type ModelInfo,
   PROTOCOL,
-  RunEventSchema,
   type RunHooks,
   type TurnAnswer,
 } from '@gut.run/core/inspector';
@@ -33,6 +31,16 @@ type Pending = { runId: string; resolve: (resolution: Resolution) => void } & (
   | { on: 'step' }
 );
 
+/** What the task's process reports to the session: its runs' hooks, and that it ended. */
+export type TaskLink = {
+  attach: (run: { runId: string }) => RunHooks;
+  /** The task's top-level code finished, or stopped with `error`. */
+  end: (error?: string) => void;
+};
+
+/** The task's process, as the session runs it: `stop` kills it and resolves once it has exited. */
+export type TaskProcess = { stop: () => Promise<void> };
+
 /** What an action got: done, or refused with the status the page receives. */
 export type ActResult = { status: 204 } | { status: 400 | 409; error: string };
 
@@ -45,17 +53,29 @@ const infoOf = (model: DecisionModel): ModelInfo => ({
 /** Where a `loadConfig` action reads a config from. */
 export type ConfigFrom = Extract<Action, { type: 'loadConfig' }>['from'];
 
+/**
+ * What a stale task's call gets: a promise that never settles, so nothing the task does after a
+ * restart reaches the record, and a stopped task doesn't spin on a harmless answer until it is killed.
+ */
+const stalled = <Result>() => new Promise<Result>(() => {});
+
 export const createSession = ({
   task,
   emit,
+  clear,
   warn,
   readConfig,
+  start,
 }: {
   task: string;
   emit: (event: InspectorEvent) => void;
+  /** Forgets the record; a restart begins it afresh. */
+  clear: () => void;
   warn: (message: string) => void;
   /** Reads a gut config's model; throws, with a message for the page, when it can't. */
   readConfig: (from: ConfigFrom) => Promise<DecisionModel>;
+  /** Starts the task's process, reporting to `link`. */
+  start: (link: TaskLink) => TaskProcess;
 }) => {
   let mode: Mode = 'step';
   /** Set in the page, for runs whose config has none; its key never leaves this closure. */
@@ -64,8 +84,20 @@ export const createSession = ({
   const runModels = new Map<string, ModelInfo | null>();
   const pending = new Map<string, Pending>();
   let nextDecision = 1;
+  /**
+   * Counts the task's processes: a process's messages count only while it is the latest one, so
+   * one a restart has stopped can't reach the record.
+   */
+  let generation = 0;
+  let attached = 0;
+  let current: TaskProcess | undefined;
+  /** Restarts and stops run one after another, so two processes never overlap. */
+  let queue: Promise<void> = Promise.resolve();
 
-  emit({ type: 'session.started', protocol: PROTOCOL, task, mode });
+  const announce = () => {
+    emit({ type: 'session.started', protocol: PROTOCOL, task, mode });
+    if (pageModel !== null) emit({ type: 'session.model', model: infoOf(pageModel) });
+  };
 
   const hasModel = (runId: string) => (runModels.get(runId) ?? pageModel) !== null;
 
@@ -109,37 +141,84 @@ export const createSession = ({
       });
     });
 
-  const hooksFor = (runId: string): RunHooks => ({
-    onEvent: event => {
-      // The task's core may be another version: its events are checked once, here.
-      const parsed = RunEventSchema.safeParse(event);
-      if (!parsed.success) {
-        warn(`gut inspector: dropped an event core sent: ${z.prettifyError(parsed.error)}`);
-        return;
-      }
-      if (parsed.data.type === 'run.started') runModels.set(runId, parsed.data.model);
-      emit(parsed.data);
+  /** The hooks of a run in the process started at `of`; once a restart makes it stale, they go quiet. */
+  const hooksFor = (runId: string, of: number): RunHooks => {
+    const isLatest = () => of === generation;
+    return {
+      onEvent: event => {
+        if (!isLatest()) return;
+        if (event.type === 'run.started') runModels.set(runId, event.model);
+        emit(event);
+      },
+      answer: async ({ round, turn, request }) => {
+        if (!isLatest()) return stalled();
+        if (mode === 'play' && hasModel(runId)) return modelAnswer(runId);
+        const resolution = await waitFor(runId, round, { kind: 'turn', turn, request });
+        if (!isLatest()) return stalled();
+        if (resolution.by === 'you') return { by: 'you', answers: resolution.answers };
+        if (resolution.by === 'repick') return { repick: true };
+        return modelAnswer(runId);
+      },
+      beforePick: async () => (isLatest() ? { maxOptions: maxOptionsFor(runId) } : stalled()),
+      beforeInvoke: async ({ round, step }) => {
+        if (!isLatest()) return stalled();
+        if (mode === 'play' && hasModel(runId)) return 'invoke';
+        const resolution = await waitFor(runId, round, { kind: 'step', step });
+        if (!isLatest()) return stalled();
+        return resolution.by === 'repick' ? 'repick' : 'invoke';
+      },
+    };
+  };
+
+  const endTask = (error?: string) => {
+    emit({ type: 'session.ended', ...(error === undefined ? {} : { error }) });
+    warn(error === undefined ? 'The task ended.' : `The task ended: ${error}`);
+    if (attached === 0) {
+      warn(
+        'No run attached: the task never called runTask, or its @gut.run/core predates the inspector.',
+      );
+    }
+    warn('The inspector stays up until Ctrl-C.');
+  };
+
+  /** The link of the process started at `of`: ignored once a restart has made it stale. */
+  const linkFor = (of: number): TaskLink => ({
+    attach: ({ runId }) => {
+      if (of === generation) attached += 1;
+      return hooksFor(runId, of);
     },
-    answer: async ({ round, turn, request }) => {
-      if (mode === 'play' && hasModel(runId)) return modelAnswer(runId);
-      const resolution = await waitFor(runId, round, { kind: 'turn', turn, request });
-      if (resolution.by === 'you') return { by: 'you', answers: resolution.answers };
-      if (resolution.by === 'repick') return { repick: true };
-      return modelAnswer(runId);
-    },
-    beforePick: async () => ({ maxOptions: maxOptionsFor(runId) }),
-    beforeInvoke: async ({ round, step }) => {
-      if (mode === 'play' && hasModel(runId)) return 'invoke';
-      const resolution = await waitFor(runId, round, { kind: 'step', step });
-      return resolution.by === 'repick' ? 'repick' : 'invoke';
+    end: error => {
+      if (of === generation) endTask(error);
     },
   });
 
-  let attached = 0;
+  /** Forgets the current process: its decisions are dropped, and its messages ignored. */
+  const retire = () => {
+    generation += 1;
+    pending.clear();
+    runModels.clear();
+    return generation;
+  };
 
-  const attach: InspectorGlobal['attach'] = ({ runId }): RunHooks => {
-    attached += 1;
-    return hooksFor(runId);
+  const inTurn = (step: () => Promise<void>) => {
+    queue = queue.then(step);
+    return queue;
+  };
+
+  const restart = () => {
+    const of = retire();
+    return inTurn(async () => {
+      await current?.stop();
+      attached = 0;
+      clear();
+      announce();
+      current = start(linkFor(of));
+    });
+  };
+
+  const setPageModel = (model: DecisionModel | null) => {
+    pageModel = model;
+    emit({ type: 'session.model', model: model === null ? null : infoOf(model) });
   };
 
   /** The pending decision an action names, or why it can't be acted on. */
@@ -150,11 +229,6 @@ export const createSession = ({
     status: 400,
     error: `${id} is not a ${kind}`,
   });
-
-  const setPageModel = (model: DecisionModel | null) => {
-    pageModel = model;
-    emit({ type: 'session.model', model: model === null ? null : infoOf(model) });
-  };
 
   const act = async (action: Action): Promise<ActResult> => {
     switch (action.type) {
@@ -171,6 +245,10 @@ export const createSession = ({
       case 'pause': {
         mode = 'step';
         emit({ type: 'session.mode', mode });
+        return { status: 204 };
+      }
+      case 'restart': {
+        await restart();
         return { status: 204 };
       }
       case 'answer': {
@@ -235,13 +313,18 @@ export const createSession = ({
     }
   };
 
+  announce();
+  current = start(linkFor(generation));
+
   return {
-    attach,
     act,
-    /** Whether any run attached: none means the task's core predates the inspector. */
-    hasAttached: () => attached > 0,
-    end: (error?: string) => {
-      emit({ type: 'session.ended', ...(error === undefined ? {} : { error }) });
+    /** Stops the task's process, for the CLI's own exit. */
+    stop: () => {
+      retire();
+      return inTurn(async () => {
+        await current?.stop();
+        current = undefined;
+      });
     },
   };
 };

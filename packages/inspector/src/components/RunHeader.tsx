@@ -54,7 +54,7 @@ export const RunHeader = ({
           <StatusPill status={pill} />
           {run !== undefined && <BudgetMeter budget={runBudget(run)} />}
           {isLive && <FollowToggle isFollowing={isFollowing} onFollow={follow} />}
-          <RunControls state={state} run={run} act={act} />
+          <RunControls state={state} run={run} act={act} status={status} />
         </div>
       </div>
       <RoundStrip selected={selected} select={select} pending={state.pending} />

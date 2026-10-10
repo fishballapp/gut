@@ -84,6 +84,8 @@ const streamEvents = (req: IncomingMessage, res: ServerResponse, log: EventLog, 
   let isDraining = false;
   const pump = () => {
     if (isDraining) return;
+    // A restart cleared what this client had not read yet: it resumes at the first event kept.
+    next = Math.max(next, log.firstId());
     for (let event = log.at(next); event !== undefined; event = log.at(next)) {
       const isWritable = res.write(`id: ${next}\ndata: ${JSON.stringify(event)}\n\n`);
       next += 1;

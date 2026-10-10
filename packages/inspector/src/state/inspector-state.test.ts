@@ -162,6 +162,42 @@ describe('reduce', () => {
     expect(state.mode).toBe('step');
   });
 
+  it('begins the record afresh on a restart, keeping only the task and the mode', () => {
+    const events: InspectorEvent[] = [
+      { type: 'session.started', protocol: PROTOCOL, task: 'task.gut.ts', mode: 'play' },
+      {
+        type: 'session.model',
+        model: { name: 'jev', endpoint: 'https://x.invalid', maxOptions: 255 },
+      },
+      {
+        type: 'run.started',
+        runId: 'r1',
+        name: 'first',
+        model: null,
+        inputTokenBudget: 100,
+        isGoalCheckedInCode: false,
+      },
+      {
+        type: 'decision.pending',
+        id: 'd1',
+        runId: 'r1',
+        round: 1,
+        on: { kind: 'step', step: 'add' },
+      },
+      { type: 'session.ended', error: 'boom' },
+      { type: 'session.started', protocol: PROTOCOL, task: 'task.gut.ts', mode: 'play' },
+    ];
+    const state = events.reduce(reduce, initialState);
+    expect(state).toEqual({
+      sessionNumber: 2,
+      task: 'task.gut.ts',
+      mode: 'play',
+      pageModel: null,
+      runs: [],
+      pending: [],
+    });
+  });
+
   it('records a turn a person answered', async () => {
     const events = await record(() => ({ by: 'you', answers: { next: 'o1' } }));
     const turn = events.reduce(reduce, initialState).runs[0]?.rounds[0]?.turns[0];
@@ -195,6 +231,7 @@ describe('reduce', () => {
       { id: 'd1', runId: 'r1', round: 1, on: { kind: 'turn', turn: 1 } },
     ]);
     expect(states.at(-1)).toEqual({
+      sessionNumber: 1,
       task: 'task.gut.ts',
       mode: 'play',
       pageModel: { name: 'jev', endpoint: 'https://x.invalid', maxOptions: 255 },

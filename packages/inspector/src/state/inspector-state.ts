@@ -76,6 +76,8 @@ export type Decision = Omit<EventOf<'decision.pending'>, 'type'>;
 
 export type InspectorState = {
   task?: string;
+  /** Counts the sessions the record has begun: a restart begins the next one. */
+  sessionNumber: number;
   mode: Mode;
   /** The model set in the page, for runs without their own. */
   pageModel: ModelInfo | null;
@@ -89,6 +91,7 @@ export type InspectorState = {
 };
 
 export const initialState: InspectorState = {
+  sessionNumber: 0,
   mode: 'step',
   pageModel: null,
   runs: [],
@@ -112,10 +115,19 @@ const updateTurn = (round: Round, turn: number, update: (turn: Turn) => Turn): R
 
 const reduceSession = (state: InspectorState, event: SessionEvent): InspectorState => {
   switch (event.type) {
-    case 'session.started':
+    // The first one starts the record; a later one is a restart, which begins it afresh (the model
+    // set in the page follows, as its own event).
+    case 'session.started': {
+      const fresh = {
+        ...initialState,
+        sessionNumber: state.sessionNumber + 1,
+        task: event.task,
+        mode: event.mode,
+      };
       return event.protocol === PROTOCOL
-        ? { ...state, task: event.task, mode: event.mode }
-        : { ...state, task: event.task, incompatible: { cli: event.protocol, page: PROTOCOL } };
+        ? fresh
+        : { ...fresh, incompatible: { cli: event.protocol, page: PROTOCOL } };
+    }
     case 'session.mode':
       return { ...state, mode: event.mode };
     case 'session.model':

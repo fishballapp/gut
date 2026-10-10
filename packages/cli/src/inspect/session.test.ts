@@ -5,7 +5,7 @@ import {
   type RunEvent,
 } from '@gut.run/core/inspector';
 import { describe, expect, it } from 'vitest';
-import { createSession } from './session.ts';
+import { createSession, type TaskLink } from './session.ts';
 
 const request: DecisionRequest = {
   state: { goal: 'done' },
@@ -34,9 +34,13 @@ const jev = { name: 'jev', endpoint: 'https://openrouter.ai/api/v1/systemone', m
 const setup = () => {
   const events: InspectorEvent[] = [];
   const warnings: string[] = [];
+  /** Each task process the session started, in order; `stops` counts the ones it stopped. */
+  const links: TaskLink[] = [];
+  let stops = 0;
   const session = createSession({
     task: 'task.gut.ts',
     emit: event => events.push(event),
+    clear: () => events.splice(0),
     warn: message => warnings.push(message),
     readConfig: async from => {
       if (from.kind === 'path' && from.path === '~/gut.config.json') {
@@ -44,14 +48,33 @@ const setup = () => {
       }
       throw new Error(`No gut config at ${from.kind === 'path' ? from.path : 'the text given'}`);
     },
+    start: link => {
+      links.push(link);
+      return {
+        stop: async () => {
+          stops += 1;
+        },
+      };
+    },
   });
-  const hooks = session.attach({ runId: 'r1' });
+  const link = links[0];
+  if (link === undefined) throw new Error('no task was started');
+  const hooks = link.attach({ runId: 'r1' });
   const pendingId = () => {
     const pending = events.findLast(event => event.type === 'decision.pending');
     if (pending?.type !== 'decision.pending') throw new Error('nothing is pending');
     return pending.id;
   };
-  return { events, warnings, session, hooks, pendingId };
+  return {
+    events,
+    warnings,
+    session,
+    link,
+    links,
+    hooks,
+    pendingId,
+    stops: () => stops,
+  };
 };
 
 describe('createSession', () => {
@@ -237,26 +260,155 @@ describe('createSession', () => {
     ).toEqual({ status: 400, error: 'No gut config at ./missing.json' });
   });
 
-  it('drops an event that fails the schema, and says so', () => {
-    const { events, warnings, hooks } = setup();
-    // A core of another version could send anything.
-    hooks.onEvent(JSON.parse('{"type":"round.observed","runId":"r1"}'));
-    expect(events).toHaveLength(1);
-    expect(warnings[0]).toContain('dropped an event');
+  it('ends with the task, recording its error', () => {
+    const { events, warnings, link } = setup();
+    link.end('boom');
+    expect(events.at(-1)).toEqual({ type: 'session.ended', error: 'boom' });
+    expect(warnings).toEqual(['The task ended: boom', 'The inspector stays up until Ctrl-C.']);
   });
 
-  it('knows whether any run attached', () => {
+  it('says no run attached when the task never started one', () => {
     const events: InspectorEvent[] = [];
-    const session = createSession({
+    const warnings: string[] = [];
+    const links: TaskLink[] = [];
+    createSession({
       task: 't',
-      emit: e => events.push(e),
+      emit: event => events.push(event),
+      clear: () => {},
+      warn: message => warnings.push(message),
+      readConfig: async () => {
+        throw new Error('unused');
+      },
+      start: link => {
+        links.push(link);
+        return { stop: async () => {} };
+      },
+    });
+    links[0]?.end();
+    expect(warnings).toEqual([
+      'The task ended.',
+      'No run attached: the task never called runTask, or its @gut.run/core predates the inspector.',
+      'The inspector stays up until Ctrl-C.',
+    ]);
+  });
+
+  it('restarts: stops the task, forgets what waited, and starts it afresh', async () => {
+    const { events, session, links, hooks, pendingId, stops } = setup();
+    void hooks.answer({ round: 1, turn: 1, request });
+    await session.act({ type: 'setModel', model: { endpoint: jev.endpoint, name: 'jev' } });
+    const waiting = pendingId();
+
+    expect(await session.act({ type: 'restart' })).toEqual({ status: 204 });
+    expect(stops()).toBe(1);
+    expect(links).toHaveLength(2);
+    // The record starts afresh with the same mode, and the page's model again.
+    expect(events).toEqual([
+      { type: 'session.started', protocol: 1, task: 'task.gut.ts', mode: 'step' },
+      { type: 'session.model', model: { name: 'jev', endpoint: jev.endpoint, maxOptions: 255 } },
+    ]);
+    expect(await session.act({ type: 'answer', decision: waiting, answers: {} })).toMatchObject({
+      status: 409,
+    });
+  });
+
+  it('keeps the mode through a restart', async () => {
+    const { events, session } = setup();
+    await session.act({ type: 'play' });
+    await session.act({ type: 'restart' });
+    expect(events[0]).toEqual({
+      type: 'session.started',
+      protocol: 1,
+      task: 'task.gut.ts',
+      mode: 'play',
+    });
+  });
+
+  it('ignores what a stopped task sends after a restart', async () => {
+    const { events, session, links } = setup();
+    const old = links[0];
+    await session.act({ type: 'restart' });
+    const countBefore = events.length;
+    old?.attach({ runId: 'old' }).onEvent({
+      type: 'run.started',
+      runId: 'old',
+      name: 'old',
+      model: null,
+      inputTokenBudget: 1,
+      isGoalCheckedInCode: false,
+    });
+    old?.end('late');
+    expect(events).toHaveLength(countBefore);
+  });
+
+  it('a stale task reaches nothing while it is being stopped', async () => {
+    const events: InspectorEvent[] = [];
+    const links: TaskLink[] = [];
+    /** Each process's stop, held open until the test releases it. */
+    const releases: (() => void)[] = [];
+    const session = createSession({
+      task: 'task.gut.ts',
+      emit: event => events.push(event),
+      clear: () => events.splice(0),
       warn: () => {},
       readConfig: async () => {
         throw new Error('unused');
       },
+      start: link => {
+        links.push(link);
+        return {
+          stop: () =>
+            new Promise<void>(resolve => {
+              releases.push(resolve);
+            }),
+        };
+      },
     });
-    expect(session.hasAttached()).toBe(false);
-    session.attach({ runId: 'r' });
-    expect(session.hasAttached()).toBe(true);
+    const old = links[0]?.attach({ runId: 'r1' });
+    if (old === undefined) throw new Error('no task was started');
+    const waiting = old.answer({ round: 1, turn: 1, request });
+    expect(events.at(-1)).toMatchObject({ type: 'decision.pending', id: 'd1' });
+
+    const restarting = session.act({ type: 'restart' });
+    const during = events.length;
+    // The old task's hooks, called during the grace period: a turn, a pick, a step, an event.
+    const settled: unknown[] = [];
+    for (const call of [
+      old.answer({ round: 1, turn: 2, request }),
+      old.beforePick({ round: 1 }),
+      old.beforeInvoke({ round: 1, step: 'add' }),
+    ]) {
+      void call.then(value => settled.push(value));
+    }
+    old.onEvent({
+      type: 'run.started',
+      runId: 'r1',
+      name: 'old',
+      model: null,
+      inputTokenBudget: 1,
+      isGoalCheckedInCode: false,
+    });
+    expect(events).toHaveLength(during);
+
+    // The restart stops the old process once its turn in the queue comes up.
+    await new Promise(resolve => setTimeout(resolve, 0));
+    for (const release of releases) release();
+    expect(await restarting).toEqual({ status: 204 });
+    // The restart's record holds only what the new process says; the old decision is gone.
+    expect(events.map(event => event.type)).toEqual(['session.started']);
+    expect(await session.act({ type: 'answer', decision: 'd1', answers: {} })).toMatchObject({
+      status: 409,
+    });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(settled).toEqual([]);
+    void waiting.then(value => settled.push(value));
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(settled).toEqual([]);
+  });
+
+  it('stops the task without starting another', async () => {
+    const { session, links, stops } = setup();
+    await session.stop();
+    expect(stops()).toBe(1);
+    expect(links).toHaveLength(1);
   });
 });

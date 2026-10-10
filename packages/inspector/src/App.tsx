@@ -8,10 +8,12 @@ import { TurnView } from './components/TurnView.tsx';
 import { act, useInspector } from './lib/connection.ts';
 import {
   FOLLOWING,
+  type HeldSelection,
   resolveSelection,
   type Select,
   type Selection,
   selectChoice,
+  selectionIn,
 } from './lib/selection.ts';
 
 /**
@@ -20,7 +22,15 @@ import {
  */
 export const App = () => {
   const { state, status } = useInspector();
-  const [selection, setSelectionState] = useState<Selection>(FOLLOWING);
+  // A selection belongs to the session it was made in: a restart begins the record afresh, so the
+  // page follows again rather than holding a round or turn whose numbers the new run reuses.
+  const [held, setHeld] = useState<HeldSelection>({
+    session: state.sessionNumber,
+    selection: FOLLOWING,
+  });
+  const selection = selectionIn(held, state.sessionNumber);
+  const setSelectionState = (next: Selection) =>
+    setHeld({ session: state.sessionNumber, selection: next });
   const selected = resolveSelection(state, selection);
   const setSelection: Select = choice => setSelectionState(selectChoice(state, choice));
   return (

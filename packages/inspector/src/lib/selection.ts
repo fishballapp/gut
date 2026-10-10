@@ -13,6 +13,13 @@ export type Selected = { run?: Run; round?: Round; turn?: Turn };
 
 export const FOLLOWING: Selection = { isFollowing: true };
 
+/** A selection the page holds, with the session it was made in. */
+export type HeldSelection = { session: number; selection: Selection };
+
+/** The selection in force in `session`: one held from an earlier session has lapsed, so it follows. */
+export const selectionIn = (held: HeldSelection, session: number): Selection =>
+  held.session === session ? held.selection : FOLLOWING;
+
 export const resolveSelection = (state: InspectorState, selection: Selection): Selected => {
   const choice = selection.isFollowing ? {} : selection.choice;
   const run = state.runs.find(entry => entry.runId === choice.runId) ?? state.runs.at(-1);

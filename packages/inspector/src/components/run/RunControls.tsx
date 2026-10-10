@@ -3,7 +3,7 @@ import { Tooltip } from '@base-ui/react/tooltip';
 import { cn } from '@fishballapps/cn';
 import type { Action } from '@gut.run/core/inspector';
 import { type ReactNode, useEffect, useEffectEvent } from 'react';
-import type { ActOutcome } from '../../lib/connection.ts';
+import type { ActOutcome, ConnectionStatus } from '../../lib/connection.ts';
 import { isKeyBlocked } from '../../lib/key-target.ts';
 import { isShortcutBlockedTarget } from '../../lib/shortcut-target.ts';
 import { useAction } from '../../lib/use-action.ts';
@@ -64,15 +64,17 @@ const ControlButton = ({
   );
 };
 
-/** Play / Pause (Space) and Step (S): the model does the next thing, or everything. */
+/** Play / Pause (Space), Step (S) and Restart (T): the model does the next thing, or everything. */
 export const RunControls = ({
   state,
   run,
   act,
+  status,
 }: {
   state: InspectorState;
   run: Run | undefined;
   act: (action: Action) => Promise<ActOutcome>;
+  status: ConnectionStatus;
 }) => {
   const { send, error } = useAction(act);
 
@@ -97,9 +99,18 @@ export const RunControls = ({
     return undefined;
   })();
 
+  // Restart works whether the task runs or has ended: it runs the task again from the top.
+  const isRestartDisabled = status === 'lost';
+  const restartDisabledReason = isRestartDisabled ? 'Connection lost' : undefined;
+
   const playPause = () => {
     if (isPlayDisabled) return;
     void send({ type: isPlaying ? 'pause' : 'play' });
+  };
+
+  const restart = () => {
+    if (isRestartDisabled) return;
+    void send({ type: 'restart' });
   };
 
   const step = () => {
@@ -124,6 +135,11 @@ export const RunControls = ({
       if (isKeyBlocked(event.target)) return;
       event.preventDefault();
       step();
+    }
+    if (event.key === 't' || event.key === 'T') {
+      if (isKeyBlocked(event.target)) return;
+      event.preventDefault();
+      restart();
     }
   });
 
@@ -155,6 +171,16 @@ export const RunControls = ({
           >
             Step
             <Keycap>S</Keycap>
+          </ControlButton>
+          <ControlButton
+            reason={restartDisabledReason}
+            isDisabled={isRestartDisabled}
+            isPrimary={false}
+            ariaLabel="Restart"
+            onClick={restart}
+          >
+            Restart
+            <Keycap>T</Keycap>
           </ControlButton>
         </div>
       </Tooltip.Provider>

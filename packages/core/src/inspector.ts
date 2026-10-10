@@ -117,6 +117,11 @@ export type InspectorEvent = z.infer<typeof InspectorEventSchema>;
 export const ActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('play') }),
   z.object({ type: z.literal('pause') }),
+  /**
+   * Stop the task's process and run the task again from its top: the record starts afresh, the mode
+   * and the model set in the page stay.
+   */
+  z.object({ type: z.literal('restart') }),
   /** Answer a waiting turn yourself: question key → criterion key. */
   z.object({
     type: z.literal('answer'),

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { type InspectorState, initialState, type Round } from '../state/inspector-state.ts';
-import { FOLLOWING, resolveSelection, selectChoice } from './selection.ts';
+import {
+  FOLLOWING,
+  type HeldSelection,
+  resolveSelection,
+  selectChoice,
+  selectionIn,
+} from './selection.ts';
 
 const round = (n: number, turns: number[]): Round => ({
   round: n,
@@ -120,5 +126,16 @@ describe('selectChoice', () => {
   it('keeps a chosen turn while newer turns arrive', () => {
     const selection = selectChoice(state, { runId: 'b', round: 2, turn: 1 });
     expect(ids(resolveSelection(grown, selection))).toEqual(['b', 2, 1]);
+  });
+});
+
+describe('selectionIn', () => {
+  it('holds a selection in the session it was made in, and follows again in the next one', () => {
+    const held: HeldSelection = {
+      session: 1,
+      selection: { isFollowing: false, choice: { runId: 'r1', round: 2, turn: 1 } },
+    };
+    expect(selectionIn(held, 1)).toBe(held.selection);
+    expect(selectionIn(held, 2)).toEqual(FOLLOWING);
   });
 });
