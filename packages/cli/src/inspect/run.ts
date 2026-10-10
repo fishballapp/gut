@@ -6,13 +6,12 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadConfig, parseConfig } from '@gut.run/core';
 import {
   type DecisionModel,
   INSPECTOR_KEY,
   type InspectorGlobal,
-  loadConfig,
   PROTOCOL,
-  parseConfig,
 } from '@gut.run/core/inspector';
 import { createEventLog } from './log.ts';
 import { startServer } from './server.ts';

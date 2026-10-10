@@ -12,7 +12,6 @@ import {
   RunEventSchema,
 } from './events.ts';
 
-export { loadConfig, parseConfig } from './config.ts';
 export { answersFromYou } from './turns.ts';
 export type {
   DecisionModel,
