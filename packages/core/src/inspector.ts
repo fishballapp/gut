@@ -12,6 +12,7 @@ import {
   RunEventSchema,
 } from './events.ts';
 
+export { loadConfig, parseConfig } from './config.ts';
 export { answersFromYou } from './turns.ts';
 export type {
   DecisionModel,
@@ -136,6 +137,19 @@ export const ActionSchema = z.discriminatedUnion('type', [
       apiKey: z.string().optional(),
       maxOptions: z.number().int().min(2).optional(),
     }),
+  }),
+  /** Drop the page's model: runs without their own go back to a person answering every turn. */
+  z.object({ type: z.literal('clearModel') }),
+  /**
+   * Use a gut config's model for runs that have none, read by the CLI: a path (`~/` and paths
+   * relative to where gut started are fine), or a file's text the page read.
+   */
+  z.object({
+    type: z.literal('loadConfig'),
+    from: z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('path'), path: z.string().min(1) }),
+      z.object({ kind: z.literal('text'), text: z.string() }),
+    ]),
   }),
 ]);
 

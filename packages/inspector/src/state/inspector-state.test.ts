@@ -93,7 +93,6 @@ describe('reduce', () => {
     expect(run?.rounds[0]?.turns).toEqual([
       expect.objectContaining({
         turn: 1,
-        pick: 1,
         optionInfo: {
           next: {
             o1: { kind: 'move', address: { keys: ['add'] } },
@@ -114,7 +113,7 @@ describe('reduce', () => {
     expect(run?.rounds[2]?.goalChecked).toMatchObject({ achieved: true });
   });
 
-  it('keeps a dropped turn and numbers the re-pick that follows', async () => {
+  it("drops the turns of a pick a re-pick abandons, and keeps the pick's spend", async () => {
     const events = await record((turn, round) =>
       round === 1 && turn === 1 ? { repick: true } : { by: 'model' },
     );
@@ -123,9 +122,8 @@ describe('reduce', () => {
       { maxOptions: 26, abandoned: { inputTokens: 0, requests: 0 } },
       { maxOptions: 26 },
     ]);
-    expect(firstRound?.turns.map(turn => [turn.turn, turn.pick, turn.outcome.status])).toEqual([
-      [1, 1, 'dropped'],
-      [2, 2, 'answered'],
+    expect(firstRound?.turns.map(turn => [turn.turn, turn.outcome.status])).toEqual([
+      [2, 'answered'],
     ]);
   });
 
@@ -146,6 +144,7 @@ describe('reduce', () => {
     });
     expect(firstRound?.picks[1]?.picked).toBeUndefined();
     expect(firstRound?.picked).toMatchObject({ step: 'add' });
+    expect(firstRound?.turns.map(turn => turn.turn)).toEqual([2]);
   });
 
   it('reads nothing after a session that speaks another protocol', () => {

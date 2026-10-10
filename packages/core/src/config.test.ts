@@ -78,8 +78,8 @@ describe('no-arg lookup', () => {
     const { root, home } = await fixture();
     await writeFile(join(root, 'gut.config.json'), '{');
     await writeFile(join(home, 'gut.config.json'), JSON.stringify(configFor('home')));
-    await expect(loadConfig()).rejects.toThrow(SyntaxError);
-    await expect(initGut()).rejects.toThrow(SyntaxError);
+    await expect(loadConfig()).rejects.toThrow(/gut\.config\.json: not JSON/);
+    await expect(initGut()).rejects.toThrow(/gut\.config\.json: not JSON/);
   });
 
   it('reports how to configure gut when no file exists', async () => {

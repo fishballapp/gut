@@ -1,5 +1,5 @@
 import { cn } from '@fishballapps/cn';
-import { isAbandonedPick, turnStatusLabel } from '../../lib/turn-display.ts';
+import { turnStatusLabel } from '../../lib/turn-display.ts';
 import type { Round, Turn } from '../../state/inspector-state.ts';
 
 /** Who answered and what it cost, for the top-right of the turn. A turn waiting for you has no tokens yet. */
@@ -32,11 +32,9 @@ export const TurnHeader = ({
   turn: Turn;
   isAwaitingYou: boolean;
 }) => {
-  const abandoned = isAbandonedPick(round, turn);
   return (
     <p className="font-mono text-xs text-muted">
       round {round.round} · turn {turn.turn}
-      {abandoned && ' · abandoned pick'}
       {isAwaitingYou && <span className="text-you"> · waiting for you</span>}
     </p>
   );

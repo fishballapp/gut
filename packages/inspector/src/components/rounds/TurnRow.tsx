@@ -7,14 +7,12 @@ import type { Turn } from '../../state/inspector-state.ts';
 export const TurnRow = ({
   turn,
   mark,
-  isAbandoned,
   isSelected,
   ref,
   onSelect,
 }: {
   turn: Turn;
   mark: TurnMark;
-  isAbandoned: boolean;
   isSelected: boolean;
   ref?: Ref<HTMLButtonElement>;
   onSelect: () => void;
@@ -24,10 +22,7 @@ export const TurnRow = ({
     type="button"
     aria-current={isSelected}
     onClick={onSelect}
-    className={cn(
-      'grid w-full grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 py-1 ps-7 pe-2.5 text-left text-[13px] outline-offset-[-2px] focus-visible:outline-2 focus-visible:outline-ink',
-      isAbandoned ? 'text-muted' : 'text-ink',
-    )}
+    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 py-1 ps-7 pe-2.5 text-left text-[13px] text-ink outline-offset-[-2px] focus-visible:outline-2 focus-visible:outline-ink"
   >
     <span
       className={cn(

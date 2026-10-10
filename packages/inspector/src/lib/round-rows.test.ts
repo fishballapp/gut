@@ -12,7 +12,6 @@ import {
 
 const turn = (number: number): Turn => ({
   turn: number,
-  pick: 1,
   request: { state: { goal: 'g' }, questions: {} },
   optionInfo: {},
   retries: [],

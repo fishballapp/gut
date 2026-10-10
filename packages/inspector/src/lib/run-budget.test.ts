@@ -4,7 +4,6 @@ import { formatBudgetLabel, runBudget } from './run-budget.ts';
 
 const turn = (outcome: Turn['outcome']): Turn => ({
   turn: 1,
-  pick: 1,
   request: { state: { goal: 'g' }, questions: {} },
   optionInfo: {},
   retries: [],
@@ -47,7 +46,7 @@ describe('runBudget', () => {
             ms: 1,
           }),
           turn({ status: 'asked' }),
-          turn({ status: 'dropped', reason: 'repick' }),
+          turn({ status: 'dropped', reason: 'budget' }),
         ]),
       ),
     ).toEqual({ inputTokens: 1400, requests: 2, budget: 50_000 });

@@ -1,4 +1,9 @@
-import type { DecisionRequest, InspectorEvent, RunEvent } from '@gut.run/core/inspector';
+import {
+  DecisionModelSchema,
+  type DecisionRequest,
+  type InspectorEvent,
+  type RunEvent,
+} from '@gut.run/core/inspector';
 import { describe, expect, it } from 'vitest';
 import { createSession } from './session.ts';
 
@@ -33,6 +38,12 @@ const setup = () => {
     task: 'task.gut.ts',
     emit: event => events.push(event),
     warn: message => warnings.push(message),
+    readConfig: async from => {
+      if (from.kind === 'path' && from.path === '~/gut.config.json') {
+        return DecisionModelSchema.parse({ endpoint: jev.endpoint, name: 'jev', apiKey: 'k' });
+      }
+      throw new Error(`No gut config at ${from.kind === 'path' ? from.path : 'the text given'}`);
+    },
   });
   const hooks = session.attach({ runId: 'r1' });
   const pendingId = () => {
@@ -63,61 +74,71 @@ describe('createSession', () => {
       on: { kind: 'turn', turn: 1 },
     });
     const answers = { achieved: 'notYet', next: 'o2' };
-    expect(session.act({ type: 'answer', decision: pendingId(), answers })).toEqual({
+    expect(await session.act({ type: 'answer', decision: pendingId(), answers })).toEqual({
       status: 204,
     });
     await expect(answer).resolves.toEqual({ by: 'you', answers });
     expect(events.at(-1)).toMatchObject({ type: 'decision.resolved', by: 'you' });
   });
 
-  it('refuses answers core would reject, and keeps the turn waiting', () => {
+  it('refuses answers core would reject, and keeps the turn waiting', async () => {
     const { session, hooks, pendingId } = setup();
     void hooks.answer({ round: 1, turn: 1, request });
     const id = pendingId();
-    expect(session.act({ type: 'answer', decision: id, answers: { next: 'o1' } })).toMatchObject({
+    expect(
+      await session.act({ type: 'answer', decision: id, answers: { next: 'o1' } }),
+    ).toMatchObject({
       status: 400,
       error: 'missing answer for question "achieved"',
     });
     expect(
-      session.act({ type: 'answer', decision: id, answers: { achieved: 'notYet', next: 'o9' } }),
+      await session.act({
+        type: 'answer',
+        decision: id,
+        answers: { achieved: 'notYet', next: 'o9' },
+      }),
     ).toMatchObject({ status: 400 });
     expect(
-      session.act({ type: 'answer', decision: id, answers: { achieved: 'notYet', next: 'o1' } }),
+      await session.act({
+        type: 'answer',
+        decision: id,
+        answers: { achieved: 'notYet', next: 'o1' },
+      }),
     ).toEqual({ status: 204 });
   });
 
-  it('lets the first action on a decision win; later ones get 409', () => {
+  it('lets the first action on a decision win; later ones get 409', async () => {
     const { session, hooks, pendingId } = setup();
     void hooks.answer({ round: 1, turn: 1, request });
     const id = pendingId();
-    expect(session.act({ type: 'repick', decision: id })).toEqual({ status: 204 });
-    expect(session.act({ type: 'repick', decision: id })).toMatchObject({ status: 409 });
+    expect(await session.act({ type: 'repick', decision: id })).toEqual({ status: 204 });
+    expect(await session.act({ type: 'repick', decision: id })).toMatchObject({ status: 409 });
   });
 
   it('asks the model only when there is one', async () => {
     const { session, hooks, pendingId } = setup();
     hooks.onEvent(started(null));
     const answer = hooks.answer({ round: 1, turn: 1, request });
-    expect(session.act({ type: 'askModel', decision: pendingId() })).toMatchObject({
+    expect(await session.act({ type: 'askModel', decision: pendingId() })).toMatchObject({
       status: 400,
       error: 'no model: add one first',
     });
     expect(
-      session.act({
+      await session.act({
         type: 'setModel',
         model: { endpoint: jev.endpoint, name: 'jev', apiKey: 'sk-secret', maxOptions: 255 },
       }),
     ).toEqual({ status: 204 });
-    expect(session.act({ type: 'askModel', decision: pendingId() })).toEqual({ status: 204 });
+    expect(await session.act({ type: 'askModel', decision: pendingId() })).toEqual({ status: 204 });
     await expect(answer).resolves.toMatchObject({
       by: 'model',
       model: { name: 'jev', apiKey: 'sk-secret' },
     });
   });
 
-  it('never puts the page model key in an event', () => {
+  it('never puts the page model key in an event', async () => {
     const { events, session } = setup();
-    session.act({
+    await session.act({
       type: 'setModel',
       model: { endpoint: jev.endpoint, name: 'jev', apiKey: 'sk-secret' },
     });
@@ -133,11 +154,11 @@ describe('createSession', () => {
       questions: { next: { instructions: 'Which?', criteria: { o1: 'A', o2: 'B', o3: 'C' } } },
     };
     const answer = hooks.answer({ round: 1, turn: 1, request: threeOptions });
-    session.act({
+    await session.act({
       type: 'setModel',
       model: { endpoint: jev.endpoint, name: 'tiny', maxOptions: 2 },
     });
-    session.act({ type: 'askModel', decision: pendingId() });
+    await session.act({ type: 'askModel', decision: pendingId() });
     await expect(answer).resolves.toEqual({ repick: true });
     await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 2 });
   });
@@ -145,9 +166,9 @@ describe('createSession', () => {
   it("uses the run's own model over the page's", async () => {
     const { session, hooks, pendingId } = setup();
     hooks.onEvent(started(jev));
-    session.act({ type: 'setModel', model: { endpoint: jev.endpoint, name: 'other' } });
+    await session.act({ type: 'setModel', model: { endpoint: jev.endpoint, name: 'other' } });
     const answer = hooks.answer({ round: 1, turn: 1, request });
-    session.act({ type: 'askModel', decision: pendingId() });
+    await session.act({ type: 'askModel', decision: pendingId() });
     await expect(answer).resolves.toEqual({ by: 'model' });
   });
 
@@ -156,7 +177,7 @@ describe('createSession', () => {
     hooks.onEvent(started(jev));
     const waiting = hooks.answer({ round: 1, turn: 1, request });
     const step = hooks.beforeInvoke({ round: 1, step: 'a' });
-    expect(session.act({ type: 'play' })).toEqual({ status: 204 });
+    expect(await session.act({ type: 'play' })).toEqual({ status: 204 });
     await expect(waiting).resolves.toEqual({ by: 'model' });
     await expect(step).resolves.toBe('invoke');
     await expect(hooks.answer({ round: 2, turn: 1, request })).resolves.toEqual({ by: 'model' });
@@ -165,10 +186,10 @@ describe('createSession', () => {
     ]);
   });
 
-  it('keeps a run without a model waiting in Play', () => {
+  it('keeps a run without a model waiting in Play', async () => {
     const { events, session, hooks } = setup();
     hooks.onEvent(started(null));
-    session.act({ type: 'play' });
+    await session.act({ type: 'play' });
     void hooks.answer({ round: 1, turn: 1, request });
     expect(events.at(-1)).toMatchObject({ type: 'decision.pending' });
   });
@@ -176,26 +197,44 @@ describe('createSession', () => {
   it('waits before a step: Run invokes it, Pick again re-picks', async () => {
     const { session, hooks, pendingId } = setup();
     const first = hooks.beforeInvoke({ round: 1, step: 'a' });
-    expect(session.act({ type: 'askModel', decision: pendingId() })).toMatchObject({
+    expect(await session.act({ type: 'askModel', decision: pendingId() })).toMatchObject({
       status: 400,
     });
-    session.act({ type: 'run', decision: pendingId() });
+    await session.act({ type: 'run', decision: pendingId() });
     await expect(first).resolves.toBe('invoke');
     const second = hooks.beforeInvoke({ round: 2, step: 'b' });
-    session.act({ type: 'repick', decision: pendingId() });
+    await session.act({ type: 'repick', decision: pendingId() });
     await expect(second).resolves.toBe('repick');
   });
 
   it("sizes questions by the run's model, else the page's, else for a person", async () => {
     const { session, hooks } = setup();
     await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 26 });
-    session.act({
+    await session.act({
       type: 'setModel',
       model: { endpoint: jev.endpoint, name: 'clef', maxOptions: 40 },
     });
     await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 40 });
     hooks.onEvent(started(jev));
     await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 255 });
+  });
+
+  it("loads a gut config's model, keeps its key, and clears it again", async () => {
+    const { events, session } = setup();
+    expect(
+      await session.act({ type: 'loadConfig', from: { kind: 'path', path: '~/gut.config.json' } }),
+    ).toEqual({ status: 204 });
+    expect(events.at(-1)).toEqual({ type: 'session.model', model: jev });
+    expect(JSON.stringify(events)).not.toContain('"k"');
+    expect(await session.act({ type: 'clearModel' })).toEqual({ status: 204 });
+    expect(events.at(-1)).toEqual({ type: 'session.model', model: null });
+  });
+
+  it("refuses a config it can't read, saying why", async () => {
+    const { session } = setup();
+    expect(
+      await session.act({ type: 'loadConfig', from: { kind: 'path', path: './missing.json' } }),
+    ).toEqual({ status: 400, error: 'No gut config at ./missing.json' });
   });
 
   it('drops an event that fails the schema, and says so', () => {
@@ -208,7 +247,14 @@ describe('createSession', () => {
 
   it('knows whether any run attached', () => {
     const events: InspectorEvent[] = [];
-    const session = createSession({ task: 't', emit: e => events.push(e), warn: () => {} });
+    const session = createSession({
+      task: 't',
+      emit: e => events.push(e),
+      warn: () => {},
+      readConfig: async () => {
+        throw new Error('unused');
+      },
+    });
     expect(session.hasAttached()).toBe(false);
     session.attach({ runId: 'r' });
     expect(session.hasAttached()).toBe(true);

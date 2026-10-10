@@ -42,14 +42,20 @@ const infoOf = (model: DecisionModel): ModelInfo => ({
   maxOptions: model.capabilities.choiceQuestions.maxOptions,
 });
 
+/** Where a `loadConfig` action reads a config from. */
+export type ConfigFrom = Extract<Action, { type: 'loadConfig' }>['from'];
+
 export const createSession = ({
   task,
   emit,
   warn,
+  readConfig,
 }: {
   task: string;
   emit: (event: InspectorEvent) => void;
   warn: (message: string) => void;
+  /** Reads a gut config's model; throws, with a message for the page, when it can't. */
+  readConfig: (from: ConfigFrom) => Promise<DecisionModel>;
 }) => {
   let mode: Mode = 'step';
   /** Set in the page, for runs whose config has none; its key never leaves this closure. */
@@ -145,7 +151,12 @@ export const createSession = ({
     error: `${id} is not a ${kind}`,
   });
 
-  const act = (action: Action): ActResult => {
+  const setPageModel = (model: DecisionModel | null) => {
+    pageModel = model;
+    emit({ type: 'session.model', model: model === null ? null : infoOf(model) });
+  };
+
+  const act = async (action: Action): Promise<ActResult> => {
     switch (action.type) {
       case 'play': {
         mode = 'play';
@@ -206,9 +217,20 @@ export const createSession = ({
             : { capabilities: { choiceQuestions: { maxOptions } } }),
         });
         if (!parsed.success) return { status: 400, error: z.prettifyError(parsed.error) };
-        pageModel = parsed.data;
-        emit({ type: 'session.model', model: infoOf(parsed.data) });
+        setPageModel(parsed.data);
         return { status: 204 };
+      }
+      case 'clearModel': {
+        setPageModel(null);
+        return { status: 204 };
+      }
+      case 'loadConfig': {
+        try {
+          setPageModel(await readConfig(action.from));
+          return { status: 204 };
+        } catch (error) {
+          return { status: 400, error: error instanceof Error ? error.message : String(error) };
+        }
       }
     }
   };

@@ -11,7 +11,6 @@ import {
 
 const turn = (number: number, outcome: Turn['outcome']): Turn => ({
   turn: number,
-  pick: 1,
   request: { state: { goal: 'g' }, questions: {} },
   optionInfo: {},
   retries: [],
@@ -89,14 +88,9 @@ describe('blockLook', () => {
     expect(look(outcome)).toEqual({ kind: 'you' });
   });
 
-  it('shows a dropped turn with its reason', () => {
-    expect(look({ status: 'dropped', reason: 'repick' })).toEqual({
-      kind: 'dropped',
-      reason: 'repick',
-    });
+  it('shows a turn the budget dropped', () => {
     expect(look({ status: 'dropped', reason: 'budget' })).toEqual({
       kind: 'dropped',
-      reason: 'budget',
     });
   });
 
@@ -137,7 +131,7 @@ describe('blockName', () => {
       'round 3, turn 2: .64, answered by the model',
     );
     expect(blockName(3, 2, { kind: 'you' })).toBe('round 3, turn 2: answered by you');
-    expect(blockName(3, 2, { kind: 'dropped', reason: 'budget' })).toBe(
+    expect(blockName(3, 2, { kind: 'dropped' })).toBe(
       'round 3, turn 2: dropped, the budget ran out',
     );
     expect(blockName(3, 2, { kind: 'waiting' })).toBe('round 3, turn 2: waiting for you');

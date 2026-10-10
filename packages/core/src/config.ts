@@ -19,6 +19,20 @@ export type LoadedConfig = { decisionModel: DecisionModel | null };
 /** Where a config comes from, when not found by the default lookup. */
 export type ConfigSource = ExclusifyUnion<{ configJsonPath: string } | { config: ConfigInput }>;
 
+/** A config file's text, checked; `source` names it in the error. */
+export const parseConfig = (text: string, source: string): Config => {
+  const json = (() => {
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(`${source}: not JSON`);
+    }
+  })();
+  const parsed = ConfigSchema.safeParse(json);
+  if (!parsed.success) throw new Error(`${source}: ${z.prettifyError(parsed.error)}`);
+  return parsed.data;
+};
+
 const readConfig = async (path: string): Promise<Config | undefined> => {
   const text = await (async () => {
     try {
@@ -29,9 +43,7 @@ const readConfig = async (path: string): Promise<Config | undefined> => {
     }
   })();
   if (text === undefined) return undefined;
-  const parsed = ConfigSchema.safeParse(JSON.parse(text));
-  if (!parsed.success) throw new Error(`${path}: ${z.prettifyError(parsed.error)}`);
-  return parsed.data;
+  return parseConfig(text, path);
 };
 
 export async function loadConfig(source?: ConfigSource): Promise<Config>;

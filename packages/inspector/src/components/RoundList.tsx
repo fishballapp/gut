@@ -10,7 +10,6 @@ import {
 } from '../lib/round-rows.ts';
 import type { Select, Selected } from '../lib/selection.ts';
 import { isShortcutBlockedTarget } from '../lib/shortcut-target.ts';
-import { isAbandonedPick } from '../lib/turn-display.ts';
 import { turnMark } from '../lib/turn-summary.ts';
 import type { Decision } from '../state/inspector-state.ts';
 import { RoundRow } from './rounds/RoundRow.tsx';
@@ -99,7 +98,6 @@ export const RoundList = ({
                   {isSelectedRound && (
                     <ul>
                       {round.turns.map(turn => {
-                        const isAbandoned = isAbandonedPick(round, turn);
                         const isAwaiting = isAwaitingYou(
                           pending,
                           run.runId,
@@ -110,8 +108,7 @@ export const RoundList = ({
                           <li key={turn.turn}>
                             <TurnRow
                               turn={turn}
-                              mark={turnMark(turn, { isAbandoned, isAwaitingYou: isAwaiting })}
-                              isAbandoned={isAbandoned}
+                              mark={turnMark(turn, { isAwaitingYou: isAwaiting })}
                               isSelected={turn.turn === currentTurn?.turn}
                               ref={
                                 isCurrentRow({ round: round.round, turn: turn.turn })

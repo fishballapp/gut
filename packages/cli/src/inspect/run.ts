@@ -3,12 +3,20 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { INSPECTOR_KEY, type InspectorGlobal, PROTOCOL } from '@gut.run/core/inspector';
+import {
+  type DecisionModel,
+  INSPECTOR_KEY,
+  type InspectorGlobal,
+  loadConfig,
+  PROTOCOL,
+  parseConfig,
+} from '@gut.run/core/inspector';
 import { createEventLog } from './log.ts';
 import { startServer } from './server.ts';
-import { createSession } from './session.ts';
+import { type ConfigFrom, createSession } from './session.ts';
 
 /** The built page's directory, from `@gut.run/inspector`, the same from source and from npm. */
 const inspectorRoot = () => {
@@ -42,6 +50,13 @@ const openInBrowser = (url: string) => {
     .unref();
 };
 
+/** A gut config's model, for the page: a path (`~/` is home) or a file's text the page read. */
+const readConfigModel = async (from: ConfigFrom): Promise<DecisionModel> => {
+  if (from.kind === 'text') return parseConfig(from.text, 'the chosen file').decisionModel;
+  const path = from.path.startsWith('~/') ? join(homedir(), from.path.slice(2)) : from.path;
+  return (await loadConfig({ configJsonPath: path })).decisionModel;
+};
+
 const say = (line: string) => {
   process.stderr.write(`${line}\n`);
 };
@@ -53,7 +68,12 @@ export const runInspected = async (
 ) => {
   const root = inspectorRoot();
   const log = createEventLog();
-  const session = createSession({ task: file, emit: log.append, warn: say });
+  const session = createSession({
+    task: file,
+    emit: log.append,
+    warn: say,
+    readConfig: readConfigModel,
+  });
   const server = await startServer({
     log,
     act: session.act,

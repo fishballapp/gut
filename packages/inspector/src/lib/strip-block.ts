@@ -8,7 +8,7 @@ type Answers = Extract<Turn['outcome'], { status: 'answered' }>['answers'];
 export type BlockLook =
   | { kind: 'model'; probability: number }
   | { kind: 'you' }
-  | { kind: 'dropped'; reason: 'repick' | 'budget' }
+  | { kind: 'dropped' }
   | { kind: 'failed' }
   | { kind: 'waiting' }
   | { kind: 'in-flight' };
@@ -49,7 +49,7 @@ export const blockLook = ({
   const { outcome } = turn;
   switch (outcome.status) {
     case 'dropped':
-      return { kind: 'dropped', reason: outcome.reason };
+      return { kind: 'dropped' };
     case 'failed':
       return { kind: 'failed' };
     case 'answered':
@@ -71,7 +71,7 @@ const lookPhrase = (look: BlockLook): string => {
     case 'you':
       return 'answered by you';
     case 'dropped':
-      return look.reason === 'repick' ? 'dropped by a re-pick' : 'dropped, the budget ran out';
+      return 'dropped, the budget ran out';
     case 'failed':
       return 'failed';
     case 'waiting':

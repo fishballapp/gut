@@ -159,20 +159,12 @@ describe('roundProbability', () => {
   it('says you when you answered a turn of the pick, rather than its probability of 1', () => {
     const yours: Turn = {
       turn: 1,
-      pick: 1,
       request: { state: { goal: 'g' }, questions: {} },
       optionInfo: {},
       retries: [],
       outcome: { status: 'answered', by: { kind: 'you' }, answers: {}, inputTokens: 0, ms: 1 },
     };
     expect(roundProbability(round({ picked: picked(), turns: [yours] }))).toBe('you');
-    // A turn you answered in a pick a re-pick abandoned does not make the new pick yours.
-    const abandoned = round({
-      picked: picked(),
-      turns: [yours],
-      picks: [{ maxOptions: 9 }, { maxOptions: 9 }],
-    });
-    expect(roundProbability(abandoned)).toBe('.64');
   });
 
   it('shows a dash for a goal step with no probabilities', () => {

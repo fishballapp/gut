@@ -28,7 +28,7 @@ beforeEach(async () => {
   result = { status: 204 };
   server = await startServer({
     log,
-    act: action => {
+    act: async action => {
       acted.push(action);
       return result;
     },

@@ -84,9 +84,7 @@ export const TurnView = ({
 
               {turn.outcome.status === 'dropped' && (
                 <p className="mt-4 font-mono text-sm text-muted">
-                  {turn.outcome.reason === 'repick'
-                    ? 'Dropped by a re-pick before it was answered.'
-                    : 'Dropped: the budget ran out before the model was asked.'}
+                  Dropped: the budget ran out before the model was asked.
                 </p>
               )}
 

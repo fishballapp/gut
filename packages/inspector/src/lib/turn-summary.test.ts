@@ -50,7 +50,6 @@ describe('summarizeOptions', () => {
 
 const baseTurn = (overrides: Partial<Turn> = {}): Turn => ({
   turn: 2,
-  pick: 1,
   request: { state: { goal: 'g' }, questions: { next: { instructions: '', criteria: {} } } },
   optionInfo: { next: { o1: bundle, o2: bundle } },
   retries: [],
@@ -85,7 +84,7 @@ describe('turnSummary', () => {
 });
 
 describe('turnMark', () => {
-  const none = { isAbandoned: false, isAwaitingYou: false };
+  const none = { isAwaitingYou: false };
 
   it('shows the model’s input tokens compactly when it answered', () => {
     const turn = baseTurn({
@@ -108,7 +107,7 @@ describe('turnMark', () => {
   });
 
   it('marks a turn awaiting the developer as "waiting"', () => {
-    expect(turnMark(baseTurn(), { isAbandoned: false, isAwaitingYou: true })).toEqual({
+    expect(turnMark(baseTurn(), { isAwaitingYou: true })).toEqual({
       text: 'waiting',
       isAwaitingYou: true,
     });
@@ -119,19 +118,12 @@ describe('turnMark', () => {
   });
 
   it('marks a dropped turn', () => {
-    const turn = baseTurn({ outcome: { status: 'dropped', reason: 'repick' } });
+    const turn = baseTurn({ outcome: { status: 'dropped', reason: 'budget' } });
     expect(turnMark(turn, none)).toEqual({ text: 'dropped', isAwaitingYou: false });
   });
 
   it('marks a failed turn', () => {
     const turn = baseTurn({ outcome: { status: 'failed', error: 'boom', isTooLarge: false } });
     expect(turnMark(turn, none)).toEqual({ text: 'failed', isAwaitingYou: false });
-  });
-
-  it('marks a turn of an abandoned pick as abandoned, over any other state', () => {
-    expect(turnMark(baseTurn(), { isAbandoned: true, isAwaitingYou: true })).toEqual({
-      text: 'abandoned',
-      isAwaitingYou: false,
-    });
   });
 });

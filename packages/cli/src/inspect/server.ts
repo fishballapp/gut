@@ -134,7 +134,7 @@ export const startServer = async ({
   token,
 }: {
   log: EventLog;
-  act: (action: Action) => ActResult;
+  act: (action: Action) => Promise<ActResult>;
   /** The built page: `@gut.run/inspector`'s dist. */
   root: string;
   /** 0 picks a free port. */
@@ -157,7 +157,7 @@ export const startServer = async ({
       if (req.method !== 'POST') return send(res, 405);
       const given = req.headers['x-gut-token'];
       if (!isSame(Array.isArray(given) ? given[0] : given, token)) return send(res, 403);
-      void readBody(req).then(body => {
+      void readBody(req).then(async body => {
         if (body === undefined) return send(res, 413);
         const json = parseJson(body);
         if (!json.ok) return send(res, 400, JSON.stringify({ error: 'the body is not JSON' }));
@@ -165,7 +165,7 @@ export const startServer = async ({
         if (!action.success) {
           return send(res, 400, JSON.stringify({ error: z.prettifyError(action.error) }));
         }
-        const result = act(action.data);
+        const result = await act(action.data);
         return 'error' in result
           ? send(res, result.status, JSON.stringify({ error: result.error }))
           : send(res, 204);

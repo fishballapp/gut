@@ -125,7 +125,6 @@ describe('roundSummaryLine', () => {
       turns: [
         {
           turn: 1,
-          pick: 1,
           request: { state: { goal: 'g' }, questions: {} },
           optionInfo: {},
           retries: [],

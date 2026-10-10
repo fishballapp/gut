@@ -36,11 +36,7 @@ export type TurnMark = { text: string; isAwaitingYou: boolean };
  * The turn's right-hand mark: the tokens its model used, or why it has none. `isAwaitingYou` is a
  * decision pending on this turn, the only thing coral marks.
  */
-export const turnMark = (
-  turn: Turn,
-  { isAbandoned, isAwaitingYou }: { isAbandoned: boolean; isAwaitingYou: boolean },
-): TurnMark => {
-  if (isAbandoned) return { text: 'abandoned', isAwaitingYou: false };
+export const turnMark = (turn: Turn, { isAwaitingYou }: { isAwaitingYou: boolean }): TurnMark => {
   if (isAwaitingYou) return { text: 'waiting', isAwaitingYou: true };
   const { outcome } = turn;
   switch (outcome.status) {

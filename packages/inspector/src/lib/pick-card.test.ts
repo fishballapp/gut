@@ -29,9 +29,8 @@ const picked = (overrides: Partial<PickedStep> = {}): PickedStep => ({
   ...overrides,
 });
 
-const turn = (number: number, pick: number, outcome: Turn['outcome']): Turn => ({
+const turn = (number: number, outcome: Turn['outcome']): Turn => ({
   turn: number,
-  pick,
   request: { state: { goal: 'g' }, questions: {} },
   optionInfo: {},
   retries: [],
@@ -70,8 +69,8 @@ describe('stepCall', () => {
 describe('pickTrail', () => {
   it('lists the answered turns of the current pick, by who answered', () => {
     const turns = [
-      turn(1, 1, { status: 'answered', by: { kind: 'you' }, answers: {}, inputTokens: 0, ms: 1 }),
-      turn(2, 1, {
+      turn(1, { status: 'answered', by: { kind: 'you' }, answers: {}, inputTokens: 0, ms: 1 }),
+      turn(2, {
         status: 'answered',
         by: { kind: 'model', name: 'Jev', endpoint: 'e' },
         answers: {},
@@ -82,16 +81,6 @@ describe('pickTrail', () => {
     expect(pickTrail(round({ turns, picks: [{ maxOptions: 9 }] }))).toEqual([
       { turn: 1, by: 'you' },
       { turn: 2, by: 'Jev' },
-    ]);
-  });
-
-  it('leaves out the turns of a pick a re-pick abandoned', () => {
-    const turns = [
-      turn(1, 1, { status: 'answered', by: { kind: 'you' }, answers: {}, inputTokens: 0, ms: 1 }),
-      turn(2, 2, { status: 'answered', by: { kind: 'you' }, answers: {}, inputTokens: 0, ms: 1 }),
-    ];
-    expect(pickTrail(round({ turns, picks: [{ maxOptions: 9 }, { maxOptions: 9 }] }))).toEqual([
-      { turn: 2, by: 'you' },
     ]);
   });
 });

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { Round, Turn } from '../state/inspector-state.ts';
 import {
   formatRetry,
-  isAbandonedPick,
   optionKindLabel,
   optionProbability,
   turnStatusLabel,
@@ -10,7 +9,6 @@ import {
 
 const baseTurn = (overrides: Partial<Turn> = {}): Turn => ({
   turn: 1,
-  pick: 1,
   request: { state: { goal: 'g' }, questions: {} },
   optionInfo: {},
   retries: [],
@@ -54,24 +52,12 @@ describe('formatRetry', () => {
   });
 });
 
-describe('isAbandonedPick', () => {
-  it('is true when the turn belongs to an earlier pick', () => {
-    expect(
-      isAbandonedPick(baseRound({ picks: [{ maxOptions: 26 }, { maxOptions: 26 }] }), baseTurn()),
-    ).toBe(true);
-    expect(isAbandonedPick(baseRound({ picks: [{ maxOptions: 26 }] }), baseTurn())).toBe(false);
-  });
-});
-
 describe('turnStatusLabel', () => {
   it('covers each outcome', () => {
     expect(turnStatusLabel(baseTurn())).toBe('waiting');
     expect(
       turnStatusLabel(baseTurn({ outcome: { status: 'failed', error: 'x', isTooLarge: false } })),
     ).toBe('failed');
-    expect(turnStatusLabel(baseTurn({ outcome: { status: 'dropped', reason: 'repick' } }))).toBe(
-      'dropped by a re-pick',
-    );
     expect(turnStatusLabel(baseTurn({ outcome: { status: 'dropped', reason: 'budget' } }))).toBe(
       'dropped: the budget ran out',
     );

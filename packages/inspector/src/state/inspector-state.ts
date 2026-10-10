@@ -18,10 +18,9 @@ export type Usage = { inputTokens: number; requests: number };
 
 export type TaskResult = EventOf<'run.ended'>['result'];
 
+/** A turn of the round's current pick: a re-pick drops the turns of the pick it abandons. */
 export type Turn = {
   turn: number;
-  /** Which pick of the round asked it: 1, then one more per re-pick. */
-  pick: number;
   /** The state and questions exactly as sent. */
   request: EventOf<'turn.asked'>['request'];
   /** By question key, then criterion key: what each option is. */
@@ -31,7 +30,7 @@ export type Turn = {
     | { status: 'asked' }
     | ({ status: 'answered' } & Omit<EventOf<'turn.answered'>, 'type' | 'runId' | 'round' | 'turn'>)
     | { status: 'failed'; error: string; isTooLarge: boolean }
-    | { status: 'dropped'; reason: 'repick' | 'budget' };
+    | { status: 'dropped'; reason: 'budget' };
 };
 
 /** The step a pick settled on, before it ran. */
@@ -179,6 +178,7 @@ const reduceRun = (state: InspectorState, event: RunEvent): InspectorState => {
       return updateRun(state, event.runId, run =>
         updateRound(run, event.round, ({ picked, ...round }) => ({
           ...round,
+          turns: [],
           picks: round.picks.map((pick, i) =>
             i === round.picks.length - 1
               ? { ...pick, abandoned: event.usage, ...(picked === undefined ? {} : { picked }) }
@@ -194,7 +194,6 @@ const reduceRun = (state: InspectorState, event: RunEvent): InspectorState => {
             ...round.turns,
             {
               turn: event.turn,
-              pick: Math.max(round.picks.length, 1),
               request: event.request,
               optionInfo: event.optionInfo,
               retries: [],
@@ -239,15 +238,26 @@ const reduceRun = (state: InspectorState, event: RunEvent): InspectorState => {
           })),
         ),
       );
-    case 'turn.dropped':
+    case 'turn.dropped': {
+      const { reason } = event;
+      // A re-pick's turns leave the record with the pick it abandons.
+      if (reason === 'repick') {
+        return updateRun(state, event.runId, run =>
+          updateRound(run, event.round, round => ({
+            ...round,
+            turns: round.turns.filter(turn => turn.turn !== event.turn),
+          })),
+        );
+      }
       return updateRun(state, event.runId, run =>
         updateRound(run, event.round, round =>
           updateTurn(round, event.turn, turn => ({
             ...turn,
-            outcome: { status: 'dropped', reason: event.reason },
+            outcome: { status: 'dropped', reason },
           })),
         ),
       );
+    }
     case 'round.picked':
       return updateRun(state, event.runId, run =>
         updateRound(run, event.round, round => ({

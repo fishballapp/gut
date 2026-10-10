@@ -26,21 +26,12 @@ export const formatRetry = (retry: Turn['retries'][number]): string => {
   return `${what} · retried after ${formatDuration(retry.delayMs)}`;
 };
 
-/** Whether this turn belongs to a pick the round later abandoned. */
-export const isAbandonedPick = (round: Round, turn: Turn): boolean =>
-  turn.pick !== Math.max(round.picks.length, 1);
-
 /**
  * Whether you answered any turn of the round's current pick. Your answer carries probability 1, so
  * such a pick shows who chose it rather than a certainty nobody claimed.
  */
 export const isPickedByYou = (round: Round): boolean =>
-  round.turns.some(
-    turn =>
-      !isAbandonedPick(round, turn) &&
-      turn.outcome.status === 'answered' &&
-      turn.outcome.by.kind === 'you',
-  );
+  round.turns.some(turn => turn.outcome.status === 'answered' && turn.outcome.by.kind === 'you');
 
 /** Right-side status of the turn header. */
 export const turnStatusLabel = (turn: Turn): string => {
@@ -51,7 +42,7 @@ export const turnStatusLabel = (turn: Turn): string => {
     case 'failed':
       return 'failed';
     case 'dropped':
-      return outcome.reason === 'repick' ? 'dropped by a re-pick' : 'dropped: the budget ran out';
+      return 'dropped: the budget ran out';
     case 'answered': {
       const duration = formatDuration(outcome.ms);
       if (outcome.by.kind === 'you') return `answered by you · ${duration}`;

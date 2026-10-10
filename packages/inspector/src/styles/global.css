@@ -98,3 +98,19 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Everything clickable shows it; Tailwind v4 leaves buttons on the default cursor. */
+@layer base {
+  :where(
+    button,
+    [role="button"],
+    [role="radio"],
+    [role="tab"],
+    [role="menuitem"],
+    [role="menuitemradio"],
+    summary,
+    label:has(input[type="file"])
+  ):not(:disabled, [aria-disabled="true"], [data-disabled]) {
+    cursor: pointer;
+  }
+}
