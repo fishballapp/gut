@@ -35,6 +35,7 @@
     "@types/react-dom": "catalog:web",
     "@vitejs/plugin-react": "catalog:",
     "class-variance-authority": "catalog:",
+    "motion": "catalog:",
     "react": "catalog:web",
     "react-dom": "catalog:web",
     "tailwindcss": "catalog:",

@@ -1,4 +1,5 @@
 import type { Action } from '@gut.run/core/inspector';
+import { motion } from 'motion/react';
 import { useState } from 'react';
 import type { ActOutcome, ConnectionStatus } from '../lib/connection.ts';
 import { findAwaitingTurn, findWaitingStep } from '../lib/round-rows.ts';
@@ -8,11 +9,10 @@ import { stepCall } from '../lib/step-call.ts';
 import { defaultSortFor, formatRetry } from '../lib/turn-display.ts';
 import type { Decision, InspectorState, Round, Run, Turn } from '../state/inspector-state.ts';
 import { TurnEndings } from './endings/TurnEndings.tsx';
-import { AnswerForm } from './turn/AnswerForm.tsx';
-import { QuestionBlock } from './turn/QuestionBlock.tsx';
 import { SortToggle } from './turn/SortToggle.tsx';
 import { StepActions } from './turn/StepActions.tsx';
 import { TurnHeader, TurnStatus } from './turn/TurnHeader.tsx';
+import { TurnOptions } from './turn/TurnOptions.tsx';
 
 /**
  * The selected turn: what was asked and how it was answered, or what waits for an answer. A pick
@@ -37,7 +37,7 @@ export const TurnView = ({
   const stepWaiting =
     stepDecision !== undefined && round?.picked !== undefined ? stepDecision : undefined;
   return (
-    <main className="relative overflow-auto px-8 py-6">
+    <motion.main layoutScroll className="relative overflow-auto px-8 py-6">
       <TurnEndings state={state} selected={selected} status={status} />
       {state.incompatible !== undefined && (
         <p role="alert" className="rounded-lg border border-you p-4 text-you">
@@ -70,7 +70,7 @@ export const TurnView = ({
           )}
         </div>
       )}
-    </main>
+    </motion.main>
   );
 };
 
@@ -108,7 +108,10 @@ const SelectedTurn = ({
         <TurnHeader round={round} turn={turn} isAwaitingYou={isAwaitingYou} />
         <div className="flex shrink-0 flex-col items-end gap-2">
           <TurnStatus turn={turn} isAwaitingYou={isAwaitingYou} />
-          {!isAwaitingYou && <SortToggle value={sort} onChange={setChosenSort} />}
+          {/* Reserved while you choose, so the header keeps its height as the model takes the turn. */}
+          <div className={isAwaitingYou ? 'invisible' : undefined}>
+            <SortToggle value={sort} onChange={setChosenSort} />
+          </div>
         </div>
       </div>
 
@@ -137,25 +140,15 @@ const SelectedTurn = ({
         </p>
       )}
 
-      {awaitingDecision !== undefined ? (
-        <AnswerForm
-          key={awaitingDecision.id}
-          decision={awaitingDecision}
-          turn={turn}
-          model={run?.model ?? state.pageModel}
-          act={act}
-        />
-      ) : (
-        Object.entries(turn.request.questions).map(([questionKey, question]) => (
-          <QuestionBlock
-            key={`${run?.runId ?? ''}:${round.round}:${turn.turn}:${questionKey}`}
-            turn={turn}
-            questionKey={questionKey}
-            question={question}
-            sort={sort}
-          />
-        ))
-      )}
+      {/* Keyed by the pick, not the decision: a re-pick starts afresh, and sending Ask model keeps your choice. */}
+      <TurnOptions
+        key={round.picks.length}
+        turn={turn}
+        decision={awaitingDecision}
+        model={run?.model ?? state.pageModel}
+        sort={sort}
+        act={act}
+      />
 
       {stepWaiting !== undefined && isLastTurn && (
         <StepActions round={round.round} decision={stepWaiting} act={act} />

@@ -5,6 +5,8 @@ import {
   formatRetry,
   optionKindLabel,
   optionProbability,
+  optionRowsOf,
+  optionsPhaseOf,
   turnStatusLabel,
 } from './turn-display.ts';
 
@@ -133,5 +135,49 @@ describe('defaultSortFor', () => {
     expect(defaultSortFor(youAnswered)).toBe('as-sent');
     expect(defaultSortFor(baseTurn())).toBe('as-sent');
     expect(defaultSortFor(undefined)).toBe('as-sent');
+  });
+});
+
+describe('optionsPhaseOf', () => {
+  it('chooses while a decision waits for you, whatever the outcome', () => {
+    expect(optionsPhaseOf(baseTurn(), true)).toBe('choose');
+  });
+
+  it('asks while the model answers an asked turn nobody is waiting on', () => {
+    expect(optionsPhaseOf(baseTurn(), false)).toBe('asking');
+  });
+
+  it('reads back every settled turn', () => {
+    expect(
+      optionsPhaseOf(baseTurn({ outcome: { status: 'dropped', reason: 'budget' } }), false),
+    ).toBe('read');
+    expect(
+      optionsPhaseOf(
+        baseTurn({ outcome: { status: 'failed', error: 'x', isTooLarge: false } }),
+        false,
+      ),
+    ).toBe('read');
+  });
+});
+
+describe('optionRowsOf', () => {
+  const pick = { instructions: 'Pick', criteria: { a: 'first', b: 'second' } };
+  const turn = baseTurn({
+    request: { state: { goal: 'g' }, questions: { pick } },
+    optionInfo: { pick: { b: { kind: 'group', address: { keys: ['g'] }, moves: 2 } } },
+    outcome: {
+      status: 'answered',
+      by: { kind: 'model', name: 'clef', endpoint: 'http://localhost' },
+      answers: { pick: { choice: 'b', probabilities: { a: 0.25, b: 0.75 } } },
+      inputTokens: 10,
+      ms: 5,
+    },
+  });
+
+  it('lists the options as sent, with their kind and probability', () => {
+    expect(optionRowsOf(turn, 'pick', pick)).toEqual([
+      { key: 'a', text: 'first', kindLabel: undefined, index: 0, probability: 0.25 },
+      { key: 'b', text: 'second', kindLabel: 'group · 2 moves', index: 1, probability: 0.75 },
+    ]);
   });
 });

@@ -85,3 +85,38 @@ export const optionProbability = (
   if (turn.outcome.status !== 'answered') return 0;
   return turn.outcome.answers[questionKey]?.probabilities[criterionKey] ?? 0;
 };
+
+/**
+ * Where a turn's options stand: you choose them (a decision waits), the model is answering them, or
+ * they are read back as the turn settled.
+ */
+export type OptionsPhase = 'choose' | 'asking' | 'read';
+
+export const optionsPhaseOf = (turn: Turn, isAwaitingYou: boolean): OptionsPhase => {
+  if (isAwaitingYou) return 'choose';
+  if (turn.outcome.status === 'asked') return 'asking';
+  return 'read';
+};
+
+/** One option of a question as the turn sent it, with what its row shows. */
+export type OptionRowData = {
+  key: string;
+  text: string;
+  kindLabel?: string;
+  /** Position as sent: the stable order until a sort is chosen, and the tie-break for one. */
+  index: number;
+  probability: number;
+};
+
+export const optionRowsOf = (
+  turn: Turn,
+  questionKey: string,
+  question: Turn['request']['questions'][string],
+): OptionRowData[] =>
+  Object.entries(question.criteria).map(([key, text], index) => ({
+    key,
+    text,
+    kindLabel: optionKindLabel(turn.optionInfo[questionKey]?.[key]),
+    index,
+    probability: optionProbability(turn, questionKey, key),
+  }));
