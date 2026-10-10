@@ -29,6 +29,9 @@
   --on-mark: oklch(0.218 0.006 91.6);
   /* what was chosen: ink on the light ground, the mark on the dark */
   --chosen: oklch(0.218 0.006 91.6);
+  /* chosen option text: highlighter fill in light, transparent in dark (colour via on-highlight) */
+  --highlight: oklch(0.921 0.178 118.8);
+  --on-highlight: oklch(0.218 0.006 91.6);
   --track: oklch(0.934 0.011 89.7);
   --block: oklch(0.842 0.016 90.3);
   --bar: oklch(0.864 0.014 88.7);
@@ -49,6 +52,8 @@
   --mark: oklch(0.921 0.178 118.8);
   --on-mark: oklch(0.155 0.003 67.6);
   --chosen: oklch(0.921 0.178 118.8);
+  --highlight: transparent;
+  --on-highlight: oklch(0.921 0.178 118.8);
   --track: oklch(0.235 0.006 91.6);
   --block: oklch(0.341 0.009 88.7);
   --bar: oklch(0.399 0.012 87.5);
@@ -68,6 +73,8 @@
   --color-mark: var(--mark);
   --color-on-mark: var(--on-mark);
   --color-chosen: var(--chosen);
+  --color-highlight: var(--highlight);
+  --color-on-highlight: var(--on-highlight);
   --color-track: var(--track);
   --color-block: var(--block);
   --color-bar: var(--bar);
