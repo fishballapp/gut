@@ -107,7 +107,7 @@
   "css": { "parser": { "tailwindDirectives": true } },
   "overrides": [
     {
-      "includes": ["**/packages/cli/**/*.ts"],
+      "includes": ["**/scripts/**/*.ts", "**/packages/cli/**/*.ts"],
       "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
     },
     {
