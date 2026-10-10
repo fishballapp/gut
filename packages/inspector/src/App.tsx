@@ -28,7 +28,7 @@ export const App = () => {
         act={act}
       />
       <RoundList selected={selected} select={setSelection} pending={state.pending} />
-      <TurnView state={state} selected={selected} />
+      <TurnView state={state} selected={selected} status={status} />
       <RoundPanel selected={selected} />
     </div>
   );
