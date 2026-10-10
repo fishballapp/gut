@@ -1,0 +1,1060 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`RunEventSchema > toJSONSchema snapshot — bump PROTOCOL if older readers would break 1`] = `
+{
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string",
+        },
+        {
+          "type": "number",
+        },
+        {
+          "type": "boolean",
+        },
+        {
+          "type": "null",
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema0",
+          },
+          "type": "array",
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0",
+          },
+          "propertyNames": {
+            "type": "string",
+          },
+          "type": "object",
+        },
+      ],
+    },
+    "__schema1": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "additionalProperties": false,
+              "properties": {
+                "choice": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer",
+                },
+                "keys": {
+                  "items": {
+                    "type": "string",
+                  },
+                  "type": "array",
+                },
+              },
+              "required": [
+                "keys",
+              ],
+              "type": "object",
+            },
+            "children": {
+              "items": {
+                "$ref": "#/$defs/__schema1",
+              },
+              "type": "array",
+            },
+            "description": {
+              "type": "string",
+            },
+            "kind": {
+              "const": "group",
+              "type": "string",
+            },
+          },
+          "required": [
+            "kind",
+            "address",
+            "description",
+            "children",
+          ],
+          "type": "object",
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "additionalProperties": false,
+              "properties": {
+                "choice": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer",
+                },
+                "keys": {
+                  "items": {
+                    "type": "string",
+                  },
+                  "type": "array",
+                },
+              },
+              "required": [
+                "keys",
+              ],
+              "type": "object",
+            },
+            "description": {
+              "type": "string",
+            },
+            "kind": {
+              "const": "op",
+              "type": "string",
+            },
+          },
+          "required": [
+            "kind",
+            "address",
+            "description",
+          ],
+          "type": "object",
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "additionalProperties": false,
+              "properties": {
+                "choice": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer",
+                },
+                "keys": {
+                  "items": {
+                    "type": "string",
+                  },
+                  "type": "array",
+                },
+              },
+              "required": [
+                "keys",
+              ],
+              "type": "object",
+            },
+            "children": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "address": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "choice": {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer",
+                      },
+                      "keys": {
+                        "items": {
+                          "type": "string",
+                        },
+                        "type": "array",
+                      },
+                    },
+                    "required": [
+                      "keys",
+                    ],
+                    "type": "object",
+                  },
+                  "kind": {
+                    "const": "choice",
+                    "type": "string",
+                  },
+                  "label": {
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "kind",
+                  "address",
+                  "label",
+                ],
+                "type": "object",
+              },
+              "type": "array",
+            },
+            "description": {
+              "type": "string",
+            },
+            "kind": {
+              "const": "choices",
+              "type": "string",
+            },
+          },
+          "required": [
+            "kind",
+            "address",
+            "description",
+            "children",
+          ],
+          "type": "object",
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "additionalProperties": false,
+              "properties": {
+                "choice": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer",
+                },
+                "keys": {
+                  "items": {
+                    "type": "string",
+                  },
+                  "type": "array",
+                },
+              },
+              "required": [
+                "keys",
+              ],
+              "type": "object",
+            },
+            "kind": {
+              "const": "choice",
+              "type": "string",
+            },
+            "label": {
+              "type": "string",
+            },
+          },
+          "required": [
+            "kind",
+            "address",
+            "label",
+          ],
+          "type": "object",
+        },
+      ],
+    },
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "inputTokenBudget": {
+          "type": "number",
+        },
+        "isGoalCheckedInCode": {
+          "type": "boolean",
+        },
+        "model": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "endpoint": {
+                  "type": "string",
+                },
+                "maxOptions": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer",
+                },
+                "name": {
+                  "type": "string",
+                },
+              },
+              "required": [
+                "name",
+                "endpoint",
+                "maxOptions",
+              ],
+              "type": "object",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "runId": {
+          "type": "string",
+        },
+        "type": {
+          "const": "run.started",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "model",
+        "inputTokenBudget",
+        "isGoalCheckedInCode",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0",
+          },
+          "properties": {
+            "goal": {
+              "type": "string",
+            },
+          },
+          "required": [
+            "goal",
+          ],
+          "type": "object",
+        },
+        "ops": {
+          "items": {
+            "$ref": "#/$defs/__schema1",
+          },
+          "type": "array",
+        },
+        "runId": {
+          "type": "string",
+        },
+        "tick": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "type": {
+          "const": "tick.observed",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "tick",
+        "context",
+        "ops",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "achieved": {
+          "type": "boolean",
+        },
+        "ms": {
+          "type": "number",
+        },
+        "runId": {
+          "type": "string",
+        },
+        "tick": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "type": {
+          "const": "tick.goalChecked",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "tick",
+        "achieved",
+        "ms",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "maxOptions": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "runId": {
+          "type": "string",
+        },
+        "tick": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "type": {
+          "const": "pick.started",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "tick",
+        "maxOptions",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "request": {
+          "additionalProperties": false,
+          "properties": {
+            "questions": {
+              "additionalProperties": {
+                "additionalProperties": false,
+                "properties": {
+                  "criteria": {
+                    "additionalProperties": {
+                      "type": "string",
+                    },
+                    "propertyNames": {
+                      "type": "string",
+                    },
+                    "type": "object",
+                  },
+                  "instructions": {
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "instructions",
+                  "criteria",
+                ],
+                "type": "object",
+              },
+              "propertyNames": {
+                "type": "string",
+              },
+              "type": "object",
+            },
+            "state": {
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0",
+              },
+              "properties": {
+                "goal": {
+                  "type": "string",
+                },
+              },
+              "required": [
+                "goal",
+              ],
+              "type": "object",
+            },
+          },
+          "required": [
+            "state",
+            "questions",
+          ],
+          "type": "object",
+        },
+        "runId": {
+          "type": "string",
+        },
+        "tick": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "turn": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "type": {
+          "const": "turn.asked",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "tick",
+        "turn",
+        "request",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "delayMs": {
+          "type": "number",
+        },
+        "error": {
+          "type": "string",
+        },
+        "runId": {
+          "type": "string",
+        },
+        "status": {
+          "type": "number",
+        },
+        "tick": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "turn": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "type": {
+          "const": "turn.retrying",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "tick",
+        "turn",
+        "delayMs",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "answers": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "choice": {
+                "type": "string",
+              },
+              "probabilities": {
+                "additionalProperties": {
+                  "type": "number",
+                },
+                "propertyNames": {
+                  "type": "string",
+                },
+                "type": "object",
+              },
+            },
+            "required": [
+              "choice",
+              "probabilities",
+            ],
+            "type": "object",
+          },
+          "propertyNames": {
+            "type": "string",
+          },
+          "type": "object",
+        },
+        "by": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "you",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "endpoint": {
+                  "type": "string",
+                },
+                "kind": {
+                  "const": "model",
+                  "type": "string",
+                },
+                "name": {
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "name",
+                "endpoint",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+        "inputTokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "ms": {
+          "type": "number",
+        },
+        "runId": {
+          "type": "string",
+        },
+        "tick": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "turn": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "type": {
+          "const": "turn.answered",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "tick",
+        "turn",
+        "by",
+        "answers",
+        "inputTokens",
+        "ms",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "type": "string",
+        },
+        "isTooLarge": {
+          "type": "boolean",
+        },
+        "runId": {
+          "type": "string",
+        },
+        "tick": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "turn": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "type": {
+          "const": "turn.failed",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "tick",
+        "turn",
+        "error",
+        "isTooLarge",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "enum": [
+            "repick",
+            "budget",
+          ],
+          "type": "string",
+        },
+        "runId": {
+          "type": "string",
+        },
+        "tick": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "turn": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "type": {
+          "const": "turn.dropped",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "tick",
+        "turn",
+        "reason",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "runId": {
+          "type": "string",
+        },
+        "tick": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "type": {
+          "const": "pick.abandoned",
+          "type": "string",
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "inputTokens": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer",
+            },
+            "requests": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer",
+            },
+          },
+          "required": [
+            "inputTokens",
+            "requests",
+          ],
+          "type": "object",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "tick",
+        "usage",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "ms": {
+          "type": "number",
+        },
+        "probabilities": {
+          "items": {
+            "type": "number",
+          },
+          "type": "array",
+        },
+        "runId": {
+          "type": "string",
+        },
+        "step": {
+          "type": "string",
+        },
+        "tick": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "tokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "type": {
+          "const": "tick.picked",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "tick",
+        "step",
+        "probabilities",
+        "tokens",
+        "ms",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "type": "string",
+        },
+        "ms": {
+          "type": "number",
+        },
+        "runId": {
+          "type": "string",
+        },
+        "step": {
+          "type": "string",
+        },
+        "tick": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "type": {
+          "const": "step.invoked",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "tick",
+        "step",
+        "ms",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "context": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": {
+                        "$ref": "#/$defs/__schema0",
+                      },
+                      "properties": {
+                        "goal": {
+                          "type": "string",
+                        },
+                      },
+                      "required": [
+                        "goal",
+                      ],
+                      "type": "object",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+                "status": {
+                  "const": "achieved",
+                  "type": "string",
+                },
+                "steps": {
+                  "items": {
+                    "type": "string",
+                  },
+                  "type": "array",
+                },
+                "usage": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "inputTokens": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer",
+                    },
+                    "requests": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer",
+                    },
+                  },
+                  "required": [
+                    "inputTokens",
+                    "requests",
+                  ],
+                  "type": "object",
+                },
+              },
+              "required": [
+                "status",
+                "steps",
+                "context",
+                "usage",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "context": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": {
+                        "$ref": "#/$defs/__schema0",
+                      },
+                      "properties": {
+                        "goal": {
+                          "type": "string",
+                        },
+                      },
+                      "required": [
+                        "goal",
+                      ],
+                      "type": "object",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+                "reason": {
+                  "enum": [
+                    "noOptions",
+                    "budget",
+                    "stalled",
+                  ],
+                  "type": "string",
+                },
+                "status": {
+                  "const": "halted",
+                  "type": "string",
+                },
+                "steps": {
+                  "items": {
+                    "type": "string",
+                  },
+                  "type": "array",
+                },
+                "usage": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "inputTokens": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer",
+                    },
+                    "requests": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer",
+                    },
+                  },
+                  "required": [
+                    "inputTokens",
+                    "requests",
+                  ],
+                  "type": "object",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+                "steps",
+                "context",
+                "usage",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "context": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": {
+                        "$ref": "#/$defs/__schema0",
+                      },
+                      "properties": {
+                        "goal": {
+                          "type": "string",
+                        },
+                      },
+                      "required": [
+                        "goal",
+                      ],
+                      "type": "object",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+                "error": {
+                  "type": "string",
+                },
+                "reason": {
+                  "const": "error",
+                  "type": "string",
+                },
+                "status": {
+                  "const": "halted",
+                  "type": "string",
+                },
+                "steps": {
+                  "items": {
+                    "type": "string",
+                  },
+                  "type": "array",
+                },
+                "usage": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "inputTokens": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer",
+                    },
+                    "requests": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer",
+                    },
+                  },
+                  "required": [
+                    "inputTokens",
+                    "requests",
+                  ],
+                  "type": "object",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+                "error",
+                "steps",
+                "context",
+                "usage",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+        "runId": {
+          "type": "string",
+        },
+        "type": {
+          "const": "run.ended",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "result",
+      ],
+      "type": "object",
+    },
+  ],
+}
+`;

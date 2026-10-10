@@ -1,8 +1,11 @@
 // Each tick: observe, let the decision model pick a move, invoke it.
 import type { Merge } from 'type-fest';
-import type { Config } from './config.ts';
+import type { LoadedConfig } from './config.ts';
+import { type RunEvent, toOpTree } from './events.ts';
+import type { InspectorGlobal, RunHooks } from './inspector.ts';
 import type { Ops } from './ops.ts';
 import { pick, type Step } from './pick.ts';
+import { createTurnAnswerer } from './turns.ts';
 
 export type Json =
   | string
@@ -41,7 +44,7 @@ export type TaskOptions = {
   isGoalAchieved?: () => boolean | Promise<boolean>;
 };
 
-const secondsSince = (started: number) => `${((performance.now() - started) / 1000).toFixed(1)}s`;
+const secondsSince = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 
 const errorOutcome = (error: unknown): Extract<Outcome, { reason: 'error' }> => ({
   status: 'halted',
@@ -49,27 +52,94 @@ const errorOutcome = (error: unknown): Extract<Outcome, { reason: 'error' }> => 
   error: error instanceof Error ? error.message : String(error),
 });
 
+const writeStderr = (event: RunEvent) => {
+  if (event.type === 'tick.goalChecked' && event.achieved) {
+    process.stderr.write(`tick ${event.tick}  achieved  checked  ${secondsSince(event.ms)}\n`);
+    return;
+  }
+  if (event.type === 'tick.picked') {
+    process.stderr.write(
+      `tick ${event.tick}  ${event.step}  ${event.probabilities.map(p => p.toFixed(2)).join('/')}  ${secondsSince(event.ms)}  ${event.tokens} input tokens\n`,
+    );
+    return;
+  }
+  if (event.type === 'run.ended') {
+    const { result } = event;
+    const outcome = (() => {
+      if (result.status === 'achieved') return 'achieved';
+      if (result.reason === 'error') return `halted: error (${result.error})`;
+      return `halted: ${result.reason}`;
+    })();
+    process.stderr.write(
+      `${outcome}  ${result.usage.inputTokens} input tokens in ${result.usage.requests} requests\n`,
+    );
+  }
+};
+
 /**
  * Runs a task until the goal is met, or the run halts. `tick` runs at the start of every tick and
  * returns what the model reads (`context`) and the moves it may pick (`ops`). The model judges the
  * goal, unless `options.isGoalAchieved` checks it in code.
  *
- * The decision model comes from `config`; what a run may spend, from `options`.
+ * The decision model comes from `config`; what a run may spend, from `options`. An inspector's
+ * `attach` injects who answers each turn; without a model and without hooks the run cannot start.
  */
 export const runTask = async (
-  config: Config,
+  config: LoadedConfig,
   tick: () => Promise<{ context: Context; ops: Ops }>,
   { inputTokenBudget = 50_000, isGoalAchieved }: TaskOptions = {},
+  attach?: InspectorGlobal['attach'],
 ): Promise<TaskResult> => {
-  const asker = { decisionModel: config.decisionModel, inputTokenBudget };
+  const runId = crypto.randomUUID();
+  const hooks: RunHooks | undefined = attach?.({ runId });
+
+  // Each pick's question size: the inspector's choice, else the model's own limit.
+  const maxOptionsFor = ((): ((tick: number) => Promise<number>) => {
+    if (hooks !== undefined) return async tick => (await hooks.beforePick({ tick })).maxOptions;
+    if (config.decisionModel === null) {
+      throw new Error('no decision model: pass a config, or attach an inspector');
+    }
+    const { maxOptions } = config.decisionModel.capabilities.choiceQuestions;
+    return async () => maxOptions;
+  })();
+
+  const emit = (event: RunEvent) => {
+    hooks?.onEvent(event);
+    writeStderr(event);
+  };
+
+  const turnAnswerer = createTurnAnswerer({
+    runId,
+    model: config.decisionModel,
+    inputTokenBudget,
+    hooks,
+    emit,
+  });
+
   const seen = new Map<string, number>(); // context + step → how many times it was picked
 
   // Runs the picked op; a failure keeps what was spent picking it.
-  const invoke = async (picked: Step, step: string, usage: Usage) => {
+  const invoke = async (picked: Step, step: string, usage: Usage, tickNumber: number) => {
+    const started = performance.now();
     try {
       await picked.invoke();
+      emit({
+        type: 'step.invoked',
+        runId,
+        tick: tickNumber,
+        step,
+        ms: performance.now() - started,
+      });
       return { status: 'continue' as const, step, usage };
     } catch (error) {
+      emit({
+        type: 'step.invoked',
+        runId,
+        tick: tickNumber,
+        step,
+        ms: performance.now() - started,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return { ...errorOutcome(error), usage };
     }
   };
@@ -88,33 +158,86 @@ export const runTask = async (
     started: number;
   }): Promise<Merge<Outcome | { status: 'continue'; step: string }, { usage: Usage }>> => {
     try {
-      if (isGoalAchieved !== undefined && (await isGoalAchieved())) {
-        process.stderr.write(`tick ${tickNumber}  achieved  checked  ${secondsSince(started)}\n`);
-        return { status: 'achieved', usage };
+      if (isGoalAchieved !== undefined) {
+        const achieved = await isGoalAchieved();
+        emit({
+          type: 'tick.goalChecked',
+          runId,
+          tick: tickNumber,
+          achieved,
+          ms: performance.now() - started,
+        });
+        if (achieved) return { status: 'achieved', usage };
       }
 
-      const picked = await pick({
-        asker,
-        context,
-        ops,
-        usage,
-        isGoalAsked: isGoalAchieved === undefined,
-      });
-      if (picked.status === 'halted') return picked;
-      if (picked.status === 'failed') return { ...errorOutcome(picked.error), usage: picked.usage };
+      const asker = turnAnswerer.forTick(tickNumber);
+      let usageSoFar = usage;
 
-      const step = picked.status === 'achieved' ? 'achieved' : picked.step.name;
-      process.stderr.write(
-        `tick ${tickNumber}  ${step}  ${picked.probabilities.map(p => p.toFixed(2)).join('/')}  ${secondsSince(started)}  ${picked.usage.inputTokens - usage.inputTokens} input tokens\n`,
-      );
-      if (picked.status === 'achieved') return { status: 'achieved', usage: picked.usage };
+      // A re-pick keeps what the abandoned pick spent, and asks the same ops again.
+      const abandon = (spent: Usage) => {
+        emit({
+          type: 'pick.abandoned',
+          runId,
+          tick: tickNumber,
+          usage: {
+            inputTokens: spent.inputTokens - usageSoFar.inputTokens,
+            requests: spent.requests - usageSoFar.requests,
+          },
+        });
+        usageSoFar = spent;
+      };
 
-      const key = `${JSON.stringify(context)}\n${step}`;
-      const repeats = (seen.get(key) ?? 0) + 1;
-      seen.set(key, repeats);
-      if (repeats >= 3) return { status: 'halted', reason: 'stalled', usage: picked.usage };
+      for (;;) {
+        const maxOptions = await maxOptionsFor(tickNumber);
+        emit({ type: 'pick.started', runId, tick: tickNumber, maxOptions });
 
-      return await invoke(picked.step, step, picked.usage);
+        const picked = await pick({
+          asker,
+          context,
+          ops,
+          usage: usageSoFar,
+          isGoalAsked: isGoalAchieved === undefined,
+          maxOptions,
+        });
+
+        if (picked.status === 'repick') {
+          abandon(picked.usage);
+          continue;
+        }
+
+        if (picked.status === 'halted') return picked;
+        if (picked.status === 'failed') {
+          return { ...errorOutcome(picked.error), usage: picked.usage };
+        }
+
+        const step = picked.status === 'achieved' ? 'achieved' : picked.step.name;
+        emit({
+          type: 'tick.picked',
+          runId,
+          tick: tickNumber,
+          step,
+          probabilities: picked.probabilities,
+          tokens: picked.usage.inputTokens - usage.inputTokens,
+          ms: performance.now() - started,
+        });
+
+        if (picked.status === 'achieved') return { status: 'achieved', usage: picked.usage };
+
+        if (hooks !== undefined) {
+          const action = await hooks.beforeInvoke({ tick: tickNumber, step });
+          if (action === 'repick') {
+            abandon(picked.usage);
+            continue;
+          }
+        }
+
+        const key = `${JSON.stringify(context)}\n${step}`;
+        const repeats = (seen.get(key) ?? 0) + 1;
+        seen.set(key, repeats);
+        if (repeats >= 3) return { status: 'halted', reason: 'stalled', usage: picked.usage };
+
+        return await invoke(picked.step, step, picked.usage, tickNumber);
+      }
     } catch (error) {
       return { ...errorOutcome(error), usage };
     }
@@ -143,6 +266,14 @@ export const runTask = async (
     })();
     if (observed.status !== 'observed') return { ...observed, steps, context, usage };
 
+    emit({
+      type: 'tick.observed',
+      runId,
+      tick: tickNumber,
+      context: observed.context,
+      ops: toOpTree(observed.ops),
+    });
+
     const outcome = await executeTick({
       context: observed.context,
       ops: observed.ops,
@@ -159,19 +290,27 @@ export const runTask = async (
     });
   };
 
+  emit({
+    type: 'run.started',
+    runId,
+    model:
+      config.decisionModel === null
+        ? null
+        : {
+            name: config.decisionModel.name,
+            endpoint: config.decisionModel.endpoint,
+            maxOptions: config.decisionModel.capabilities.choiceQuestions.maxOptions,
+          },
+    inputTokenBudget,
+    isGoalCheckedInCode: isGoalAchieved !== undefined,
+  });
+
   const result = await advance({
     context: null,
     steps: [],
     usage: { inputTokens: 0, requests: 0 },
     tickNumber: 1,
   });
-  const outcome = (() => {
-    if (result.status === 'achieved') return 'achieved';
-    if (result.reason === 'error') return `halted: error (${result.error})`;
-    return `halted: ${result.reason}`;
-  })();
-  process.stderr.write(
-    `${outcome}  ${result.usage.inputTokens} input tokens in ${result.usage.requests} requests\n`,
-  );
+  emit({ type: 'run.ended', runId, result });
   return result;
 };

@@ -1,5 +1,6 @@
 // The decision model: any `/v1/systemone` server (a local Ollama, TypeSafe, OpenRouter).
 import { z } from 'zod';
+import type { Context } from './task.ts';
 
 /** The most options one choice question takes, unless configured: TypeSafe's limit for Jev. */
 export const DEFAULT_MAX_OPTIONS = 255;
@@ -34,7 +35,7 @@ export type DecisionModel = z.infer<typeof DecisionModelSchema>;
 
 export type Question = { instructions: string; criteria: Record<string, string> };
 
-type Request = { state: unknown; questions: Record<string, Question> };
+export type DecisionRequest = { state: Context; questions: Record<string, Question> };
 
 /**
  * The server refused a request as too large for it (Ollama: a body over 64 KiB, or a prompt past
@@ -78,7 +79,8 @@ const isTransient = (status: number) => status === 429 || (status >= 500 && stat
  */
 export const requestAnswers = async (
   { endpoint, name, apiKey }: DecisionModel,
-  request: Request,
+  request: DecisionRequest,
+  onRetry?: (info: { delayMs: number; status?: number; error?: string }) => void,
 ): Promise<{ answers: Record<string, Answer>; inputTokens: number }> => {
   const body = JSON.stringify({
     model: name,
@@ -90,6 +92,12 @@ export const requestAnswers = async (
       ]),
     ),
   });
+
+  // A server's error text may echo the key back; it never reaches a message, the log or an event.
+  const withoutKey = (text: string) =>
+    apiKey === undefined || apiKey === '' ? text : text.replaceAll(apiKey, '[apiKey]');
+  const messageOf = (error: unknown) =>
+    withoutKey(error instanceof Error ? error.message : String(error));
 
   // The body is read here too: a connection that drops mid-body is as unreachable as a refused one.
   const post = async () => {
@@ -110,23 +118,23 @@ export const requestAnswers = async (
     const retry =
       delay === undefined
         ? undefined
-        : async () => {
+        : async (info: { status?: number; error?: string }) => {
+            onRetry?.({ delayMs: delay, ...info });
             await sleep(delay);
             return ask(laterDelays);
           };
     const reply = await post().catch((error: unknown) => ({ error }));
     if ('error' in reply) {
-      if (retry !== undefined) return retry();
+      if (retry !== undefined) return retry({ error: messageOf(reply.error) });
       const { error } = reply;
-      throw new Error(
-        `can't reach the decision model at ${endpoint}: ${error instanceof Error ? error.message : String(error)}`,
-        { cause: error },
-      );
+      throw new Error(`can't reach the decision model at ${endpoint}: ${messageOf(error)}`, {
+        cause: error,
+      });
     }
     if (!reply.isOk) {
-      const message = `decision model answered ${reply.status}: ${reply.text}`;
+      const message = `decision model answered ${reply.status}: ${withoutKey(reply.text)}`;
       if (isTooLarge(reply.status, reply.text)) throw new RequestTooLargeError(message);
-      if (isTransient(reply.status) && retry !== undefined) return retry();
+      if (isTransient(reply.status) && retry !== undefined) return retry({ status: reply.status });
       throw new Error(message);
     }
     const { answers, usage } = ResponseSchema.parse(JSON.parse(reply.text));

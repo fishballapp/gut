@@ -11,7 +11,7 @@ const model: DecisionModel = {
 };
 
 const request = {
-  state: { url: 'https://example.com' },
+  state: { goal: 'test', url: 'https://example.com' },
   questions: {
     q1: {
       instructions: 'Pick an option',

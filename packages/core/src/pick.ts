@@ -5,10 +5,9 @@
 import type { Merge } from 'type-fest';
 import {
   type Answer,
-  type DecisionModel,
+  type DecisionRequest,
   type Question,
   RequestTooLargeError,
-  requestAnswers,
 } from './decision-model.ts';
 import { knockoutInPagesOf, ListStrategy, type Questions } from './list-strategy.ts';
 import { isOp, type Ops } from './ops.ts';
@@ -200,10 +199,26 @@ const nextQuestion = (
   criteria: Object.fromEntries(options.map((option, i) => [`o${i + 1}`, option.description])),
 });
 
-/** What every request in a run shares. */
-export type Asker = { decisionModel: DecisionModel; inputTokenBudget: number };
+/** Who answers each turn of a pick: the model, a person, a re-pick, or the budget. */
+export type TurnReply =
+  | {
+      kind: 'answered';
+      answers: Record<string, Answer>;
+      inputTokens: number;
+      isModel: boolean;
+    }
+  | { kind: 'repick' }
+  | { kind: 'budget' };
 
-type Ending = { status: 'achieved' } | { status: 'halted'; reason: 'budget' };
+/** What every request in a run shares. */
+export type Asker = {
+  answer: (request: DecisionRequest, usage: Usage) => Promise<TurnReply>;
+};
+
+type Ending =
+  | { status: 'achieved' }
+  | { status: 'halted'; reason: 'budget' }
+  | { status: 'repick' };
 
 /** Ends a pick from whichever request finds the goal met or the budget spent. */
 class PickEnded extends Error {
@@ -254,21 +269,24 @@ const createPickSession = ({
     isGoalPending = false;
   };
 
-  /** Sends one request, if the budget allows, with the goal question while it is pending. */
+  /** Sends one request, with the goal question while it is pending. */
   const send = async (questions: Record<string, Question>) => {
-    if (usage.inputTokens >= asker.inputTokenBudget) {
-      throw new PickEnded({ status: 'halted', reason: 'budget' });
-    }
-    const { answers, inputTokens } = await requestAnswers(asker.decisionModel, {
+    const request: DecisionRequest = {
       state: context,
       questions: {
         ...(isGoalPending ? { achieved: goalQuestion(context.goal) } : {}),
         ...questions,
       },
-    });
-    usage = { inputTokens: usage.inputTokens + inputTokens, requests: usage.requests + 1 };
-    if (isGoalPending) settleGoal(answers.achieved);
-    return answers;
+    };
+    const reply = await asker.answer(request, usage);
+    if (reply.kind === 'repick') throw new PickEnded({ status: 'repick' });
+    if (reply.kind === 'budget') throw new PickEnded({ status: 'halted', reason: 'budget' });
+    usage = {
+      inputTokens: usage.inputTokens + reply.inputTokens,
+      requests: usage.requests + (reply.isModel ? 1 : 0),
+    };
+    if (isGoalPending) settleGoal(reply.answers.achieved);
+    return reply.answers;
   };
 
   /**
@@ -387,24 +405,26 @@ export const pick = async ({
   ops,
   usage,
   isGoalAsked,
+  maxOptions,
 }: {
   asker: Asker;
   context: Context;
   ops: Ops;
   usage: Usage;
   isGoalAsked: boolean;
+  maxOptions: number;
 }): Promise<
   Merge<
     | { status: 'picked'; step: Step; probabilities: number[] }
     | { status: 'achieved'; probabilities: number[] }
     | { status: 'halted'; reason: 'noOptions' | 'budget' }
+    | { status: 'repick' }
     | { status: 'failed'; error: unknown },
     { usage: Usage }
   >
 > => {
   const trees = toStepTrees(ops);
   const session = createPickSession({ asker, context, usage, isGoalAsked });
-  const maxOptions = asker.decisionModel.capabilities.choiceQuestions.maxOptions;
   try {
     // A page with nothing left to do may be the finish line, so the goal is asked before halting.
     if (trees.length === 0) {
