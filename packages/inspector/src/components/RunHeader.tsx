@@ -42,7 +42,7 @@ export const RunHeader = ({
           <RunControls state={state} run={run} act={act} />
         </div>
       </div>
-      <RoundStrip selected={selected} select={select} />
+      <RoundStrip selected={selected} select={select} pending={state.pending} />
     </section>
   );
 };
