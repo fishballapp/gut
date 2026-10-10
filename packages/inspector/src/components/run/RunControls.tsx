@@ -86,10 +86,18 @@ export const RunControls = ({
   const model = run?.model ?? state.pageModel;
   const hasModel = model !== null;
   const pending = oldestPending(state.pending, run?.runId);
-  const isPlaying = state.mode === 'play';
+  // Once the task has ended nothing more will run, so there is nothing to play or pause.
+  const hasEnded = state.ended !== undefined;
+  const isPlaying = state.mode === 'play' && !hasEnded;
+  const isPlayDisabled = hasEnded || (!hasModel && !isPlaying);
 
-  const playDisabledReason = hasModel ? undefined : 'Play needs a model: add one';
+  const playDisabledReason = (() => {
+    if (hasEnded) return 'The task has ended';
+    if (!hasModel) return 'Play needs a model: add one';
+    return undefined;
+  })();
   const stepDisabledReason = (() => {
+    if (hasEnded) return 'The task has ended';
     if (!hasModel) return 'Step needs a model: add one';
     if (pending === undefined) return 'Nothing is waiting';
     return undefined;
@@ -115,7 +123,7 @@ export const RunControls = ({
   };
 
   const playPause = () => {
-    if (!hasModel && !isPlaying) return;
+    if (isPlayDisabled) return;
     void post({ type: isPlaying ? 'pause' : 'play' });
   };
 
@@ -157,7 +165,7 @@ export const RunControls = ({
         <div className="flex items-center gap-1.5">
           <ControlButton
             reason={playDisabledReason}
-            isDisabled={!hasModel && !isPlaying}
+            isDisabled={isPlayDisabled}
             isPrimary={isPlaying}
             ariaLabel={isPlaying ? 'Pause' : 'Play'}
             onClick={playPause}
