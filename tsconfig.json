@@ -5,6 +5,7 @@
     { "path": "./packages/cli" },
     { "path": "./packages/playwright" },
     { "path": "./packages/inspector" },
+    { "path": "./packages/inspector/e2e" },
     { "path": "./examples" },
     { "path": "./internal/cn" }
   ]

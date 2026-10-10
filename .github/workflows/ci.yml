@@ -46,4 +46,5 @@ jobs:
         run: pnpm -F @gut.run/playwright exec playwright install-deps chromium
 
       - run: pnpm test
+      - run: pnpm -F @gut.run/inspector test:e2e
       - run: pnpm build

@@ -21,7 +21,8 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "prepack": "pnpm build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@base-ui/react": "catalog:",
@@ -30,7 +31,9 @@
     "@fontsource-variable/geist-mono": "catalog:",
     "@gut.run/core": "workspace:*",
     "@phosphor-icons/react": "catalog:",
+    "@playwright/test": "catalog:",
     "@tailwindcss/vite": "catalog:",
+    "@types/node": "catalog:",
     "@types/react": "catalog:web",
     "@types/react-dom": "catalog:web",
     "@vitejs/plugin-react": "catalog:",
