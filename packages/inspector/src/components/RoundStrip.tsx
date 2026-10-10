@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
+import { revealNearest } from '../lib/reveal.ts';
 import type { Select, Selected } from '../lib/selection.ts';
 import { isShortcutBlockedTarget } from '../lib/shortcut-target.ts';
 import { adjacentRound } from '../lib/strip-block.ts';
@@ -25,8 +26,10 @@ export const RoundStrip = ({
       : `${run.runId}/${current.round}/${currentTurn.turn}`;
 
   useEffect(() => {
-    if (selectedKey === undefined) return;
-    selectedBlockRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const strip = rootRef.current;
+    const block = selectedBlockRef.current;
+    if (selectedKey === undefined || strip === null || block === null) return;
+    revealNearest(strip, block);
   }, [selectedKey]);
 
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {

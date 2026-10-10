@@ -91,7 +91,7 @@ const FoldableNode = ({
           size={12}
           weight="bold"
           className={cn(
-            'relative top-px shrink-0 text-faint transition-transform',
+            'relative top-px shrink-0 text-faint transition-transform motion-reduce:transition-none',
             isOpen && 'rotate-90',
           )}
           aria-hidden

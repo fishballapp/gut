@@ -391,6 +391,40 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
    There is no confidence threshold: every pick runs, and its probabilities are logged.
 5. **Invoke** the picked op with its choice.
 
+## Inspecting a run
+
+`gut run <task.gut.ts> --inspect` serves the run as a page on 127.0.0.1, while it goes and after it
+ends. Every round and every turn is there, with the text the model read and the probability it gave
+each option. Use it to answer "why did it pick that?", or to be the decider yourself.
+
+```sh
+gut run /path/to/task.gut.ts --inspect
+gut run /path/to/task.gut.ts --inspect --port 4321 --no-open
+```
+
+![A turn the model answered, sorted by probability, in dark mode](docs/images/inspector-turn-dark.png)
+
+- **Round strip** (top): one block per turn, filled to the chosen option's probability. A person icon
+  marks a turn you answered.
+- **Rounds** (left): each round, with its turns under it.
+- **Turn** (middle): the question as sent, each option with its probability. "By probability" sorts
+  the options; "As sent" shows them as the model saw them.
+- **Round** (right): the step picked, the op tree with its path lit, and the round's context.
+
+![The same turn in light mode](docs/images/inspector-turn-light.png)
+
+**Play** (Space) lets the model answer every turn until you pause. **Step** (S) does one thing: it asks
+the model the waiting turn, or runs the picked step. You can also answer a turn yourself: choose its
+options (number keys, or G and N on the goal), then ↵. When a step is picked, ↵ runs it and R picks
+again. **Restart** (T) runs the task again from the top.
+
+The model comes from the task's gut config, or from the model chip in the bar, which opens a dialog for
+a gut config file (the default paths, or one by its path), your own key (TypeSafe, OpenRouter,
+Cloudflare, or a custom `/v1/systemone` endpoint), or Ollama. Keys stay in the local `gut` process.
+Without a model, Play is off and every turn is yours to answer.
+
+Every flag and key is in [packages/cli/README.md](packages/cli/README.md).
+
 ## Trace
 
 Each round logs one line to stderr: the step, its probabilities, the time and the input tokens; the

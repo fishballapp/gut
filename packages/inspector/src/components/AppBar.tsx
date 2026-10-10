@@ -14,18 +14,18 @@ export const AppBar = ({
   pageModel: ModelInfo | null;
   act: (action: Action) => Promise<ActOutcome>;
 }) => (
-  <header className="col-span-3 flex h-11 items-center gap-4 border-b border-line px-5 text-[13px]">
+  <header className="flex h-11 items-center gap-4 border-b border-line px-5 text-[13px] lg:col-span-3">
     <span className="rounded-[3px] bg-mark px-1.5 text-[17px] font-bold tracking-tight text-on-mark">
       gut
     </span>
-    <span className="text-muted">inspector</span>
+    <span className="hidden text-muted sm:inline">inspector</span>
     <span className="flex-1" />
     <ModelChip runModel={runModel} pageModel={pageModel} act={act} />
     <a
       href="https://github.com/fishballapp/gut#readme"
       target="_blank"
       rel="noreferrer"
-      className="flex items-center gap-1 text-muted hover:text-ink"
+      className="hidden items-center gap-1 text-muted hover:text-ink sm:flex"
     >
       Docs <ArrowUpRightIcon size={12} />
     </a>

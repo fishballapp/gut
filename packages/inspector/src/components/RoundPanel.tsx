@@ -7,7 +7,10 @@ import { RoundSummary } from './round/RoundSummary.tsx';
 export const RoundPanel = ({ selected }: { selected: Selected }) => {
   const { run, round } = selected;
   return (
-    <aside aria-label="Round" className="overflow-auto border-l border-line p-5">
+    <aside
+      aria-label="Round"
+      className="overflow-auto border-t border-line p-5 lg:border-t-0 lg:border-l"
+    >
       {round !== undefined && (
         <div key={round.round} className="flex min-w-0 flex-col gap-6">
           <RoundSummary round={round} run={run} />

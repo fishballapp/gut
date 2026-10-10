@@ -34,8 +34,8 @@ export const RunHeader = ({
   const pill = runStatus(state, run, status);
   const isLive = state.ended === undefined;
   return (
-    <section aria-label="Run" className="col-span-3 border-b border-line px-5 pt-[18px]">
-      <p className="font-mono text-xs text-muted">
+    <section aria-label="Run" className="border-b border-line px-5 pt-[18px] lg:col-span-3">
+      <p className="font-mono text-xs text-muted [overflow-wrap:anywhere]">
         {state.task}
         {state.task !== undefined && run !== undefined && ' · '}
         {run !== undefined &&
@@ -45,12 +45,14 @@ export const RunHeader = ({
             run.name
           ))}
       </p>
-      <div className="mt-0.5 flex items-start justify-between gap-6">
+      <div className="mt-0.5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
         <div className="min-w-0">
           <p className="text-xs font-medium text-muted">Goal</p>
-          <h1 className="text-2xl font-semibold tracking-tight">{goal ?? state.task ?? 'gut'}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]">
+            {goal ?? state.task ?? 'gut'}
+          </h1>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-3 pt-1">
+        <div className="flex shrink-0 flex-wrap items-center justify-start gap-3 pt-1 lg:justify-end">
           <StatusPill status={pill} />
           {run !== undefined && <BudgetMeter budget={runBudget(run)} />}
           {isLive && <FollowToggle isFollowing={isFollowing} onFollow={follow} />}

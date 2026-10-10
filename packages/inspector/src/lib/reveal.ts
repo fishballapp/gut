@@ -31,3 +31,21 @@ export const revealWithin = (list: HTMLElement, row: HTMLElement): void => {
     contentHeight: list.scrollHeight,
   });
 };
+
+/** How far a frame must move so that `start`..`end` shows, moving the least; 0 when it already does. */
+const shiftToShow = (start: number, end: number, frameStart: number, frameEnd: number): number => {
+  if (start < frameStart) return start - frameStart;
+  if (end > frameEnd) return end - frameEnd;
+  return 0;
+};
+
+/**
+ * Scrolls `container` alone, the least that shows `item` on each axis, as `scrollIntoView` with
+ * `nearest` would. The page never moves: a container that does not scroll on an axis ignores it.
+ */
+export const revealNearest = (container: HTMLElement, item: HTMLElement): void => {
+  const frame = container.getBoundingClientRect();
+  const box = item.getBoundingClientRect();
+  container.scrollTop += shiftToShow(box.top, box.bottom, frame.top, frame.bottom);
+  container.scrollLeft += shiftToShow(box.left, box.right, frame.left, frame.right);
+};

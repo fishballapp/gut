@@ -1,6 +1,7 @@
 import { Tooltip } from '@base-ui/react/tooltip';
 import { useCallback, useEffect, useEffectEvent, useRef } from 'react';
 import { currentTurnOf, roundCurrentState, rowCurrentState } from '../lib/current-turn.ts';
+import { revealNearest } from '../lib/reveal.ts';
 import { isSameRow, type RoundRowKey, stopRows, visibleRows } from '../lib/round-rows.ts';
 import type { Select, Selected } from '../lib/selection.ts';
 import { isShortcutBlockedTarget } from '../lib/shortcut-target.ts';
@@ -39,7 +40,9 @@ export const RoundList = ({
   // Runs as the current row mounts, so it scrolls and takes focus only when the selection moves.
   const attachCurrentRow = useCallback((row: HTMLButtonElement | null) => {
     if (row === null) return;
-    row.scrollIntoView({ block: 'nearest' });
+    // The list is the row's nearest `nav`: navRef may not be set yet when the first row mounts.
+    const list = row.closest<HTMLElement>('nav');
+    if (list !== null) revealNearest(list, row);
     if (!followsFocus.current) return;
     followsFocus.current = false;
     row.focus({ preventScroll: true });
@@ -68,7 +71,7 @@ export const RoundList = ({
     <nav
       ref={navRef}
       aria-label="Rounds"
-      className="overflow-auto border-r border-line px-2.5 py-3.5"
+      className="relative overflow-auto border-line px-2.5 py-3.5 lg:border-r"
     >
       <h2 className="px-2.5 pb-2 text-xs font-semibold text-muted">Rounds</h2>
       <Tooltip.Provider delay={400}>

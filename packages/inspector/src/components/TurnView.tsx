@@ -37,7 +37,10 @@ export const TurnView = ({
   const stepWaiting =
     stepDecision !== undefined && round?.picked !== undefined ? stepDecision : undefined;
   return (
-    <motion.main layoutScroll className="relative overflow-auto px-8 py-6">
+    <motion.main
+      layoutScroll
+      className="relative overflow-auto border-t border-line px-5 py-6 lg:border-t-0 lg:px-8"
+    >
       <TurnEndings state={state} selected={selected} status={status} />
       {state.incompatible !== undefined && (
         <p role="alert" className="rounded-lg border border-you p-4 text-you">
@@ -104,7 +107,7 @@ const SelectedTurn = ({
   const isLastTurn = round.turns.at(-1)?.turn === turn.turn;
   return (
     <>
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <TurnHeader round={round} turn={turn} isAwaitingYou={isAwaitingYou} />
         <div className="flex shrink-0 flex-col items-end gap-2">
           <TurnStatus turn={turn} isAwaitingYou={isAwaitingYou} />

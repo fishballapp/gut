@@ -33,7 +33,7 @@ export const TurnHeader = ({
   isAwaitingYou: boolean;
 }) => {
   return (
-    <p className="font-mono text-xs text-muted">
+    <p className="font-mono text-xs whitespace-nowrap text-muted">
       round {round.round} · turn {turn.turn}
       {isAwaitingYou && <span className="text-you"> · waiting for you</span>}
     </p>

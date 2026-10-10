@@ -10,7 +10,14 @@ import { ModelPicker } from './ModelPicker.tsx';
 const describeModel = (model: ModelInfo) => `${model.name} · ${new URL(model.endpoint).host}`;
 
 const chipClass =
-  'flex items-center gap-2 rounded-full border border-line bg-raised px-2.5 py-0.5 text-[13px]';
+  'flex min-w-0 items-center gap-2 whitespace-nowrap rounded-full border border-line bg-raised px-2.5 py-0.5 text-[13px]';
+
+/** The model's name, cut with an ellipsis when the bar is narrow; the full text is on hover. */
+const ChipLabel = ({ text }: { text: string }) => (
+  <span className="min-w-0 truncate" title={text}>
+    {text}
+  </span>
+);
 
 const ModelDot = ({ isSet }: { isSet: boolean }) => (
   <span
@@ -30,7 +37,7 @@ const TaskModel = ({ model }: { model: ModelInfo }) => (
       render={<Button disabled focusableWhenDisabled className={`${chipClass} cursor-default`} />}
     >
       <ModelDot isSet />
-      {describeModel(model)}
+      <ChipLabel text={describeModel(model)} />
     </Tooltip.Trigger>
     <Tooltip.Portal>
       <Tooltip.Positioner sideOffset={6}>
@@ -62,7 +69,7 @@ const PageModel = ({
     <Dialog.Root open={isOpen} onOpenChange={open}>
       <Dialog.Trigger className={`${chipClass} hover:border-ink/40`}>
         <ModelDot isSet={model !== null} />
-        {model === null ? 'No model' : describeModel(model)}
+        <ChipLabel text={model === null ? 'No model' : describeModel(model)} />
       </Dialog.Trigger>
       <ModelPicker
         model={model}

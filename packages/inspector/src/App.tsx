@@ -34,7 +34,7 @@ export const App = () => {
   const selected = resolveSelection(state, selection);
   const setSelection: Select = choice => setSelectionState(selectChoice(state, choice));
   return (
-    <div className="relative isolate grid h-full grid-cols-[264px_1fr_400px] grid-rows-[auto_auto_1fr]">
+    <div className="relative isolate grid min-h-full grid-cols-1 lg:h-full lg:grid-cols-[220px_1fr_340px] xl:grid-cols-[264px_1fr_400px] lg:grid-rows-[auto_auto_1fr]">
       <GutBackground />
       <AppBar runModel={selected.run?.model ?? null} pageModel={state.pageModel} act={act} />
       <RunHeader
