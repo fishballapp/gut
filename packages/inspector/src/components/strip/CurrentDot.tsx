@@ -2,11 +2,17 @@ import { cn } from '@fishballapps/cn';
 import type { CurrentState } from '../../lib/current-turn.ts';
 import { isAwaitingYou } from '../../lib/current-turn.ts';
 
-/** The static mark under the run's current block: coral when it needs you, ink when the model answers. */
+/**
+ * The static mark under the run's current block, for when the system asks for reduced motion and the
+ * block can't pulse: coral when it needs you, ink when the model answers. Otherwise the pulse says it.
+ */
 export const CurrentDot = ({ state }: { state: CurrentState }) => (
   <span
     aria-hidden
-    className={cn('size-1.5 rounded-full', isAwaitingYou(state) ? 'bg-you' : 'bg-ink')}
+    className={cn(
+      'hidden size-1.5 rounded-full motion-reduce:block',
+      isAwaitingYou(state) ? 'bg-you' : 'bg-ink',
+    )}
   />
 );
 
