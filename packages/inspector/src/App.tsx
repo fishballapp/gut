@@ -6,7 +6,13 @@ import { RoundPanel } from './components/RoundPanel.tsx';
 import { RunHeader } from './components/RunHeader.tsx';
 import { TurnView } from './components/TurnView.tsx';
 import { act, useInspector } from './lib/connection.ts';
-import { resolveSelection, type Selection } from './lib/selection.ts';
+import {
+  FOLLOWING,
+  resolveSelection,
+  type Select,
+  type Selection,
+  selectChoice,
+} from './lib/selection.ts';
 
 /**
  * The page, by level: gut's bar; the run (its goal, controls and the strip of its rounds); then
@@ -14,16 +20,19 @@ import { resolveSelection, type Selection } from './lib/selection.ts';
  */
 export const App = () => {
   const { state, status } = useInspector();
-  const [selection, setSelection] = useState<Selection>({});
+  const [selection, setSelectionState] = useState<Selection>(FOLLOWING);
   const selected = resolveSelection(state, selection);
+  const setSelection: Select = choice => setSelectionState(selectChoice(state, choice));
   return (
     <div className="relative isolate grid h-full grid-cols-[264px_1fr_400px] grid-rows-[auto_auto_1fr]">
       <GutBackground />
-      <AppBar model={selected.run?.model ?? state.pageModel} />
+      <AppBar runModel={selected.run?.model ?? null} pageModel={state.pageModel} act={act} />
       <RunHeader
         state={state}
         selected={selected}
         select={setSelection}
+        isFollowing={selection.isFollowing}
+        follow={() => setSelectionState(FOLLOWING)}
         status={status}
         act={act}
       />

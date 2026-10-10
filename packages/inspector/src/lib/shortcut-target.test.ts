@@ -35,6 +35,13 @@ describe('isShortcutBlockedTarget', () => {
     expect(isShortcutBlockedTarget(el('<div role="tab">Tab</div>'))).toBe(true);
   });
 
+  it('blocks the keys of an open menu, so its arrows stay in the menu', () => {
+    expect(isShortcutBlockedTarget(el('<div role="menu"></div>'))).toBe(true);
+    expect(isShortcutBlockedTarget(el('<div role="menuitem">Count</div>'))).toBe(true);
+    expect(isShortcutBlockedTarget(el('<div role="menuitemradio">Count</div>'))).toBe(true);
+    expect(isShortcutBlockedTarget(el('<div role="menuitemcheckbox">Count</div>'))).toBe(true);
+  });
+
   it('blocks a nested target inside an interactive ancestor', () => {
     const button = el('<button type="button"><kbd>Space</kbd></button>');
     const kbd = button.querySelector('kbd');
