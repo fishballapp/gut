@@ -2,9 +2,10 @@ import { Collapsible } from '@base-ui/react/collapsible';
 import { cn } from '@fishballapps/cn';
 import type { OpAddress, OpChoiceNode, OpTreeNode } from '@gut.run/core/inspector';
 import { CaretRightIcon } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isOnPath } from '../../lib/op-path.ts';
-import { choiceWindow, closedCountLabel } from '../../lib/round-panel.ts';
+import { revealWithin } from '../../lib/reveal.ts';
+import { closedCountLabel } from '../../lib/round-panel.ts';
 
 const nodeKey = (node: OpTreeNode): string => node.address.keys.at(-1) ?? '';
 
@@ -31,60 +32,40 @@ const LeafRow = ({
   </span>
 );
 
+/** Every choice of a list, in a scrolling container; the picked one is brought into view when the pick changes. */
 const ChoiceList = ({
   choices,
   pickedAddress,
-  pickedChoice,
 }: {
   choices: OpChoiceNode[];
   pickedAddress: OpAddress | null;
-  /** Choice index when this list is on the picked path; otherwise undefined. */
-  pickedChoice: number | undefined;
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const visibleRange = choiceWindow(choices.length, pickedChoice);
-  const range =
-    isExpanded || visibleRange === 'all' ? { start: 0, end: choices.length } : visibleRange;
-  const hiddenBefore = range.start;
-  const hiddenAfter = choices.length - range.end;
-  const visible = choices.slice(range.start, range.end);
+  const listRef = useRef<HTMLUListElement>(null);
+  const pickedKey = pickedAddress === null ? '' : JSON.stringify(pickedAddress);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-runs when pickedKey changes; the body reads the DOM.
+  useEffect(() => {
+    const list = listRef.current;
+    const row = list?.querySelector<HTMLElement>('[data-picked]');
+    if (list !== null && list !== undefined && row !== null && row !== undefined) {
+      revealWithin(list, row);
+    }
+  }, [pickedKey]);
 
   return (
-    <ul className="ms-3 border-l border-line ps-3">
-      {hiddenBefore > 0 && (
-        <li>
-          <button
-            type="button"
-            className="py-0.5 text-muted hover:text-ink"
-            onClick={() => setIsExpanded(true)}
-          >
-            +{hiddenBefore} more
-          </button>
-        </li>
-      )}
-      {visible.map(choice => {
+    <ul ref={listRef} className="relative ms-3 max-h-72 overflow-y-auto border-l border-line ps-3">
+      {choices.map(choice => {
         const isPicked = pickedAddress !== null && isOnPath(choice.address, pickedAddress);
         return (
-          <li key={choice.address.choice} className="py-0.5">
+          <li key={choice.address.choice} data-picked={isPicked || undefined} className="py-0.5">
             <LeafRow label={choice.label} isPicked={isPicked} />
           </li>
         );
       })}
-      {hiddenAfter > 0 && (
-        <li>
-          <button
-            type="button"
-            className="py-0.5 text-muted hover:text-ink"
-            onClick={() => setIsExpanded(true)}
-          >
-            +{hiddenAfter} more
-          </button>
-        </li>
-      )}
     </ul>
   );
 };
 
+/** A group or choices list: open at first, so every move shows; a person may still collapse it. */
 const FoldableNode = ({
   node,
   pickedAddress,
@@ -93,7 +74,7 @@ const FoldableNode = ({
   pickedAddress: OpAddress | null;
 }) => {
   const isPicked = pickedAddress !== null && isOnPath(node.address, pickedAddress);
-  const [isOpen, setIsOpen] = useState(isPicked);
+  const [isOpen, setIsOpen] = useState(true);
   const key = nodeKey(node);
   const count = closedCountLabel(node);
 
@@ -123,11 +104,7 @@ const FoldableNode = ({
         {node.kind === 'group' ? (
           <OpNodeList nodes={node.children} pickedAddress={pickedAddress} />
         ) : (
-          <ChoiceList
-            choices={node.children}
-            pickedAddress={pickedAddress}
-            pickedChoice={isPicked ? pickedAddress?.choice : undefined}
-          />
+          <ChoiceList choices={node.children} pickedAddress={pickedAddress} />
         )}
       </Collapsible.Panel>
     </Collapsible.Root>

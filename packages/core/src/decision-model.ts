@@ -56,10 +56,16 @@ const AnswerSchema = z.object({
 
 export type Answer = z.infer<typeof AnswerSchema>;
 
-const ResponseSchema = z.object({
+const ResultSchema = z.object({
   answers: z.record(z.string(), AnswerSchema),
   usage: z.object({ input_tokens: z.int().nonnegative() }),
 });
+
+/**
+ * A `/v1/systemone` reply carries `answers` and `usage` at the top level. Cloudflare's REST API
+ * wraps a model's output in `result` (`{ result, success, errors, messages }`), so both are read.
+ */
+const ResponseSchema = z.union([ResultSchema, z.object({ result: ResultSchema })]);
 
 /** How long to wait before each retry of a request that failed on the way (3 retries). */
 const RETRY_DELAYS_MS = [1_000, 2_000, 4_000] as const;
@@ -137,7 +143,8 @@ export const requestAnswers = async (
       if (isTransient(reply.status) && retry !== undefined) return retry({ status: reply.status });
       throw new Error(message);
     }
-    const { answers, usage } = ResponseSchema.parse(JSON.parse(reply.text));
+    const parsed = ResponseSchema.parse(JSON.parse(reply.text));
+    const { answers, usage } = 'result' in parsed ? parsed.result : parsed;
     return { answers, inputTokens: usage.input_tokens };
   };
 

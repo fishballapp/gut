@@ -2,6 +2,7 @@ import { cn } from '@fishballapps/cn';
 import type { Ref } from 'react';
 import { type TurnMark, turnSummary } from '../../lib/turn-summary.ts';
 import type { Turn } from '../../state/inspector-state.ts';
+import { CurrentMarker } from './CurrentMarker.tsx';
 
 /** One turn under the selected round: what it asked, and its right-hand mark. The selected one sits on the highlighter. */
 export const TurnRow = ({
@@ -32,13 +33,8 @@ export const TurnRow = ({
     >
       {`turn ${turn.turn} · ${turnSummary(turn)}`}
     </span>
-    <span
-      className={cn(
-        'font-mono text-xs tabular-nums',
-        mark.isAwaitingYou ? 'font-semibold text-you' : 'text-muted',
-      )}
-    >
-      {mark.text}
+    <span className="flex items-center font-mono text-xs text-muted tabular-nums">
+      {mark.kind === 'current' ? <CurrentMarker isAwaitingYou={mark.isAwaitingYou} /> : mark.text}
     </span>
   </button>
 );

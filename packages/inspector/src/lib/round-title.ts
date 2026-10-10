@@ -18,8 +18,6 @@ export type RoundTitle =
 export type PickedOp = { title: RoundTitle; subtitle: string; description: string };
 
 export type RoundHeadline =
-  | { kind: 'your-turn' }
-  | { kind: 'pick-made' }
   | { kind: 'goal' }
   | { kind: 'pending' }
   | { kind: 'title'; picked: PickedOp }
@@ -65,13 +63,8 @@ export const pickedOp = (ops: readonly OpTreeNode[], address: OpAddress): Picked
   };
 };
 
-/** What a round row says in place of its number: the title, or the state it is in. */
-export const roundHeadline = (
-  round: Round,
-  waiting: { isYourTurn: boolean; isWaitingToRun: boolean },
-): RoundHeadline => {
-  if (waiting.isYourTurn) return { kind: 'your-turn' };
-  if (waiting.isWaitingToRun) return { kind: 'pick-made' };
+/** What a round row says in place of its number: the picked move's title, or `…` while nothing is picked. */
+export const roundHeadline = (round: Round): RoundHeadline => {
   const { picked } = round;
   if (picked === undefined) {
     return round.goalChecked?.achieved === true ? { kind: 'goal' } : { kind: 'pending' };

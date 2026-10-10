@@ -3,9 +3,7 @@ import type { Decision, Round, Turn } from '../state/inspector-state.ts';
 import {
   findAwaitingTurn,
   findWaitingStep,
-  isAwaitingYou,
   isSameRow,
-  isWaitingToRun,
   stopRows,
   visibleRows,
 } from './round-rows.ts';
@@ -86,52 +84,22 @@ describe('stopRows', () => {
   });
 });
 
-describe('isAwaitingYou', () => {
-  const turnDecision = (overrides: Partial<Decision> = {}): Decision => ({
-    id: 'd1',
-    runId: 'run',
-    round: 2,
-    on: { kind: 'turn', turn: 1 },
-    ...overrides,
-  });
-
-  it('is true for a turn with a pending decision in its run and round', () => {
-    expect(isAwaitingYou([turnDecision()], 'run', 2, 1)).toBe(true);
-  });
-
-  it('is false for another turn, round or run', () => {
-    const pending = [turnDecision()];
-    expect(isAwaitingYou(pending, 'run', 2, 2)).toBe(false);
-    expect(isAwaitingYou(pending, 'run', 3, 1)).toBe(false);
-    expect(isAwaitingYou(pending, 'other', 2, 1)).toBe(false);
-  });
-
-  it('ignores a step waiting to run', () => {
-    const pending = [turnDecision({ on: { kind: 'step', step: 'add' } })];
-    expect(isAwaitingYou(pending, 'run', 2, 1)).toBe(false);
-  });
-});
-
-describe('findWaitingStep and isWaitingToRun', () => {
-  const stepDecision = (overrides: Partial<Decision> = {}): Decision => ({
-    id: 'd2',
-    runId: 'run',
-    round: 2,
-    on: { kind: 'step', step: 'add' },
-    ...overrides,
-  });
-
+describe('findWaitingStep', () => {
   it('finds the step waiting to run in its run and round', () => {
-    const pending = [stepDecision()];
-    expect(findWaitingStep(pending, 'run', 2)).toEqual(stepDecision());
-    expect(isWaitingToRun(pending, 'run', 2)).toBe(true);
+    const decision: Decision = {
+      id: 'd2',
+      runId: 'run',
+      round: 2,
+      on: { kind: 'step', step: 'add' },
+    };
+    expect(findWaitingStep([decision], 'run', 2)).toEqual(decision);
+    expect(findWaitingStep([decision], 'other', 2)).toBeUndefined();
+    expect(findWaitingStep([decision], 'run', 3)).toBeUndefined();
   });
 
-  it('is not waiting for another round, run, or a turn', () => {
-    const pending = [stepDecision(), stepDecision({ id: 'd3', on: { kind: 'turn', turn: 1 } })];
-    expect(isWaitingToRun(pending, 'run', 3)).toBe(false);
-    expect(isWaitingToRun(pending, 'other', 2)).toBe(false);
-    expect(isWaitingToRun([stepDecision({ on: { kind: 'turn', turn: 1 } })], 'run', 2)).toBe(false);
+  it('ignores a turn waiting in its round', () => {
+    const decision: Decision = { id: 'd3', runId: 'run', round: 2, on: { kind: 'turn', turn: 1 } };
+    expect(findWaitingStep([decision], 'run', 2)).toBeUndefined();
   });
 });
 

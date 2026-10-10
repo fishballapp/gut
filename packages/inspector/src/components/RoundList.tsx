@@ -1,13 +1,7 @@
 import { Tooltip } from '@base-ui/react/tooltip';
 import { useCallback, useEffect, useEffectEvent, useRef } from 'react';
-import {
-  isAwaitingYou,
-  isSameRow,
-  isWaitingToRun,
-  type RoundRowKey,
-  stopRows,
-  visibleRows,
-} from '../lib/round-rows.ts';
+import { currentTurnOf, roundCurrentState, rowCurrentState } from '../lib/current-turn.ts';
+import { isSameRow, type RoundRowKey, stopRows, visibleRows } from '../lib/round-rows.ts';
 import type { Select, Selected } from '../lib/selection.ts';
 import { isShortcutBlockedTarget } from '../lib/shortcut-target.ts';
 import { turnMark } from '../lib/turn-summary.ts';
@@ -28,7 +22,7 @@ export const RoundList = ({
 }: {
   selected: Selected;
   select: Select;
-  /** The decisions the runs wait on; a turn with one reads "Your turn" on its round. */
+  /** The decisions the runs wait on: the run's current turn is marked from them. */
   pending: readonly Decision[];
 }) => {
   const { run, round: current, turn: currentTurn } = selected;
@@ -82,15 +76,16 @@ export const RoundList = ({
           {run !== undefined &&
             run.rounds.map(round => {
               const isSelectedRound = round.round === current?.round;
-              const isStepWaiting = isWaitingToRun(pending, run.runId, round.round);
+              const running = currentTurnOf(round, run.runId, pending);
+              const roundState = roundCurrentState(round, run.runId, pending);
               return (
                 <li key={round.round}>
                   <RoundRow
                     round={round}
-                    isYourTurn={round.turns.some(turn =>
-                      isAwaitingYou(pending, run.runId, round.round, turn.turn),
-                    )}
-                    isWaitingToRun={isStepWaiting}
+                    current={rowCurrentState(roundState, {
+                      isSelected: isSelectedRound,
+                      turnCount: round.turns.length,
+                    })}
                     isSelected={isSelectedRound}
                     ref={isCurrentRow({ round: round.round }) ? attachCurrentRow : undefined}
                     onSelect={() => select({ runId: run.runId, round: round.round })}
@@ -98,17 +93,12 @@ export const RoundList = ({
                   {isSelectedRound && (
                     <ul>
                       {round.turns.map(turn => {
-                        const isAwaiting = isAwaitingYou(
-                          pending,
-                          run.runId,
-                          round.round,
-                          turn.turn,
-                        );
+                        const turnState = running?.turn === turn.turn ? running.state : undefined;
                         return (
                           <li key={turn.turn}>
                             <TurnRow
                               turn={turn}
-                              mark={turnMark(turn, { isAwaitingYou: isAwaiting })}
+                              mark={turnMark(turn, turnState)}
                               isSelected={turn.turn === currentTurn?.turn}
                               ref={
                                 isCurrentRow({ round: round.round, turn: turn.turn })
@@ -122,11 +112,6 @@ export const RoundList = ({
                           </li>
                         );
                       })}
-                      {isStepWaiting && (
-                        <li className="py-1 ps-7 pe-2.5 text-[13px] font-semibold text-you">
-                          → waiting to run
-                        </li>
-                      )}
                     </ul>
                   )}
                 </li>

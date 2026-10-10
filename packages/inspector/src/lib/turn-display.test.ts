@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Round, Turn } from '../state/inspector-state.ts';
+import type { Turn } from '../state/inspector-state.ts';
 import {
+  defaultSortFor,
   formatRetry,
   optionKindLabel,
   optionProbability,
@@ -13,15 +14,6 @@ const baseTurn = (overrides: Partial<Turn> = {}): Turn => ({
   optionInfo: {},
   retries: [],
   outcome: { status: 'asked' },
-  ...overrides,
-});
-
-const baseRound = (overrides: Partial<Round> = {}): Round => ({
-  round: 1,
-  context: { goal: 'g' },
-  ops: [],
-  picks: [{ maxOptions: 26 }],
-  turns: [],
   ...overrides,
 });
 
@@ -117,5 +109,29 @@ describe('optionProbability', () => {
     });
     expect(optionProbability(turn, 'next', 'o1')).toBe(0.64);
     expect(optionProbability(turn, 'next', 'missing')).toBe(0);
+  });
+});
+
+describe('defaultSortFor', () => {
+  it('opens a turn the model answered by probability', () => {
+    const turn = baseTurn({
+      outcome: {
+        status: 'answered',
+        by: { kind: 'model', name: 'Jev', endpoint: 'e' },
+        answers: {},
+        inputTokens: 1,
+        ms: 1,
+      },
+    });
+    expect(defaultSortFor(turn)).toBe('by-probability');
+  });
+
+  it('opens a turn you answered, or one still waiting, as sent', () => {
+    const youAnswered = baseTurn({
+      outcome: { status: 'answered', by: { kind: 'you' }, answers: {}, inputTokens: 0, ms: 1 },
+    });
+    expect(defaultSortFor(youAnswered)).toBe('as-sent');
+    expect(defaultSortFor(baseTurn())).toBe('as-sent');
+    expect(defaultSortFor(undefined)).toBe('as-sent');
   });
 });

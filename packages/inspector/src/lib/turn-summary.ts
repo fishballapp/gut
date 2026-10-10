@@ -1,5 +1,6 @@
 import type { OptionInfo } from '@gut.run/core/inspector';
 import type { Turn } from '../state/inspector-state.ts';
+import { type CurrentState, isAwaitingYou } from './current-turn.ts';
 import { formatTokensCompact } from './format.ts';
 
 const phrase = (count: number, one: string, many: string): string | null => {
@@ -29,25 +30,25 @@ export const summarizeOptions = (options: readonly OptionInfo[], hasGoal: boolea
 export const turnSummary = (turn: Turn): string =>
   summarizeOptions(Object.values(turn.optionInfo.next ?? {}), 'achieved' in turn.request.questions);
 
-/** A turn's right-hand text; `isAwaitingYou` is the one state the page marks in coral. */
-export type TurnMark = { text: string; isAwaitingYou: boolean };
+/** A turn's right-hand mark: the current turn's pulsing marker, or the text below. */
+export type TurnMark = { kind: 'current'; isAwaitingYou: boolean } | { kind: 'text'; text: string };
 
 /**
- * The turn's right-hand mark: the tokens its model used, or why it has none. `isAwaitingYou` is a
- * decision pending on this turn, the only thing coral marks.
+ * The turn's right-hand mark: the current turn's marker, else the tokens its model used or why it
+ * has none. The marker is coral only when the turn needs you.
  */
-export const turnMark = (turn: Turn, { isAwaitingYou }: { isAwaitingYou: boolean }): TurnMark => {
-  if (isAwaitingYou) return { text: 'waiting', isAwaitingYou: true };
+export const turnMark = (turn: Turn, current: CurrentState | undefined): TurnMark => {
+  if (current !== undefined) return { kind: 'current', isAwaitingYou: isAwaitingYou(current) };
   const { outcome } = turn;
   switch (outcome.status) {
     case 'asked':
-      return { text: '…', isAwaitingYou: false };
+      return { kind: 'text', text: '…' };
     case 'failed':
-      return { text: 'failed', isAwaitingYou: false };
+      return { kind: 'text', text: 'failed' };
     case 'dropped':
-      return { text: 'dropped', isAwaitingYou: false };
+      return { kind: 'text', text: 'dropped' };
     case 'answered':
-      if (outcome.by.kind === 'you') return { text: 'you', isAwaitingYou: false };
-      return { text: formatTokensCompact(outcome.inputTokens), isAwaitingYou: false };
+      if (outcome.by.kind === 'you') return { kind: 'text', text: 'you' };
+      return { kind: 'text', text: formatTokensCompact(outcome.inputTokens) };
   }
 };

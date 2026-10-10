@@ -1,6 +1,7 @@
-import { Collapsible } from '@base-ui/react/collapsible';
 import { cn } from '@fishballapps/cn';
-import { foldLowProbabilityRuns, type OptionSort, sortOptions } from '../../lib/sort-options.ts';
+import { useEffect, useRef } from 'react';
+import { revealWithin } from '../../lib/reveal.ts';
+import { type OptionSort, sortOptions } from '../../lib/sort-options.ts';
 import {
   chosenKey,
   isAnsweredByYou,
@@ -34,24 +35,7 @@ const prepareOptions = (turn: Turn, questionKey: string, question: Question): Pr
   }));
 };
 
-const renderOption = (
-  option: PreparedOption,
-  answeredByYou: boolean,
-  withProbabilities: boolean,
-) => (
-  <OptionRow
-    key={option.key}
-    optionKey={option.key}
-    text={option.text}
-    kindLabel={option.kindLabel}
-    probability={option.probability}
-    isChosen={option.isChosen}
-    isAnsweredByYou={answeredByYou}
-    showsProbability={withProbabilities}
-  />
-);
-
-/** One question of the turn: its instructions, then its options as a list. */
+/** One question of the turn: its instructions, then every option as a list that scrolls. */
 export const QuestionBlock = ({
   turn,
   questionKey,
@@ -66,11 +50,19 @@ export const QuestionBlock = ({
   const isGoal = questionKey === 'achieved';
   const answeredByYou = isAnsweredByYou(turn);
   const withProbabilities = showsProbabilities(turn);
+  const chosen = chosenKey(turn, questionKey);
   const sorted = sortOptions(prepareOptions(turn, questionKey, question), sort);
-  const segments = withProbabilities
-    ? foldLowProbabilityRuns(sorted)
-    : sorted.map(option => ({ kind: 'option' as const, option }));
-  const foldOpenByDefault = turn.outcome.status === 'asked' || answeredByYou;
+  const listRef = useRef<HTMLUListElement>(null);
+
+  // Opening the question, or re-sorting it, brings the chosen option into view inside this list.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-runs when sort, chosen changes; the body reads the DOM.
+  useEffect(() => {
+    const list = listRef.current;
+    const row = list?.querySelector<HTMLElement>('[data-chosen]');
+    if (list !== null && list !== undefined && row !== null && row !== undefined) {
+      revealWithin(list, row);
+    }
+  }, [sort, chosen]);
   const optionCount = Object.keys(question.criteria).length;
 
   return (
@@ -88,28 +80,22 @@ export const QuestionBlock = ({
           {optionCount} {optionCount === 1 ? 'option' : 'options'}
         </span>
       </div>
-      <ul className={cn('mt-1', isGoal && 'max-w-xl')}>
-        {segments.map((segment, i) => {
-          if (segment.kind === 'option') {
-            return renderOption(segment.option, answeredByYou, withProbabilities);
-          }
-          return (
-            <li key={`fold-${segment.options.map(o => o.key).join('-')}-${i}`} className="py-1">
-              <Collapsible.Root defaultOpen={foldOpenByDefault}>
-                <Collapsible.Trigger className="font-mono text-xs text-muted hover:text-ink">
-                  +{segment.options.length} more below .01
-                </Collapsible.Trigger>
-                <Collapsible.Panel>
-                  <ul>
-                    {segment.options.map(option =>
-                      renderOption(option, answeredByYou, withProbabilities),
-                    )}
-                  </ul>
-                </Collapsible.Panel>
-              </Collapsible.Root>
-            </li>
-          );
-        })}
+      <ul
+        ref={listRef}
+        className={cn('relative mt-1 max-h-96 overflow-y-auto', isGoal && 'max-w-xl')}
+      >
+        {sorted.map(option => (
+          <OptionRow
+            key={option.key}
+            optionKey={option.key}
+            text={option.text}
+            kindLabel={option.kindLabel}
+            probability={option.probability}
+            isChosen={option.isChosen}
+            isAnsweredByYou={answeredByYou}
+            showsProbability={withProbabilities}
+          />
+        ))}
       </ul>
     </section>
   );

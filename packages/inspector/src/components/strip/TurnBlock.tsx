@@ -1,12 +1,9 @@
 import { cn } from '@fishballapps/cn';
 import { UserIcon } from '@phosphor-icons/react';
 import type { Ref } from 'react';
+import type { CurrentState } from '../../lib/current-turn.ts';
 import type { BlockLook } from '../../lib/strip-block.ts';
-
-const STRIPES_YOU =
-  'bg-[repeating-linear-gradient(-45deg,var(--color-you)_0_2px,transparent_2px_6px)]';
-const STRIPES_CHOSEN =
-  'bg-[repeating-linear-gradient(-45deg,var(--color-chosen)_0_2px,transparent_2px_6px)]';
+import { CurrentSlot } from './CurrentDot.tsx';
 
 const lookClass = (look: BlockLook): string => {
   switch (look.kind) {
@@ -18,20 +15,9 @@ const lookClass = (look: BlockLook): string => {
       return 'outline outline-1 -outline-offset-px outline-dashed outline-faint';
     case 'failed':
       return 'outline-[1.5px] -outline-offset-[1.5px] outline-you';
-    case 'waiting':
-      return STRIPES_YOU;
-    case 'in-flight':
-      return STRIPES_CHOSEN;
+    case 'unanswered':
+      return 'outline outline-1 -outline-offset-px outline-faint';
   }
-};
-
-/** The selected turn's mark, in highlighter lime. A block that draws its own outline gets a ring outside it, so both show. */
-const selectionClass = (look: BlockLook, isSelected: boolean): string | undefined => {
-  if (!isSelected) return undefined;
-  if (look.kind === 'you' || look.kind === 'dropped' || look.kind === 'failed') {
-    return 'ring-2 ring-mark ring-offset-2 ring-offset-ground';
-  }
-  return 'outline-2 -outline-offset-2 outline-mark';
 };
 
 /** The mark inside a block: a probability fill from the bottom, a person, or a cross. */
@@ -63,38 +49,46 @@ const lookMark = (look: BlockLook) => {
         </span>
       );
     case 'dropped':
-    case 'waiting':
-    case 'in-flight':
+    case 'unanswered':
       return null;
   }
 };
 
-/** One turn's block in the round strip: its look, and a button that selects the turn. */
+/**
+ * One turn's block in the round strip, with the slot under it: a button that selects the turn. The
+ * selected turn is ringed outside the block. The run's current turn carries a dot, and pulses.
+ */
 export const TurnBlock = ({
   ref,
   look,
   name,
+  current,
   isSelected,
   onSelect,
 }: {
   ref?: Ref<HTMLButtonElement>;
   look: BlockLook;
   name: string;
+  current: CurrentState | undefined;
   isSelected: boolean;
   onSelect: () => void;
 }) => (
-  <button
-    ref={ref}
-    type="button"
-    aria-label={name}
-    aria-current={isSelected}
-    onClick={onSelect}
-    className={cn(
-      'relative h-9 w-6 shrink-0 overflow-hidden rounded-[5px]',
-      lookClass(look),
-      selectionClass(look, isSelected),
-    )}
-  >
-    {lookMark(look)}
-  </button>
+  <span className="flex w-6 flex-col items-center">
+    <button
+      ref={ref}
+      type="button"
+      aria-label={name}
+      aria-current={isSelected}
+      onClick={onSelect}
+      className={cn(
+        'relative h-9 w-6 shrink-0 overflow-hidden rounded-[5px]',
+        lookClass(look),
+        isSelected && 'ring-2 ring-mark ring-offset-2 ring-offset-ground',
+        current !== undefined && 'motion-safe:animate-pulse',
+      )}
+    >
+      {lookMark(look)}
+    </button>
+    <CurrentSlot state={current} />
+  </span>
 );

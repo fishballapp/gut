@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import type { Round, Run } from '../state/inspector-state.ts';
 import {
   abandonedPickedSteps,
-  choiceWindow,
   closedCountLabel,
   countMoves,
   roundSummaryLine,
@@ -54,25 +53,6 @@ describe('countMoves and closedCountLabel', () => {
     const choices = tree.children[1];
     if (choices?.kind !== 'choices') throw new Error('expected choices');
     expect(closedCountLabel(choices)).toBe('· 2 choices');
-  });
-});
-
-describe('choiceWindow', () => {
-  it('returns all when the list fits', () => {
-    expect(choiceWindow(10, 3)).toBe('all');
-  });
-
-  it('centers on the picked choice', () => {
-    expect(choiceWindow(100, 50, 12)).toEqual({ start: 45, end: 57 });
-  });
-
-  it('clamps to the start and end of the list', () => {
-    expect(choiceWindow(100, 2, 12)).toEqual({ start: 0, end: 12 });
-    expect(choiceWindow(100, 98, 12)).toEqual({ start: 88, end: 100 });
-  });
-
-  it('shows the head when nothing is picked', () => {
-    expect(choiceWindow(100, undefined, 12)).toEqual({ start: 0, end: 12 });
   });
 });
 

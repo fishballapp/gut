@@ -54,16 +54,3 @@ export const findWaitingStep = (
   pending.find(
     decision => decision.runId === runId && decision.round === round && decision.on.kind === 'step',
   );
-
-export const isAwaitingYou = (
-  pending: readonly Decision[],
-  runId: string,
-  round: number,
-  turn: number,
-): boolean => findAwaitingTurn(pending, runId, round, turn) !== undefined;
-
-export const isWaitingToRun = (
-  pending: readonly Decision[],
-  runId: string,
-  round: number,
-): boolean => findWaitingStep(pending, runId, round) !== undefined;

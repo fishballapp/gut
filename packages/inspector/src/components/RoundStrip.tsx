@@ -51,30 +51,24 @@ export const RoundStrip = ({
 
   if (run === undefined || run.rounds.length === 0) return <div className="pb-4" />;
   return (
-    <div ref={rootRef} className="flex items-end gap-6 py-4">
-      <div className="min-w-0 flex-1 overflow-x-auto">
-        <ol aria-label="Rounds at a glance" className="flex w-max gap-3.5 px-1.5 py-1">
-          {run.rounds.map(round => {
-            const isSelected = round.round === current?.round;
-            return (
-              <RoundGroup
-                key={round.round}
-                run={run}
-                round={round}
-                isSelected={isSelected}
-                selectedTurn={currentTurn?.turn}
-                selectedBlockRef={selectedBlockRef}
-                pending={pending}
-                select={select}
-              />
-            );
-          })}
-        </ol>
-      </div>
-      <p className="max-w-[26rem] shrink-0 text-right text-xs text-muted">
-        fill: how sure the pick was · person: you answered · dashed: dropped · striped: waiting · ○:
-        picked, not run yet
-      </p>
+    <div ref={rootRef} className="overflow-x-auto py-4">
+      <ol aria-label="Rounds at a glance" className="flex w-max gap-3.5 px-1.5 py-1">
+        {run.rounds.map(round => {
+          const isSelected = round.round === current?.round;
+          return (
+            <RoundGroup
+              key={round.round}
+              run={run}
+              round={round}
+              isSelected={isSelected}
+              selectedTurn={currentTurn?.turn}
+              selectedBlockRef={selectedBlockRef}
+              pending={pending}
+              select={select}
+            />
+          );
+        })}
+      </ol>
     </div>
   );
 };

@@ -6,7 +6,6 @@ import {
   blockName,
   chosenProbability,
   isRoundWaiting,
-  isStepWaiting,
 } from './strip-block.ts';
 
 const turn = (number: number, outcome: Turn['outcome']): Turn => ({
@@ -25,13 +24,6 @@ const modelAnswered = (
   answers,
   inputTokens: 1,
   ms: 1,
-});
-
-const waitingOnTurn = (turnNumber: number): Decision => ({
-  id: `d${turnNumber}`,
-  runId: 'r',
-  round: 3,
-  on: { kind: 'turn', turn: turnNumber },
 });
 
 describe('chosenProbability', () => {
@@ -63,18 +55,9 @@ describe('chosenProbability', () => {
 });
 
 describe('blockLook', () => {
-  const pending: Decision[] = [waitingOnTurn(2)];
-  const look = (outcome: Turn['outcome'], turnNumber = 1) =>
-    blockLook({
-      runId: 'r',
-      round: 3,
-      turn: turn(turnNumber, outcome),
-      pending,
-    });
-
   it('shows a model answer by its chosen probability', () => {
     const outcome = modelAnswered({ next: { choice: 'o1', probabilities: { o1: 0.64 } } });
-    expect(look(outcome)).toEqual({ kind: 'model', probability: 0.64 });
+    expect(blockLook(turn(1, outcome))).toEqual({ kind: 'model', probability: 0.64 });
   });
 
   it('shows a turn you answered without a probability', () => {
@@ -85,73 +68,60 @@ describe('blockLook', () => {
       inputTokens: 0,
       ms: 0,
     };
-    expect(look(outcome)).toEqual({ kind: 'you' });
+    expect(blockLook(turn(1, outcome))).toEqual({ kind: 'you' });
   });
 
   it('shows a turn the budget dropped', () => {
-    expect(look({ status: 'dropped', reason: 'budget' })).toEqual({
+    expect(blockLook(turn(1, { status: 'dropped', reason: 'budget' }))).toEqual({
       kind: 'dropped',
     });
   });
 
   it('shows a failed turn', () => {
-    expect(look({ status: 'failed', error: 'boom', isTooLarge: false })).toEqual({
+    expect(blockLook(turn(1, { status: 'failed', error: 'boom', isTooLarge: false }))).toEqual({
       kind: 'failed',
     });
   });
 
-  it('shows an asked turn that something waits on as waiting for you', () => {
-    expect(look({ status: 'asked' }, 2)).toEqual({ kind: 'waiting' });
-  });
-
-  it('shows an asked turn nothing waits on as in flight', () => {
-    expect(look({ status: 'asked' }, 1)).toEqual({ kind: 'in-flight' });
-  });
-
-  it('does not mark a turn waiting when the decision is for another round', () => {
-    const otherRound = blockLook({
-      runId: 'r',
-      round: 4,
-      turn: turn(2, { status: 'asked' }),
-      pending,
-    });
-    expect(otherRound).toEqual({ kind: 'in-flight' });
-  });
-
-  it('lets a failed turn win over a decision that still names it', () => {
-    expect(look({ status: 'failed', error: 'boom', isTooLarge: false }, 2)).toEqual({
-      kind: 'failed',
-    });
+  it('shows an unanswered turn as empty, whoever it waits on', () => {
+    expect(blockLook(turn(1, { status: 'asked' }))).toEqual({ kind: 'unanswered' });
   });
 });
 
 describe('blockName', () => {
   it('names the round, turn and what the block shows', () => {
-    expect(blockName(3, 2, { kind: 'model', probability: 0.64 })).toBe(
+    expect(blockName(3, 2, { kind: 'model', probability: 0.64 }, undefined)).toBe(
       'round 3, turn 2: .64, answered by the model',
     );
-    expect(blockName(3, 2, { kind: 'you' })).toBe('round 3, turn 2: answered by you');
-    expect(blockName(3, 2, { kind: 'dropped' })).toBe(
+    expect(blockName(3, 2, { kind: 'you' }, undefined)).toBe('round 3, turn 2: answered by you');
+    expect(blockName(3, 2, { kind: 'dropped' }, undefined)).toBe(
       'round 3, turn 2: dropped, the budget ran out',
     );
-    expect(blockName(3, 2, { kind: 'waiting' })).toBe('round 3, turn 2: waiting for you');
+  });
+
+  it('names an unanswered turn by what it is doing now', () => {
+    expect(blockName(3, 2, { kind: 'unanswered' }, 'waiting-for-you')).toBe(
+      'round 3, turn 2: waiting for you',
+    );
+    expect(blockName(3, 2, { kind: 'unanswered' }, 'in-flight')).toBe('round 3, turn 2: in flight');
+  });
+
+  it('adds that the picked step waits to run to an answered turn', () => {
+    expect(blockName(3, 2, { kind: 'you' }, 'waiting-to-run')).toBe(
+      'round 3, turn 2: answered by you, waiting to run',
+    );
   });
 });
 
-describe('isRoundWaiting and isStepWaiting', () => {
+describe('isRoundWaiting', () => {
   const pending: Decision[] = [
-    waitingOnTurn(2),
+    { id: 'd', runId: 'r', round: 3, on: { kind: 'turn', turn: 2 } },
     { id: 's', runId: 'r', round: 4, on: { kind: 'step', step: 'openLink' } },
   ];
 
-  it('sees a turn waiting on its round', () => {
+  it('sees a round with anything waiting on the developer', () => {
     expect(isRoundWaiting('r', 3, pending)).toBe(true);
-    expect(isStepWaiting('r', 3, pending)).toBe(false);
-  });
-
-  it('sees a picked step waiting on its round', () => {
     expect(isRoundWaiting('r', 4, pending)).toBe(true);
-    expect(isStepWaiting('r', 4, pending)).toBe(true);
   });
 
   it('ignores other runs and rounds', () => {

@@ -6,8 +6,8 @@ import { GOAL_QUESTION_KEY, keycapOf, LIST_LIMIT, type ListView } from '../../li
 import { Keycap } from '../run/Keycap.tsx';
 
 /**
- * One question of a turn you answer: its options as radios, the chosen one ringed, and for a long
- * list a filter line. The keys are the answer form's; this only shows them.
+ * One question of a turn you answer: for a long list a filter line on top, then every option as a
+ * radio in a scrolling list, the chosen one ringed. The keys are the answer form's; this only shows them.
  */
 export const AnswerQuestion = ({
   questionKey,
@@ -49,11 +49,27 @@ export const AnswerQuestion = ({
           {optionCount} {optionCount === 1 ? 'option' : 'options'}
         </span>
       </div>
+      {isLong && (
+        <label className="mt-2 flex items-center gap-2 border-b border-line py-1.5 font-mono text-xs text-muted focus-within:border-ink focus-within:text-ink">
+          {query.trim() !== '' && (
+            <span className="shrink-0">{`${view.matchCount} of ${optionCount}`}</span>
+          )}
+          <input
+            ref={filterRef}
+            type="text"
+            value={query}
+            onChange={event => onQuery(event.target.value)}
+            placeholder="Filter options (/)"
+            aria-label={`Filter ${instructions}`}
+            className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-muted"
+          />
+        </label>
+      )}
       <RadioGroup
         aria-labelledby={headingId}
         value={chosen ?? ''}
         onValueChange={onChoose}
-        className={cn('mt-1', isGoal && 'max-w-xl')}
+        className={cn('mt-1 max-h-96 overflow-y-auto', isGoal && 'max-w-xl')}
       >
         {view.shown.map((option, index) => {
           const keycap = keycapOf(questionKey, option.key, index);
@@ -80,24 +96,6 @@ export const AnswerQuestion = ({
           );
         })}
       </RadioGroup>
-      {isLong && (
-        <label className="mt-1 flex items-center gap-1 py-1.5 ps-9 pe-2.5 font-mono text-xs text-muted focus-within:text-ink">
-          <span className="shrink-0">
-            {query.trim() === ''
-              ? `+${view.hiddenCount} more ·`
-              : `${view.matchCount} of ${optionCount} ·`}
-          </span>
-          <input
-            ref={filterRef}
-            type="text"
-            value={query}
-            onChange={event => onQuery(event.target.value)}
-            placeholder="type to filter"
-            aria-label={`Filter ${instructions}`}
-            className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-muted"
-          />
-        </label>
-      )}
     </section>
   );
 };

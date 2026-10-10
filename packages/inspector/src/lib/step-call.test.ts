@@ -1,7 +1,7 @@
 import type { OpTreeNode } from '@gut.run/core/inspector';
 import { describe, expect, it } from 'vitest';
-import type { PickedStep, Round, Turn } from '../state/inspector-state.ts';
-import { pickTrail, stepCall } from './pick-card.ts';
+import type { PickedStep, Round } from '../state/inspector-state.ts';
+import { stepCall } from './step-call.ts';
 
 const ops: OpTreeNode[] = [
   {
@@ -27,14 +27,6 @@ const picked = (overrides: Partial<PickedStep> = {}): PickedStep => ({
   tokens: 0,
   ms: 1,
   ...overrides,
-});
-
-const turn = (number: number, outcome: Turn['outcome']): Turn => ({
-  turn: number,
-  request: { state: { goal: 'g' }, questions: {} },
-  optionInfo: {},
-  retries: [],
-  outcome,
 });
 
 const round = (overrides: Partial<Round> = {}): Round => ({
@@ -63,24 +55,5 @@ describe('stepCall', () => {
 
   it('shows the goal step as recorded, since it has no address', () => {
     expect(stepCall(round(), picked({ address: null, step: 'goal' }))).toBe('goal');
-  });
-});
-
-describe('pickTrail', () => {
-  it('lists the answered turns of the current pick, by who answered', () => {
-    const turns = [
-      turn(1, { status: 'answered', by: { kind: 'you' }, answers: {}, inputTokens: 0, ms: 1 }),
-      turn(2, {
-        status: 'answered',
-        by: { kind: 'model', name: 'Jev', endpoint: 'e' },
-        answers: {},
-        inputTokens: 10,
-        ms: 1,
-      }),
-    ];
-    expect(pickTrail(round({ turns, picks: [{ maxOptions: 9 }] }))).toEqual([
-      { turn: 1, by: 'you' },
-      { turn: 2, by: 'Jev' },
-    ]);
   });
 });

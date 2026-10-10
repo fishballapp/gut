@@ -1,6 +1,7 @@
 import type { OptionInfo } from '@gut.run/core/inspector';
 import type { Round, Turn } from '../state/inspector-state.ts';
 import { formatDuration, formatTokens } from './format.ts';
+import type { OptionSort } from './sort-options.ts';
 
 /** A muted label for what the option is; moves show nothing. */
 export const optionKindLabel = (info: OptionInfo | undefined): string | undefined => {
@@ -54,6 +55,13 @@ export const turnStatusLabel = (turn: Turn): string => {
 /** Whether this turn was answered by the developer (no probabilities shown). */
 export const isAnsweredByYou = (turn: Turn): boolean =>
   turn.outcome.status === 'answered' && turn.outcome.by.kind === 'you';
+
+/**
+ * How a turn's options open: by probability when the model answered it, where the ranking is the
+ * point; as sent otherwise (a turn you answer, or one still waiting).
+ */
+export const defaultSortFor = (turn: Turn | undefined): OptionSort =>
+  turn !== undefined && showsProbabilities(turn) ? 'by-probability' : 'as-sent';
 
 /** Whether probabilities and bars should render for this turn. */
 export const showsProbabilities = (turn: Turn): boolean =>

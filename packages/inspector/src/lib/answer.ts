@@ -3,21 +3,21 @@
 
 export const GOAL_QUESTION_KEY = 'achieved';
 
-/** A question longer than this shows its first nine options and a filter. */
+/** A question with more options than this gets a filter, and its first nine shown take keys 1 to 9. */
 export const LIST_LIMIT = 9;
 
 const GOAL_KEYCAPS: Readonly<Record<string, string>> = { achieved: 'G', notYet: 'N' };
 
 export type Option = { key: string; text: string };
 
-export type ListView = { shown: Option[]; matchCount: number; hiddenCount: number };
+export type ListView = { shown: Option[]; matchCount: number };
 
 export const optionsOf = (criteria: Readonly<Record<string, string>>): Option[] =>
   Object.entries(criteria).map(([key, text]) => ({ key, text }));
 
 /**
- * The options a question shows: the first nine that match the filter, plus the chosen one whatever
- * the filter says, so a choice never disappears while filtering.
+ * The options a question shows: every one that matches the filter, in the order sent, plus the
+ * chosen one whatever the filter says, so a choice never disappears while filtering.
  */
 export const listView = (
   options: readonly Option[],
@@ -28,11 +28,10 @@ export const listView = (
   const matches = options.filter(
     option => needle === '' || `${option.key} ${option.text}`.toLowerCase().includes(needle),
   );
-  const shownKeys = new Set(matches.slice(0, LIST_LIMIT).map(option => option.key));
+  const shownKeys = new Set(matches.map(option => option.key));
   if (chosen !== undefined) shownKeys.add(chosen);
   const shown = options.filter(option => shownKeys.has(option.key));
-  const hiddenCount = matches.filter(option => !shownKeys.has(option.key)).length;
-  return { shown, matchCount: matches.length, hiddenCount };
+  return { shown, matchCount: matches.length };
 };
 
 /** The key that picks an option shown at `index`: G or N on the goal question, 1 to 9 on the others. */

@@ -196,3 +196,46 @@ describe('requestAnswers retry logic', () => {
     expect(result.answers.q1?.choice).toBe('a');
   });
 });
+
+describe('requestAnswers reply shapes', () => {
+  let previousFetch: typeof fetch | undefined;
+
+  beforeEach(() => {
+    previousFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    if (previousFetch !== undefined) {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  const replyWith = (payload: unknown) =>
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(payload), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+
+  it('reads answers and usage at the top level, as /v1/systemone replies them', async () => {
+    replyWith(successPayload);
+
+    const result = await requestAnswers(model, request);
+
+    expect(result.answers.q1?.choice).toBe('a');
+    expect(result.inputTokens).toBe(42);
+  });
+
+  it('reads answers and usage inside result, as Cloudflare wraps a model reply', async () => {
+    replyWith({ result: successPayload, success: true, errors: [], messages: [] });
+
+    const result = await requestAnswers(model, request);
+
+    expect(result.answers.q1?.choice).toBe('a');
+    expect(result.inputTokens).toBe(42);
+  });
+});

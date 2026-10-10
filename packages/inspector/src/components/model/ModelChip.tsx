@@ -2,7 +2,7 @@ import { Button } from '@base-ui/react/button';
 import { Dialog } from '@base-ui/react/dialog';
 import { Tooltip } from '@base-ui/react/tooltip';
 import type { Action, ModelInfo } from '@gut.run/core/inspector';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ActOutcome } from '../../lib/connection.ts';
 import { ModelPicker } from './ModelPicker.tsx';
 
@@ -42,7 +42,7 @@ const TaskModel = ({ model }: { model: ModelInfo }) => (
   </Tooltip.Root>
 );
 
-/** The model set in this page, for runs without their own: shown, and changed by opening the picker. */
+/** The model set in this page, for runs without their own: the pill opens the picker to show or change it. */
 const PageModel = ({
   model,
   act,
@@ -51,23 +51,28 @@ const PageModel = ({
   act: (action: Action) => Promise<ActOutcome>;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  // Closing by Esc or × returns focus to the pill. Closing because a model was set or cleared
+  // leaves it on the page, so the next Space plays rather than pressing the pill again.
+  const isDone = useRef(false);
+  const open = (nextIsOpen: boolean) => {
+    if (nextIsOpen) isDone.current = false;
+    setIsOpen(nextIsOpen);
+  };
   return (
-    <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
-      {model === null ? (
-        <span className={chipClass}>
-          <ModelDot isSet={false} />
-          No model
-          <Dialog.Trigger className="rounded-full border border-line px-2 text-[12px] text-ink hover:border-ink/40">
-            Add a model
-          </Dialog.Trigger>
-        </span>
-      ) : (
-        <Dialog.Trigger className={`${chipClass} hover:border-ink/40`}>
-          <ModelDot isSet />
-          {describeModel(model)}
-        </Dialog.Trigger>
-      )}
-      <ModelPicker model={model} act={act} onSaved={() => setIsOpen(false)} />
+    <Dialog.Root open={isOpen} onOpenChange={open}>
+      <Dialog.Trigger className={`${chipClass} hover:border-ink/40`}>
+        <ModelDot isSet={model !== null} />
+        {model === null ? 'No model' : describeModel(model)}
+      </Dialog.Trigger>
+      <ModelPicker
+        model={model}
+        act={act}
+        onDone={() => {
+          isDone.current = true;
+          setIsOpen(false);
+        }}
+        returnsFocus={() => !isDone.current}
+      />
     </Dialog.Root>
   );
 };

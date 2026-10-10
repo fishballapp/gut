@@ -1,6 +1,7 @@
-// What a turn's block in the round strip shows: a pure function of the turn, its round, and the
-// decisions the page is waiting on.
+// What a turn's block in the round strip shows: a pure function of the turn, and of the state it is in
+// when it is the run's current turn.
 import type { Decision, Round, Turn } from '../state/inspector-state.ts';
+import type { CurrentState } from './current-turn.ts';
 import { formatProbability } from './format.ts';
 
 type Answers = Extract<Turn['outcome'], { status: 'answered' }>['answers'];
@@ -10,8 +11,7 @@ export type BlockLook =
   | { kind: 'you' }
   | { kind: 'dropped' }
   | { kind: 'failed' }
-  | { kind: 'waiting' }
-  | { kind: 'in-flight' };
+  | { kind: 'unanswered' };
 
 /**
  * The chosen option's probability. A goal judged met ends the pick there, so its answer wins over
@@ -24,28 +24,7 @@ export const chosenProbability = (answers: Answers): number => {
   return answer.probabilities[answer.choice] ?? 0;
 };
 
-const decisionsFor = (runId: string, round: number, pending: readonly Decision[]) =>
-  pending.filter(decision => decision.runId === runId && decision.round === round);
-
-/** Whether anything waits on this round: a turn to answer, or a picked step to run. */
-export const isRoundWaiting = (runId: string, round: number, pending: readonly Decision[]) =>
-  decisionsFor(runId, round, pending).length > 0;
-
-/** Whether the round's picked step waits to run. */
-export const isStepWaiting = (runId: string, round: number, pending: readonly Decision[]) =>
-  decisionsFor(runId, round, pending).some(decision => decision.on.kind === 'step');
-
-export const blockLook = ({
-  runId,
-  round,
-  turn,
-  pending,
-}: {
-  runId: string;
-  round: number;
-  turn: Turn;
-  pending: readonly Decision[];
-}): BlockLook => {
+export const blockLook = (turn: Turn): BlockLook => {
   const { outcome } = turn;
   switch (outcome.status) {
     case 'dropped':
@@ -55,16 +34,12 @@ export const blockLook = ({
     case 'answered':
       if (outcome.by.kind === 'you') return { kind: 'you' };
       return { kind: 'model', probability: chosenProbability(outcome.answers) };
-    case 'asked': {
-      const isWaiting = decisionsFor(runId, round, pending).some(
-        decision => decision.on.kind === 'turn' && decision.on.turn === turn.turn,
-      );
-      return isWaiting ? { kind: 'waiting' } : { kind: 'in-flight' };
-    }
+    case 'asked':
+      return { kind: 'unanswered' };
   }
 };
 
-const lookPhrase = (look: BlockLook): string => {
+const lookPhrase = (look: BlockLook, state: CurrentState | undefined): string => {
   switch (look.kind) {
     case 'model':
       return `${formatProbability(look.probability)}, answered by the model`;
@@ -74,16 +49,24 @@ const lookPhrase = (look: BlockLook): string => {
       return 'dropped, the budget ran out';
     case 'failed':
       return 'failed';
-    case 'waiting':
-      return 'waiting for you';
-    case 'in-flight':
-      return 'in flight';
+    case 'unanswered':
+      return state === 'waiting-for-you' ? 'waiting for you' : 'in flight';
   }
 };
 
-/** A block's accessible name: `round 3, turn 2: .64, answered by the model`. */
-export const blockName = (round: number, turn: number, look: BlockLook): string =>
-  `round ${round}, turn ${turn}: ${lookPhrase(look)}`;
+/**
+ * A block's accessible name: `round 3, turn 2: .64, answered by the model`. `state` is given only for
+ * the run's current turn.
+ */
+export const blockName = (
+  round: number,
+  turn: number,
+  look: BlockLook,
+  state: CurrentState | undefined,
+): string => {
+  const phrase = lookPhrase(look, state);
+  return `round ${round}, turn ${turn}: ${phrase}${state === 'waiting-to-run' ? ', waiting to run' : ''}`;
+};
 
 /** The round `step` places away (−1 back, +1 forward), or undefined past either end. */
 export const adjacentRound = (
@@ -95,3 +78,7 @@ export const adjacentRound = (
   if (index === -1) return undefined;
   return rounds[index + step];
 };
+
+/** Whether anything waits on you in this round: a turn to answer, or a picked step to run. */
+export const isRoundWaiting = (runId: string, round: number, pending: readonly Decision[]) =>
+  pending.some(decision => decision.runId === runId && decision.round === round);

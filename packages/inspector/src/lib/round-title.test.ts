@@ -91,23 +91,9 @@ describe('pickedOp', () => {
   });
 });
 
-const notWaiting = { isYourTurn: false, isWaitingToRun: false };
-
 describe('roundHeadline', () => {
-  it('says "Your turn" over everything when a turn of the round waits for the developer', () => {
-    expect(
-      roundHeadline(round({ picked: picked() }), { isYourTurn: true, isWaitingToRun: true }),
-    ).toEqual({ kind: 'your-turn' });
-  });
-
-  it('says the pick is made but not run when its step waits to run', () => {
-    expect(
-      roundHeadline(round({ picked: picked() }), { isYourTurn: false, isWaitingToRun: true }),
-    ).toEqual({ kind: 'pick-made' });
-  });
-
   it('gives the picked op, its title and its description', () => {
-    expect(roundHeadline(round({ picked: picked() }), notWaiting)).toEqual({
+    expect(roundHeadline(round({ picked: picked() }))).toEqual({
       kind: 'title',
       picked: {
         title: { kind: 'choice', keys: ['openLink'], label: 'Domestication' },
@@ -118,29 +104,27 @@ describe('roundHeadline', () => {
   });
 
   it('says "goal achieved" for a goal step, which has no address', () => {
-    expect(
-      roundHeadline(round({ picked: picked({ address: null, step: 'goal' }) }), notWaiting),
-    ).toEqual({ kind: 'goal' });
+    expect(roundHeadline(round({ picked: picked({ address: null, step: 'goal' }) }))).toEqual({
+      kind: 'goal',
+    });
   });
 
   it('says "goal achieved" when the goal was met before any pick', () => {
-    expect(roundHeadline(round({ goalChecked: { achieved: true, ms: 1 } }), notWaiting)).toEqual({
+    expect(roundHeadline(round({ goalChecked: { achieved: true, ms: 1 } }))).toEqual({
       kind: 'goal',
     });
   });
 
   it('is pending before a pick, with the goal unmet or unchecked', () => {
-    expect(roundHeadline(round(), notWaiting)).toEqual({ kind: 'pending' });
-    expect(roundHeadline(round({ goalChecked: { achieved: false, ms: 1 } }), notWaiting)).toEqual({
+    expect(roundHeadline(round())).toEqual({ kind: 'pending' });
+    expect(roundHeadline(round({ goalChecked: { achieved: false, ms: 1 } }))).toEqual({
       kind: 'pending',
     });
   });
 
   it('falls back to the step text when the address is not in the tree', () => {
     const address = { keys: ['gone'] };
-    expect(
-      roundHeadline(round({ picked: picked({ address, step: 'gone()' }) }), notWaiting),
-    ).toEqual({
+    expect(roundHeadline(round({ picked: picked({ address, step: 'gone()' }) }))).toEqual({
       kind: 'step',
       step: 'gone()',
     });

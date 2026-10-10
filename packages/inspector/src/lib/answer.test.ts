@@ -4,7 +4,6 @@ import {
   isAnswerComplete,
   keycapOf,
   keyedRows,
-  LIST_LIMIT,
   listView,
   type Option,
   optionsOf,
@@ -25,14 +24,14 @@ describe('optionsOf', () => {
 describe('listView', () => {
   it('shows every option of a short list', () => {
     const view = listView(options(3), '', undefined);
-    expect(view).toEqual({ shown: options(3), matchCount: 3, hiddenCount: 0 });
+    expect(view).toEqual({ shown: options(3), matchCount: 3 });
   });
 
-  it('shows the first nine of a long list and counts the rest', () => {
+  it('shows every option of a long list, none folded away', () => {
     const view = listView(options(96), '', undefined);
-    expect(view.shown).toHaveLength(LIST_LIMIT);
+    expect(view.shown).toHaveLength(96);
     expect(view.shown[0]).toEqual({ key: 'o1', text: 'Move 1' });
-    expect(view.hiddenCount).toBe(87);
+    expect(view.matchCount).toBe(96);
   });
 
   it('narrows by key or text, ignoring case and surrounding spaces', () => {
@@ -48,21 +47,33 @@ describe('listView', () => {
       'o15',
       'o16',
       'o17',
+      'o18',
+      'o19',
     ]);
   });
 
-  it('keeps the chosen option visible while filtering, even past the nine', () => {
-    const view = listView(options(20), 'move', 'o15');
-    expect(view.shown).toHaveLength(LIST_LIMIT + 1);
-    expect(view.shown.at(-1)).toEqual({ key: 'o15', text: 'Move 15' });
-    expect(view.hiddenCount).toBe(20 - (LIST_LIMIT + 1));
+  it('keeps the chosen option visible while filtering, in its place', () => {
+    const view = listView(options(20), 'move 1', 'o15');
+    expect(view.shown.map(option => option.key)).toEqual([
+      'o1',
+      'o10',
+      'o11',
+      'o12',
+      'o13',
+      'o14',
+      'o15',
+      'o16',
+      'o17',
+      'o18',
+      'o19',
+    ]);
+    expect(view.matchCount).toBe(11);
   });
 
   it('keeps the chosen option when the filter excludes it, once and in its place', () => {
     const view = listView(options(20), 'set it to', 'o3');
     expect(view.shown).toEqual([{ key: 'o3', text: 'Move 3' }]);
     expect(view.matchCount).toBe(0);
-    expect(view.hiddenCount).toBe(0);
   });
 
   it('shows the chosen option once when the filter matches it too', () => {

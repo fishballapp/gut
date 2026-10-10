@@ -84,8 +84,6 @@ describe('turnSummary', () => {
 });
 
 describe('turnMark', () => {
-  const none = { isAwaitingYou: false };
-
   it('shows the model’s input tokens compactly when it answered', () => {
     const turn = baseTurn({
       outcome: {
@@ -96,34 +94,45 @@ describe('turnMark', () => {
         ms: 1,
       },
     });
-    expect(turnMark(turn, none)).toEqual({ text: '2.9k', isAwaitingYou: false });
+    expect(turnMark(turn, undefined)).toEqual({ kind: 'text', text: '2.9k' });
   });
 
   it('marks a turn the developer answered as "you"', () => {
     const turn = baseTurn({
       outcome: { status: 'answered', by: { kind: 'you' }, answers: {}, inputTokens: 0, ms: 1 },
     });
-    expect(turnMark(turn, none)).toEqual({ text: 'you', isAwaitingYou: false });
+    expect(turnMark(turn, undefined)).toEqual({ kind: 'text', text: 'you' });
   });
 
-  it('marks a turn awaiting the developer as "waiting"', () => {
-    expect(turnMark(baseTurn(), { isAwaitingYou: true })).toEqual({
-      text: 'waiting',
+  it('shows the current turn as a marker, coral when it waits for the developer', () => {
+    expect(turnMark(baseTurn(), 'waiting-for-you')).toEqual({
+      kind: 'current',
       isAwaitingYou: true,
     });
   });
 
-  it('shows an ellipsis for a request still in flight', () => {
-    expect(turnMark(baseTurn(), none)).toEqual({ text: '…', isAwaitingYou: false });
+  it('shows the current turn as a marker, coral when its pick waits to run', () => {
+    expect(turnMark(baseTurn(), 'waiting-to-run')).toEqual({
+      kind: 'current',
+      isAwaitingYou: true,
+    });
+  });
+
+  it('shows the model’s turn in flight as a marker that needs nothing', () => {
+    expect(turnMark(baseTurn(), 'in-flight')).toEqual({ kind: 'current', isAwaitingYou: false });
+  });
+
+  it('shows an ellipsis for a request still in flight that is not the current turn', () => {
+    expect(turnMark(baseTurn(), undefined)).toEqual({ kind: 'text', text: '…' });
   });
 
   it('marks a dropped turn', () => {
     const turn = baseTurn({ outcome: { status: 'dropped', reason: 'budget' } });
-    expect(turnMark(turn, none)).toEqual({ text: 'dropped', isAwaitingYou: false });
+    expect(turnMark(turn, undefined)).toEqual({ kind: 'text', text: 'dropped' });
   });
 
   it('marks a failed turn', () => {
     const turn = baseTurn({ outcome: { status: 'failed', error: 'boom', isTooLarge: false } });
-    expect(turnMark(turn, none)).toEqual({ text: 'failed', isAwaitingYou: false });
+    expect(turnMark(turn, undefined)).toEqual({ kind: 'text', text: 'failed' });
   });
 });

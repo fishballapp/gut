@@ -28,24 +28,6 @@ export const closedCountLabel = (
   return `· ${n.toLocaleString('en-US')} ${n === 1 ? 'move' : 'moves'}`;
 };
 
-/**
- * Window into a long choices list: the picked choice and its neighbours, or the head when
- * nothing is picked. Lists at or under `limit` show in full (`'all'`).
- */
-export const choiceWindow = (
-  length: number,
-  pickedChoice: number | undefined,
-  limit = 12,
-): { start: number; end: number } | 'all' => {
-  if (length <= limit) return 'all';
-  if (pickedChoice === undefined) return { start: 0, end: limit };
-  const half = Math.floor((limit - 1) / 2);
-  let start = Math.max(0, pickedChoice - half);
-  let end = Math.min(length, start + limit);
-  start = Math.max(0, end - limit);
-  return { start, end };
-};
-
 export type RoundSummaryLine =
   | { kind: 'picked'; step: string; probabilities: string; meta: string }
   | { kind: 'goal'; text: string }

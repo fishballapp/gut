@@ -1,5 +1,4 @@
 import { cn } from '@fishballapps/cn';
-import { CheckIcon } from '@phosphor-icons/react';
 import { formatProbability } from '../../lib/format.ts';
 
 /** Split so only the first line of a chosen option gets the highlight mark. */
@@ -29,12 +28,9 @@ export const OptionRow = ({
 }) => {
   const { first, rest } = splitFirstLine(text);
   return (
-    <li className="py-1.5">
+    <li data-chosen={isChosen || undefined} className="py-1.5">
       <div className="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-baseline gap-x-2">
-        <span className="flex items-baseline gap-0.5 font-mono text-[11px] text-muted tabular-nums">
-          {isChosen && <CheckIcon aria-hidden size={12} className="shrink-0 text-chosen" />}
-          {optionKey}
-        </span>
+        <span className="font-mono text-[11px] text-muted tabular-nums">{optionKey}</span>
         <div className="min-w-0 font-mono text-[13px] leading-snug">
           <p className="whitespace-pre-wrap">
             {isChosen ? (
