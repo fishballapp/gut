@@ -1,6 +1,6 @@
 import { cn } from '@fishballapps/cn';
 import { CheckIcon } from '@phosphor-icons/react';
-import { formatProbability } from '../../lib/turn-display.ts';
+import { formatProbability } from '../../lib/format.ts';
 
 /** Split so only the first line of a chosen option gets the highlight mark. */
 const splitFirstLine = (text: string): { first: string; rest: string | undefined } => {

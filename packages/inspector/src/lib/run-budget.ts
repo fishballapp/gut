@@ -1,5 +1,6 @@
 // Model spend for the budget meter: tokens answered by the model against the run's budget.
 import type { Run } from '../state/inspector-state.ts';
+import { formatTokensCompact } from './format.ts';
 
 export type RunBudget = {
   inputTokens: number;
@@ -22,11 +23,5 @@ export const runBudget = (run: Run): RunBudget => {
   return { inputTokens, requests, budget: run.inputTokenBudget };
 };
 
-/** Compact token count for the meter label: 458, 17.4k, 50k. */
-export const formatTokens = (n: number): string => {
-  if (n < 1000) return String(n);
-  return `${Math.round(n / 100) / 10}k`;
-};
-
 export const formatBudgetLabel = ({ inputTokens, requests, budget }: RunBudget): string =>
-  `${formatTokens(inputTokens)} / ${formatTokens(budget)} tokens · ${requests} request${requests === 1 ? '' : 's'}`;
+  `${formatTokensCompact(inputTokens)} / ${formatTokensCompact(budget)} tokens · ${requests} request${requests === 1 ? '' : 's'}`;

@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Round, Turn } from '../state/inspector-state.ts';
 import {
-  formatDuration,
-  formatProbability,
   formatRetry,
-  formatTokens,
   isAbandonedPick,
   optionKindLabel,
   optionProbability,
@@ -30,26 +27,6 @@ const baseRound = (overrides: Partial<Round> = {}): Round => ({
   ...overrides,
 });
 
-describe('formatProbability', () => {
-  it('strips the leading zero', () => {
-    expect(formatProbability(0.64)).toBe('.64');
-    expect(formatProbability(0.01)).toBe('.01');
-  });
-});
-
-describe('formatDuration', () => {
-  it('renders seconds to one decimal', () => {
-    expect(formatDuration(1400)).toBe('1.4s');
-    expect(formatDuration(9200)).toBe('9.2s');
-  });
-});
-
-describe('formatTokens', () => {
-  it('groups thousands', () => {
-    expect(formatTokens(2880)).toBe('2,880');
-  });
-});
-
 describe('optionKindLabel', () => {
   it('labels each kind, and leaves moves blank', () => {
     expect(optionKindLabel({ kind: 'move', address: { keys: ['a'] } })).toBeUndefined();
@@ -72,7 +49,7 @@ describe('formatRetry', () => {
 
   it('falls back to the error text', () => {
     expect(formatRetry({ delayMs: 500, error: 'ECONNRESET' })).toBe(
-      'ECONNRESET · retried after 0.5s',
+      'ECONNRESET · retried after 500ms',
     );
   });
 });

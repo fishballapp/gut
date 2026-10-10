@@ -1,15 +1,6 @@
 import type { OptionInfo } from '@gut.run/core/inspector';
 import type { Round, Turn } from '../state/inspector-state.ts';
-
-/** Probability as the sketches show it: `.64`, never a leading zero. */
-export const formatProbability = (probability: number): string =>
-  probability.toFixed(2).replace(/^0/, '');
-
-/** Duration from milliseconds: `1.4s`, `9.2s`. */
-export const formatDuration = (ms: number): string => `${(ms / 1000).toFixed(1)}s`;
-
-/** Token count with grouping: `2,880`. */
-export const formatTokens = (tokens: number): string => tokens.toLocaleString('en-US');
+import { formatDuration, formatTokens } from './format.ts';
 
 /** A muted label for what the option is; moves show nothing. */
 export const optionKindLabel = (info: OptionInfo | undefined): string | undefined => {

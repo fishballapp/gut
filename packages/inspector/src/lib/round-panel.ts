@@ -1,23 +1,6 @@
 import type { OpTreeNode } from '@gut.run/core/inspector';
 import type { Round, Run } from '../state/inspector-state.ts';
-
-/** Probability as the sketch shows it: `.58`, or `1` when certain. */
-export const formatProbability = (probability: number): string => {
-  if (probability === 1) return '1';
-  if (probability === 0) return '0';
-  return probability.toFixed(2).replace(/^0/, '');
-};
-
-export const formatProbabilities = (probabilities: readonly number[]): string =>
-  probabilities.map(formatProbability).join(' → ');
-
-/** Pick duration: whole milliseconds under a second, otherwise one decimal second. */
-export const formatDuration = (ms: number): string => {
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-};
-
-export const formatTokens = (tokens: number): string => `${tokens.toLocaleString('en-US')} tokens`;
+import { formatDuration, formatProbabilities, formatTokens } from './format.ts';
 
 /** Leaf moves under a node: one per op or choice; groups sum their children. */
 export const countMoves = (node: OpTreeNode): number => {
@@ -85,7 +68,7 @@ export const roundSummaryLine = (round: Round, run: Run | undefined): RoundSumma
     kind: 'picked',
     step: round.picked.step,
     probabilities: formatProbabilities(round.picked.probabilities),
-    meta: `${formatDuration(round.picked.ms)} · ${formatTokens(round.picked.tokens)}`,
+    meta: `${formatDuration(round.picked.ms)} · ${formatTokens(round.picked.tokens)} tokens`,
   };
 };
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Run, Turn } from '../state/inspector-state.ts';
-import { formatBudgetLabel, formatTokens, runBudget } from './run-budget.ts';
+import { formatBudgetLabel, runBudget } from './run-budget.ts';
 
 const turn = (outcome: Turn['outcome']): Turn => ({
   turn: 1,
@@ -59,20 +59,6 @@ describe('runBudget', () => {
       requests: 0,
       budget: 50_000,
     });
-  });
-});
-
-describe('formatTokens', () => {
-  it('keeps small counts plain', () => {
-    expect(formatTokens(0)).toBe('0');
-    expect(formatTokens(458)).toBe('458');
-    expect(formatTokens(999)).toBe('999');
-  });
-
-  it('compacts thousands with one decimal when needed', () => {
-    expect(formatTokens(1000)).toBe('1k');
-    expect(formatTokens(17_400)).toBe('17.4k');
-    expect(formatTokens(50_000)).toBe('50k');
   });
 });
 

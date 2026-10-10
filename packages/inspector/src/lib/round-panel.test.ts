@@ -6,10 +6,6 @@ import {
   choiceWindow,
   closedCountLabel,
   countMoves,
-  formatDuration,
-  formatProbabilities,
-  formatProbability,
-  formatTokens,
   roundSummaryLine,
 } from './round-panel.ts';
 
@@ -28,38 +24,6 @@ const baseRound = (): Round => ({
   ops: [],
   picks: [],
   turns: [],
-});
-
-describe('formatProbability', () => {
-  it('strips the leading zero and keeps two decimals', () => {
-    expect(formatProbability(0.58)).toBe('.58');
-    expect(formatProbability(0.099)).toBe('.10');
-  });
-
-  it('prints 0 and 1 without decimals', () => {
-    expect(formatProbability(0)).toBe('0');
-    expect(formatProbability(1)).toBe('1');
-  });
-});
-
-describe('formatProbabilities', () => {
-  it('joins each turn with an arrow', () => {
-    expect(formatProbabilities([0.58, 0.64])).toBe('.58 → .64');
-    expect(formatProbabilities([1, 0.12, 0.61])).toBe('1 → .12 → .61');
-  });
-});
-
-describe('formatDuration', () => {
-  it('uses milliseconds under a second and one decimal above', () => {
-    expect(formatDuration(24.5)).toBe('25ms');
-    expect(formatDuration(3100)).toBe('3.1s');
-  });
-});
-
-describe('formatTokens', () => {
-  it('groups thousands', () => {
-    expect(formatTokens(5984)).toBe('5,984 tokens');
-  });
 });
 
 describe('countMoves and closedCountLabel', () => {
