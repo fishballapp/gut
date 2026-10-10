@@ -51,5 +51,7 @@ export const initGut = async (options?: InitGutOptions): Promise<{ runTask: RunT
       ? await loadConfig(options, { allowMissing: true })
       : await loadConfig(options);
   const attach = inspector?.attach;
-  return { runTask: (tick, taskOptions) => runTask(config, tick, taskOptions, attach) };
+  return {
+    runTask: (name, observe, taskOptions) => runTask(config, name, observe, taskOptions, attach),
+  };
 };

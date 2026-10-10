@@ -45,8 +45,8 @@ const tooManyOptions = (request: DecisionRequest, maxOptions: number) => {
 };
 
 /**
- * Builds the per-tick asker that `pick` uses. The turn counter starts at 1 each tick and is shared
- * by every pick of that tick (including re-picks).
+ * Builds the per-round asker that `pick` uses. The turn counter starts at 1 each round and is shared
+ * by every pick of that round (including re-picks).
  */
 export const createTurnAnswerer = ({
   runId,
@@ -61,18 +61,18 @@ export const createTurnAnswerer = ({
   hooks: RunHooks | undefined;
   emit: (event: RunEvent) => void;
 }) => {
-  const forTick = (tick: number) => {
+  const forRound = (round: number) => {
     let turn = 0;
 
     const answer = async (request: DecisionRequest, usage: Usage): Promise<TurnReply> => {
       turn += 1;
       const turnNumber = turn;
-      emit({ type: 'turn.asked', runId, tick, turn: turnNumber, request });
+      emit({ type: 'turn.asked', runId, round, turn: turnNumber, request });
       const started = performance.now();
 
       const turnAnswer: TurnAnswer =
         hooks !== undefined
-          ? await hooks.answer({ tick, turn: turnNumber, request })
+          ? await hooks.answer({ round, turn: turnNumber, request })
           : { by: 'model' };
 
       /** Records the turn as failed, then throws: a turn ends answered, failed or dropped. */
@@ -80,7 +80,7 @@ export const createTurnAnswerer = ({
         emit({
           type: 'turn.failed',
           runId,
-          tick,
+          round,
           turn: turnNumber,
           error: message,
           isTooLarge: false,
@@ -89,7 +89,7 @@ export const createTurnAnswerer = ({
       };
 
       if ('repick' in turnAnswer) {
-        emit({ type: 'turn.dropped', runId, tick, turn: turnNumber, reason: 'repick' });
+        emit({ type: 'turn.dropped', runId, round, turn: turnNumber, reason: 'repick' });
         return { kind: 'repick' };
       }
 
@@ -99,7 +99,7 @@ export const createTurnAnswerer = ({
         emit({
           type: 'turn.answered',
           runId,
-          tick,
+          round,
           turn: turnNumber,
           by: { kind: 'you' },
           answers,
@@ -123,18 +123,18 @@ export const createTurnAnswerer = ({
       if (oversized !== undefined) return fail(oversized);
 
       if (usage.inputTokens >= inputTokenBudget) {
-        emit({ type: 'turn.dropped', runId, tick, turn: turnNumber, reason: 'budget' });
+        emit({ type: 'turn.dropped', runId, round, turn: turnNumber, reason: 'budget' });
         return { kind: 'budget' };
       }
 
       try {
         const { answers, inputTokens } = await requestAnswers(resolved, request, info => {
-          emit({ type: 'turn.retrying', runId, tick, turn: turnNumber, ...info });
+          emit({ type: 'turn.retrying', runId, round, turn: turnNumber, ...info });
         });
         emit({
           type: 'turn.answered',
           runId,
-          tick,
+          round,
           turn: turnNumber,
           by: { kind: 'model', name: resolved.name, endpoint: resolved.endpoint },
           answers,
@@ -147,7 +147,7 @@ export const createTurnAnswerer = ({
         emit({
           type: 'turn.failed',
           runId,
-          tick,
+          round,
           turn: turnNumber,
           error: message,
           isTooLarge: error instanceof RequestTooLargeError,
@@ -159,5 +159,5 @@ export const createTurnAnswerer = ({
     return { answer };
   };
 
-  return { forTick };
+  return { forRound };
 };

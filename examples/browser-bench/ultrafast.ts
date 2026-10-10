@@ -38,7 +38,7 @@ const sleep = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms))
 export const DriverResultSchema = z.object({
   status: z.string().optional(),
   error: z.string().nullable().optional(),
-  ticks: z.number().optional(),
+  rounds: z.number().optional(),
   actions: z.array(z.unknown()).optional(),
   requests: z.number().optional(),
   inputTokens: z.number().optional(),
@@ -313,7 +313,7 @@ const run = async (): Promise<void> => {
         steps: { count: 0, names: [] },
         usage: { requests: 0, inputTokens: 0 },
         wallClockMs: Math.round(performance.now() - startTime),
-        firstTickOpsSize: { topLevel: 0, leaves: 0 },
+        firstRoundOpsSize: { topLevel: 0, leaves: 0 },
       });
       return;
     }
@@ -444,7 +444,7 @@ const run = async (): Promise<void> => {
       },
       wallClockMs: driverResult.ms ?? Math.round(performance.now() - startTime),
       claimedDone: driverResult.status === 'done',
-      firstTickOpsSize: { topLevel: 0, leaves: 0 },
+      firstRoundOpsSize: { topLevel: 0, leaves: 0 },
     });
   } catch (error) {
     const wallClockMs = Math.round(performance.now() - startTime);
@@ -460,7 +460,7 @@ const run = async (): Promise<void> => {
       steps: { count: 0, names: [] },
       usage: { requests: 0, inputTokens: 0 },
       wallClockMs,
-      firstTickOpsSize: { topLevel: 0, leaves: 0 },
+      firstRoundOpsSize: { topLevel: 0, leaves: 0 },
     });
   } finally {
     await cleanupAll();

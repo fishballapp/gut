@@ -19,7 +19,7 @@ export const RunRecordSchema = z.object({
     .optional(),
   wallClockMs: z.number(),
   claimedDone: z.boolean().optional(),
-  firstTickOpsSize: z.object({
+  firstRoundOpsSize: z.object({
     topLevel: z.number(),
     leaves: z.number(),
   }),

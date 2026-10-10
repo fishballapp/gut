@@ -101,7 +101,7 @@ describe('stderr line pinning', () => {
       };
     };
 
-    await runTask(async () => {
+    await runTask('test', async () => {
       vi.advanceTimersByTime(300);
       return {
         context: { goal: 'the counter is 1', value: counter.value },
@@ -116,8 +116,8 @@ describe('stderr line pinning', () => {
     });
 
     expect(stderrLines).toEqual([
-      'tick 1  add  0.90  1.5s  100 input tokens\n',
-      'tick 2  achieved  0.90  1.5s  100 input tokens\n',
+      'round 1  add  0.90  1.5s  100 input tokens\n',
+      'round 2  achieved  0.90  1.5s  100 input tokens\n',
       'achieved  200 input tokens in 2 requests\n',
     ]);
   });
@@ -131,6 +131,7 @@ describe('stderr line pinning', () => {
     };
 
     await runTask(
+      'test',
       async () => {
         vi.advanceTimersByTime(200);
         return {
@@ -150,8 +151,8 @@ describe('stderr line pinning', () => {
     );
 
     expect(stderrLines).toEqual([
-      'tick 1  add  0.85  1.3s  100 input tokens\n',
-      'tick 2  achieved  checked  0.3s\n',
+      'round 1  add  0.85  1.3s  100 input tokens\n',
+      'round 2  achieved  checked  0.3s\n',
       'achieved  100 input tokens in 1 requests\n',
     ]);
   });
@@ -163,7 +164,7 @@ describe('stderr line pinning', () => {
       return { pick: 'Break', probability: 0.7 };
     };
 
-    await runTask(async () => {
+    await runTask('test', async () => {
       vi.advanceTimersByTime(100);
       return {
         context: { goal: 'never' },
@@ -178,7 +179,7 @@ describe('stderr line pinning', () => {
     });
 
     expect(stderrLines).toEqual([
-      'tick 1  break  0.70  0.5s  100 input tokens\n',
+      'round 1  break  0.70  0.5s  100 input tokens\n',
       'halted: error (boom)  100 input tokens in 1 requests\n',
     ]);
   });
@@ -190,7 +191,7 @@ describe('stderr line pinning', () => {
       return { pick: 'Wait', probability: 0.9 };
     };
 
-    await runTask(async () => {
+    await runTask('test', async () => {
       vi.advanceTimersByTime(100);
       return {
         context: { goal: 'never' },
@@ -202,9 +203,9 @@ describe('stderr line pinning', () => {
     });
 
     expect(stderrLines).toEqual([
-      'tick 1  wait  0.90  0.3s  100 input tokens\n',
-      'tick 2  wait  0.90  0.3s  100 input tokens\n',
-      'tick 3  wait  0.90  0.3s  100 input tokens\n',
+      'round 1  wait  0.90  0.3s  100 input tokens\n',
+      'round 2  wait  0.90  0.3s  100 input tokens\n',
+      'round 3  wait  0.90  0.3s  100 input tokens\n',
       'halted: stalled  300 input tokens in 3 requests\n',
     ]);
   });
@@ -216,7 +217,7 @@ describe('stderr line pinning', () => {
       return { pick: 'notYet', probability: 0.95 };
     };
 
-    await runTask(async () => {
+    await runTask('test', async () => {
       vi.advanceTimersByTime(100);
       return {
         context: { goal: 'never' },
@@ -235,6 +236,7 @@ describe('stderr line pinning', () => {
     };
 
     await runTask(
+      'test',
       async () => {
         vi.advanceTimersByTime(100);
         return {
@@ -249,7 +251,7 @@ describe('stderr line pinning', () => {
     );
 
     expect(stderrLines).toEqual([
-      'tick 1  add  0.90  0.3s  100 input tokens\n',
+      'round 1  add  0.90  0.3s  100 input tokens\n',
       'halted: budget  100 input tokens in 1 requests\n',
     ]);
   });

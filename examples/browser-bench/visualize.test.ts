@@ -34,7 +34,7 @@ describe('visualize', () => {
             usage: { input_tokens: 450 },
           },
         },
-        { kind: 'log', line: 'tick 1  link_b  0.80  0.5s  450 input tokens' },
+        { kind: 'log', line: 'round 1  link_b  0.80  0.5s  450 input tokens' },
       ],
     });
 
@@ -86,14 +86,14 @@ describe('visualize', () => {
             usage: { input_tokens: 500 },
           },
         },
-        { kind: 'log', line: 'tick 1 click:login' },
+        { kind: 'log', line: 'round 1 click:login' },
       ],
     });
 
     const page = renderPage([{ id: 'uf-run', trace: ultrafastTrace }]);
     expect(page).toContain('Click an element');
     expect(page).toContain('ultrafast');
-    expect(page).toContain('tick 1 click:login');
+    expect(page).toContain('round 1 click:login');
     expect(page).toContain('[1] Login Button');
     expect(page).toContain('1.00');
   });

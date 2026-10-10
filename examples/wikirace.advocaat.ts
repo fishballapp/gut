@@ -101,19 +101,19 @@ const pickLink = async (
   return pickLink(state, bundles[index] ?? [], [...probabilities, probability]);
 };
 
-for (let tick = 1; ; tick++) {
+for (let round = 1; ; round++) {
   const started = performance.now();
   const tokensBefore = inputTokens;
   const log = (step: string, probabilities: number[]) =>
     process.stderr.write(
-      `tick ${tick}  ${step}  ${probabilities.map(p => p.toFixed(2)).join('/')}  ${((performance.now() - started) / 1000).toFixed(1)}s  ${inputTokens - tokensBefore} input tokens\n`,
+      `round ${round}  ${step}  ${probabilities.map(p => p.toFixed(2)).join('/')}  ${((performance.now() - started) / 1000).toFixed(1)}s  ${inputTokens - tokensBefore} input tokens\n`,
     );
 
   const article = await readArticle(path.at(-1) ?? from);
   path.splice(-1, 1, article.title); // a link can name a redirect; keep the real title
   if (article.title === target) {
     process.stderr.write(
-      `tick ${tick}  achieved  checked  ${((performance.now() - started) / 1000).toFixed(1)}s\n`,
+      `round ${round}  achieved  checked  ${((performance.now() - started) / 1000).toFixed(1)}s\n`,
     );
     finish('achieved');
   }

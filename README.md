@@ -6,7 +6,7 @@ Non-deterministic as in a nondeterministic machine, or McCarthy's `amb`: at ever
 moves are legal, and something chooses one. In gut that something is a fast decision model, so the
 choice is not random: the same view gives the same pick.
 
-An agent gives gut a goal and the moves it may make. Every tick, gut shows the decision model the
+An agent gives gut a goal and the moves it may make. Every round, gut shows the decision model the
 goal, what the world looks like now, and the moves available. The model picks one and gut runs it,
 until the goal is met (checked by the task's code, or claimed by the model when code can't check
 it) or gut halts back to the agent. The model only ever *picks*: it never writes text.
@@ -40,7 +40,7 @@ run, not once per step.
 - **More options than a model can take.** Hand gut every option, at any length; the model still
   sees each one (below).
 - **The goal is the finish line.** A task that can check it in code does (`isGoalAchieved`), and
-  the model is never asked. Otherwise each tick's first request also asks the model whether the
+  the model is never asked. Otherwise each round's first request also asks the model whether the
   goal is met, at no extra request, and the run ends as `achieved` for the caller to check.
 - **Cheap and fast.** Decision models never generate and charge only for input: Jev on OpenRouter
   answers in about 255 ms at $0.042 per million input tokens, and clef-flash runs free on a laptop.
@@ -112,6 +112,7 @@ const instruction =
 const { runTask } = await initGut();
 
 await runTask(
+  `Banana → ${target}`,
   async () => {
     const article = await readArticle(path.at(-1) ?? '');
     path.splice(-1, 1, article.title); // a link can name a redirect; keep the real title
@@ -137,17 +138,17 @@ await runTask(
 );
 ```
 
-A run on clef-flash, one line per tick, with a probability per level: the op (1.00, the only one,
-so not asked), a bundle, then a link inside it. The last tick is the title check, with no
+A run on clef-flash, one line per round, with a probability per level: the op (1.00, the only one,
+so not asked), a bundle, then a link inside it. The last round is the title check, with no
 request:
 
 ```
-tick 1  openLink("Columbian exchange")  1.00/0.15/0.38  10.5s  2889 input tokens
-tick 2  openLink("Christopher Columbus")  1.00/0.21/0.32  4.7s  1715 input tokens
-tick 3  openLink("Paolo dal Pozzo Toscanelli")  1.00/0.13/0.18  8.3s  2977 input tokens
-tick 4  openLink("Strabo")  1.00/0.13/0.78  2.6s  839 input tokens
-tick 5  openLink("Roman Empire")  1.00/0.22/0.83  3.1s  1158 input tokens
-tick 6  achieved  checked  0.9s
+round 1  openLink("Columbian exchange")  1.00/0.15/0.38  10.5s  2889 input tokens
+round 2  openLink("Christopher Columbus")  1.00/0.21/0.32  4.7s  1715 input tokens
+round 3  openLink("Paolo dal Pozzo Toscanelli")  1.00/0.13/0.18  8.3s  2977 input tokens
+round 4  openLink("Strabo")  1.00/0.13/0.78  2.6s  839 input tokens
+round 5  openLink("Roman Empire")  1.00/0.22/0.83  3.1s  1158 input tokens
+round 6  achieved  checked  0.9s
 achieved  9578 input tokens in 10 requests
 ```
 
@@ -160,16 +161,18 @@ not the loop around it.
 
 - `initGut(options?)` reads the config once ([Configuration](#configuration)) and returns
   `{ runTask }`, which runs tasks on it.
-- `runTask(tick, options?)` calls `tick` at the start of every tick and resolves when the run ends,
-  with its outcome, its steps, the last context and its `usage` (input tokens and requests).
+- `runTask(name, observe, options?)` calls `observe` at the start of every round and resolves when
+  the run ends, with its outcome, its steps, the last context and its `usage` (input tokens and requests).
   - `inputTokenBudget` (default 50,000) is how many input tokens the run may spend on the decision
     model. It is checked before each request, so a run overshoots by at most one request. Decision
     models charge only for input, and their time scales with it.
-  - `isGoalAchieved` checks the goal in code, each tick after `tick` and before any request: true
+  - `isGoalAchieved` checks the goal in code, each round after `observe` and before any request: true
     ends the run as `achieved`. Set it whenever the task can check its goal; the model is then
     never asked about the goal, so it can't stop a run on a near miss, and `goal` only gives it
     direction. Unset, the model judges the goal ([What the model receives](#what-the-model-receives)).
-- `tick` returns this tick's `context` and `ops`.
+- `name` tells the run apart from the task's other runs, where people see it (`gut run --inspect`);
+  the model never reads it.
+- `observe` returns this round's `context` and `ops`.
   - `context` is `{ goal: string, ...rest }`, where everything in `rest` must be JSON. It is exactly
     what the model reads. A line saying what the user is doing and what a good pick is (the `instruction`
     above) is what gives the model direction; without it, picks drift. The wiki race keeps it to one
@@ -187,7 +190,7 @@ not the loop around it.
 
 ## The browser
 
-`@gut.run/playwright` turns a Playwright page into what a tick returns. A caller knows a start URL,
+`@gut.run/playwright` turns a Playwright page into what a round returns. A caller knows a start URL,
 a goal in words and maybe some values to type, not the site's URLs or field names, so that is all a
 task needs; the model judges when the goal is met:
 
@@ -215,7 +218,7 @@ const isOnSite = (control: Control) => {
   return URL.canParse(control.url) && new URL(control.url).host === site;
 };
 
-const result = await runTask(async () => {
+const result = await runTask(`Book a flight to ${values.destination}`, async () => {
   const { context, ops } = await observe(page, { values, shouldOffer: isOnSite });
   return { context: { goal, page: context }, ops };
 });
@@ -316,9 +319,9 @@ A step is named by its key path, which is how the log, the trace and the model's
 it:
 
 ```
-tick 3  browser.searchForm.to("Tokyo")         0.94   1.2s
-tick 4  browser.searchForm.submit              0.97   0.8s
-tick 5  browser.results.select("BA 7, £420")   0.71   1.9s
+round 3  browser.searchForm.to("Tokyo")         0.94   1.2s
+round 4  browser.searchForm.submit              0.97   0.8s
+round 5  browser.results.select("BA 7, £420")   0.71   1.9s
 ```
 
 Keys are unique among siblings by construction. An op reused under different keys takes each key
@@ -355,22 +358,22 @@ first, as in any JS object. Levels the runtime adds to split a long list stay ou
 }
 ```
 
-`state` is the context, nothing added. A tick's first request asks two questions about it: whether
-the goal is achieved, and the tick's first real choice (a level with one option has nothing to
+`state` is the context, nothing added. A round's first request asks two questions about it: whether
+the goal is achieved, and the round's first real choice (a level with one option has nothing to
 ask). They are answered together and independently, so checking the goal costs no extra request
-and sends the context once; only a tick with nothing to choose (one move, or none at all) asks the goal alone. When the goal is achieved the run ends and the move is
+and sends the context once; only a round with nothing to choose (one move, or none at all) asks the goal alone. When the goal is achieved the run ends and the move is
 ignored. A task with `isGoalAchieved` (the wiki race) is never asked the `achieved` question;
-its requests carry only the move. Later requests in the tick ask only the move, one level
+its requests carry only the move. Later requests in the round ask only the move, one level
 further down, worded "Current action: Open a link on the current article. Which one?" (the
 descriptions down to this level), since an option alone, such as a city, may not say what it is for.
 Every request carries the whole state again: the API keeps nothing between requests. Measured on Jev over 15 articles (the start, a near miss and the target, for five
 races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewhere.
 
-## One tick
+## One round
 
-1. **Read.** The task's `tick` runs, observing what it needs (a page, through `observe`).
+1. **Read.** The task's `observe` runs, observing what it needs (a page, through `observe`).
 2. **Check.** `isGoalAchieved`, if set, runs; true ends the run as `achieved`, with no request.
-3. **Choose.** Without `isGoalAchieved`, the goal rides with the tick's first question, and a tick
+3. **Choose.** Without `isGoalAchieved`, the goal rides with the round's first question, and a round
    with nothing to choose (one move, or none at all) asks it alone. Each op's choices count as
    moves of their own. A question starts with every group closed and opens the smallest first, at
    any depth, while it stays within `maxOptions`: an open group's moves read with their path
@@ -390,8 +393,8 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
 
 ## Trace
 
-Each tick logs one line to stderr: the step, its probabilities, the time and the input tokens; the
-run's last line is its outcome and total usage. A JSONL trace per tick (the context, the top options,
+Each round logs one line to stderr: the step, its probabilities, the time and the input tokens; the
+run's last line is its outcome and total usage. A JSONL trace per round (the context, the top options,
 the pick and the timings) is planned, for debugging. A run that has ended is never continued, because the world it saw (a
 browser page) has moved on; run again instead.
 
@@ -455,5 +458,5 @@ With no file, `initGut()` fails before any task runs and says where to put one.
 2. Is a decision model a better picker than a small LLM? Unmeasured; the API doesn't depend on it.
 3. Ops with side effects that can't be undone (paying, sending): does a run need permission to pick
    them?
-4. Parked: tasks that collect, or find a minimum or maximum, as a fold over the stream of ticks
-   (`for await (const tick of run)`, where `break` ends the run).
+4. Parked: tasks that collect, or find a minimum or maximum, as a fold over the stream of rounds
+   (`for await (const round of run)`, where `break` ends the run).

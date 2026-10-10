@@ -1,4 +1,4 @@
-// Draws a bench run's traces as one HTML page: per run, each tick's requests in order, indented by
+// Draws a bench run's traces as one HTML page: per run, each round's requests in order, indented by
 // how deep the pick has drilled, with every option's probability as a bar.
 // node projects/gut/examples/browser-bench/visualize.ts tmp/gut-bench/<timestamp> [--compact] [--runs a,b]
 // --compact keeps each question's likeliest options only, for a page small enough to embed; --runs
@@ -134,33 +134,33 @@ const renderRequest = (event: RequestEvent, n: number) => {
 };
 
 const renderRun = (trace: Trace, id: string) => {
-  // Requests belong to the tick whose log line follows them.
-  const ticks = trace.events.reduce<{
+  // Requests belong to the round whose log line follows them.
+  const rounds = trace.events.reduce<{
     done: { requests: RequestEvent[]; line: string }[];
     open: RequestEvent[];
   }>(
     (acc, event) => {
       if (event.kind === 'request') return { ...acc, open: [...acc.open, event] };
-      if (!/^tick \d+/.test(event.line)) return acc;
+      if (!/^round \d+/.test(event.line)) return acc;
       return { done: [...acc.done, { requests: acc.open, line: event.line }], open: [] };
     },
     { done: [], open: [] },
   );
-  const allTicks = [
-    ...ticks.done,
-    ...(ticks.open.length > 0 ? [{ requests: ticks.open, line: '(run ended)' }] : []),
+  const allRounds = [
+    ...rounds.done,
+    ...(rounds.open.length > 0 ? [{ requests: rounds.open, line: '(run ended)' }] : []),
   ];
   const ending = trace.events.findLast(event => event.kind === 'log')?.line ?? '';
   const counter = { n: 0 };
-  const body = allTicks
+  const body = allRounds
     .map(({ requests, line }, i) => {
       const first = requests[0];
       const page = first === undefined ? { url: '', title: '' } : pageOf(first.request.state);
-      const [, step = ''] = line.match(/^tick \d+\s+(\S+)/) ?? [];
+      const [, step = ''] = line.match(/^round \d+\s+(\S+)/) ?? [];
       return `
-      <section class="tick">
-        <div class="tick-head">
-          <span class="tick-n">Tick ${i + 1}</span>
+      <section class="round">
+        <div class="round-head">
+          <span class="round-n">Round ${i + 1}</span>
           <span class="page" title="${escapeHtml(page.url)}">${escapeHtml(page.title || page.url)}</span>
           <span class="url">${escapeHtml(page.url)}</span>
         </div>
@@ -214,9 +214,9 @@ export const renderPage = (traces: readonly { id: string; trace: Trace }[]): str
     .variant { color:var(--accent); font-weight:500; font-family:ui-monospace,monospace; font-size:.9em; }
     .badge { font-size:11px; padding:2px 8px; border-radius:99px; font-weight:600; } .badge.ok { background:color-mix(in srgb, var(--ok) 18%, transparent); color:var(--ok); } .badge.fail { background:color-mix(in srgb, var(--fail) 18%, transparent); color:var(--fail); }
     .summary { color:var(--dim); margin:0 0 12px; }
-    .tick { border:1px solid var(--line); border-radius:10px; background:var(--panel); margin:0 0 12px; padding:12px 14px; }
-    .tick-head { display:flex; align-items:baseline; gap:10px; margin-bottom:6px; flex-wrap:wrap; }
-    .tick-n { font-weight:700; } .page { font-weight:500; } .url { color:var(--dim); font-family:ui-monospace,monospace; font-size:11px; word-break:break-all; }
+    .round { border:1px solid var(--line); border-radius:10px; background:var(--panel); margin:0 0 12px; padding:12px 14px; }
+    .round-head { display:flex; align-items:baseline; gap:10px; margin-bottom:6px; flex-wrap:wrap; }
+    .round-n { font-weight:700; } .page { font-weight:500; } .url { color:var(--dim); font-family:ui-monospace,monospace; font-size:11px; word-break:break-all; }
     .request { border-left:2px solid var(--line); padding:6px 0 8px 10px; margin-top:6px; }
     .req-head { display:flex; align-items:center; gap:6px; margin-bottom:5px; flex-wrap:wrap; }
     .req-n { font-weight:600; color:var(--dim); font-size:12px; }

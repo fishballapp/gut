@@ -119,6 +119,7 @@ describe('inspector hooks via runTask', () => {
 
     await runTask(
       { decisionModel: model() },
+      'test',
       async () => ({
         context: { goal: 'the counter is 1', value: counter.value },
         ops: {
@@ -132,17 +133,17 @@ describe('inspector hooks via runTask', () => {
 
     expect(events.map(e => e.type)).toEqual([
       'run.started',
-      'tick.observed',
+      'round.observed',
       'pick.started',
       'turn.asked',
       'turn.answered',
-      'tick.picked',
+      'round.picked',
       'step.invoked',
-      'tick.observed',
+      'round.observed',
       'pick.started',
       'turn.asked',
       'turn.answered',
-      'tick.picked',
+      'round.picked',
       'run.ended',
     ]);
     expect(events[0]).toMatchObject({
@@ -171,6 +172,7 @@ describe('inspector hooks via runTask', () => {
 
     await runTask(
       { decisionModel: model() },
+      'test',
       async () => ({
         context: { goal: 'done' },
         ops: {
@@ -212,6 +214,7 @@ describe('inspector hooks via runTask', () => {
 
     await runTask(
       { decisionModel: model({ maxOptions: 3 }) },
+      'test',
       async () => ({
         context: { goal: 'item 4 is picked' },
         ops: {
@@ -234,7 +237,7 @@ describe('inspector hooks via runTask', () => {
     expect(picked).toEqual(['item 4']);
   });
 
-  it('keeps turn numbers unique within a tick across a re-pick, and restarts at 1 next tick', async () => {
+  it('keeps turn numbers unique within a round across a re-pick, and restarts at 1 next round', async () => {
     const { events, hooks } = collect();
     const counter = { value: 0 };
     let picks = 0;
@@ -247,6 +250,7 @@ describe('inspector hooks via runTask', () => {
 
     await runTask(
       { decisionModel: model() },
+      'test',
       async () => ({
         context: { goal: 'the counter is 1', value: counter.value },
         ops: {
@@ -259,7 +263,7 @@ describe('inspector hooks via runTask', () => {
         hooks({
           answer: async () => {
             picks += 1;
-            // Re-pick once on the first turn of tick 1.
+            // Re-pick once on the first turn of round 1.
             if (picks === 1) return { repick: true };
             return { by: 'model' };
           },
@@ -269,10 +273,10 @@ describe('inspector hooks via runTask', () => {
     const turns = events.filter(
       (e): e is Extract<RunEvent, { type: 'turn.asked' }> => e.type === 'turn.asked',
     );
-    const tick1 = turns.filter(e => e.tick === 1).map(e => e.turn);
-    const tick2 = turns.filter(e => e.tick === 2).map(e => e.turn);
-    expect(tick1).toEqual([1, 2]);
-    expect(tick2[0]).toBe(1);
+    const round1 = turns.filter(e => e.round === 1).map(e => e.turn);
+    const round2 = turns.filter(e => e.round === 2).map(e => e.turn);
+    expect(round1).toEqual([1, 2]);
+    expect(round2[0]).toBe(1);
   });
 
   it('lets a person answer at 0 tokens and 0 requests', async () => {
@@ -281,6 +285,7 @@ describe('inspector hooks via runTask', () => {
 
     const result = await runTask(
       { decisionModel: model() },
+      'test',
       async () => ({
         context: { goal: 'the counter is 1', value: counter.value },
         ops: {
@@ -318,6 +323,7 @@ describe('inspector hooks via runTask', () => {
     const missing = collect();
     const missingResult = await runTask(
       { decisionModel: model() },
+      'test',
       async () => ({
         context: { goal: 'never' },
         ops: { a: op('A', () => {}), b: op('B', () => {}) },
@@ -338,6 +344,7 @@ describe('inspector hooks via runTask', () => {
     const unknown = collect();
     const unknownResult = await runTask(
       { decisionModel: model() },
+      'test',
       async () => ({
         context: { goal: 'never' },
         ops: { a: op('A', () => {}), b: op('B', () => {}) },
@@ -364,6 +371,7 @@ describe('inspector hooks via runTask', () => {
     const extra = collect();
     const extraResult = await runTask(
       { decisionModel: model() },
+      'test',
       async () => ({
         context: { goal: 'never' },
         ops: { a: op('A', () => {}), b: op('B', () => {}) },
@@ -379,7 +387,7 @@ describe('inspector hooks via runTask', () => {
     });
   });
 
-  it('lets the model then you answer within one tick', async () => {
+  it('lets the model then you answer within one round', async () => {
     const { events, hooks } = collect();
     const items = Array.from({ length: 4 }, (_, i) => `item ${i}`);
     const picked: string[] = [];
@@ -393,6 +401,7 @@ describe('inspector hooks via runTask', () => {
 
     await runTask(
       { decisionModel: model({ maxOptions: 2 }) },
+      'test',
       async () => ({
         context: { goal: 'picked' },
         ops: {
@@ -439,6 +448,7 @@ describe('inspector hooks via runTask', () => {
 
     await runTask(
       { decisionModel: null },
+      'test',
       async () => ({
         context: { goal: 'done' },
         ops: {
@@ -466,6 +476,7 @@ describe('inspector hooks via runTask', () => {
     const { events, hooks } = collect();
     const result = await runTask(
       { decisionModel: null },
+      'test',
       async () => ({
         context: { goal: 'never' },
         ops: {
@@ -500,6 +511,7 @@ describe('inspector hooks via runTask', () => {
 
     const result = await runTask(
       { decisionModel: model() },
+      'test',
       async () => ({
         context: { goal: 'the counter is 1', value: counter.value },
         ops: {
@@ -531,6 +543,7 @@ describe('inspector hooks via runTask', () => {
 
     await runTask(
       { decisionModel: model() },
+      'test',
       async () => ({
         context: { goal: 'the counter is 1', value: counter.value },
         ops: {
@@ -563,6 +576,7 @@ describe('inspector hooks via runTask', () => {
 
     const modelRun = await runTask(
       { decisionModel: model() },
+      'test',
       async () => ({
         context: { goal: 'never' },
         ops: { add: op('Add', () => {}), other: op('Other', () => {}) },
@@ -575,6 +589,7 @@ describe('inspector hooks via runTask', () => {
     const counter = { value: 0 };
     const youRun = await runTask(
       { decisionModel: model() },
+      'test',
       async () => ({
         context: { goal: 'the counter is 2', value: counter.value },
         ops: {
@@ -613,6 +628,7 @@ describe('inspector hooks via runTask', () => {
       {
         decisionModel: model({ apiKey: 'secret-key', name: 'keyed' }),
       },
+      'test',
       async () => ({
         context: { goal: 'done' },
         ops: {
@@ -642,6 +658,7 @@ describe('inspector hooks via runTask', () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response('invalid key secret-key', { status: 401 }));
     const configured = await runTask(
       { decisionModel: model({ apiKey: 'secret-key' }) },
+      'test',
       async () => ({
         context: { goal: 'never' },
         ops: { a: op('A', () => {}), b: op('B', () => {}) },
@@ -654,6 +671,7 @@ describe('inspector hooks via runTask', () => {
     );
     const supplied = await runTask(
       { decisionModel: null },
+      'test',
       async () => ({
         context: { goal: 'never' },
         ops: { a: op('A', () => {}), b: op('B', () => {}) },
@@ -676,7 +694,7 @@ describe('inspector hooks via runTask', () => {
       const byTurn = new Map<string, string[]>();
       for (const event of events) {
         if (!('turn' in event)) continue;
-        const key = `${event.tick}.${event.turn}`;
+        const key = `${event.round}.${event.turn}`;
         byTurn.set(key, [...(byTurn.get(key) ?? []), event.type]);
       }
       return [...byTurn.values()].map(types =>
@@ -690,6 +708,7 @@ describe('inspector hooks via runTask', () => {
     let answered = 0;
     await runTask(
       { decisionModel: model() },
+      'test',
       async () => ({ context: { goal: 'never' }, ops }),
       { isGoalAchieved: () => answered > 1 },
       () =>
@@ -709,6 +728,7 @@ describe('inspector hooks via runTask', () => {
     const budget = collect();
     await runTask(
       { decisionModel: model() },
+      'test',
       async () => ({ context: { goal: 'never' }, ops }),
       { isGoalAchieved: () => false, inputTokenBudget: 0 },
       () => budget.hooks(),
@@ -722,6 +742,7 @@ describe('inspector hooks via runTask', () => {
     const invalid = collect();
     const invalidResult = await runTask(
       { decisionModel: null },
+      'test',
       async () => ({ context: { goal: 'never' }, ops }),
       { isGoalAchieved: () => false },
       () =>

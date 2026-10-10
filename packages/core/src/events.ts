@@ -175,6 +175,8 @@ export const RunEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('run.started'),
     runId: z.string(),
+    /** The name the task gave this run, for people; the model never reads it. */
+    name: z.string(),
     model: z
       .object({
         name: z.string(),
@@ -186,36 +188,36 @@ export const RunEventSchema = z.discriminatedUnion('type', [
     isGoalCheckedInCode: z.boolean(),
   }),
   z.object({
-    type: z.literal('tick.observed'),
+    type: z.literal('round.observed'),
     runId: z.string(),
-    tick: z.number().int().positive(),
+    round: z.number().int().positive(),
     context: ContextSchema,
     ops: z.array(OpTreeNodeSchema),
   }),
   z.object({
-    type: z.literal('tick.goalChecked'),
+    type: z.literal('round.goalChecked'),
     runId: z.string(),
-    tick: z.number().int().positive(),
+    round: z.number().int().positive(),
     achieved: z.boolean(),
     ms: z.number(),
   }),
   z.object({
     type: z.literal('pick.started'),
     runId: z.string(),
-    tick: z.number().int().positive(),
+    round: z.number().int().positive(),
     maxOptions: z.number().int().positive(),
   }),
   z.object({
     type: z.literal('turn.asked'),
     runId: z.string(),
-    tick: z.number().int().positive(),
+    round: z.number().int().positive(),
     turn: z.number().int().positive(),
     request: DecisionRequestSchema,
   }),
   z.object({
     type: z.literal('turn.retrying'),
     runId: z.string(),
-    tick: z.number().int().positive(),
+    round: z.number().int().positive(),
     turn: z.number().int().positive(),
     delayMs: z.number(),
     status: z.number().optional(),
@@ -224,7 +226,7 @@ export const RunEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('turn.answered'),
     runId: z.string(),
-    tick: z.number().int().positive(),
+    round: z.number().int().positive(),
     turn: z.number().int().positive(),
     by: z.discriminatedUnion('kind', [
       z.object({ kind: z.literal('you') }),
@@ -241,7 +243,7 @@ export const RunEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('turn.failed'),
     runId: z.string(),
-    tick: z.number().int().positive(),
+    round: z.number().int().positive(),
     turn: z.number().int().positive(),
     error: z.string(),
     isTooLarge: z.boolean(),
@@ -249,20 +251,20 @@ export const RunEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('turn.dropped'),
     runId: z.string(),
-    tick: z.number().int().positive(),
+    round: z.number().int().positive(),
     turn: z.number().int().positive(),
     reason: z.enum(['repick', 'budget']),
   }),
   z.object({
     type: z.literal('pick.abandoned'),
     runId: z.string(),
-    tick: z.number().int().positive(),
+    round: z.number().int().positive(),
     usage: UsageSchema,
   }),
   z.object({
-    type: z.literal('tick.picked'),
+    type: z.literal('round.picked'),
     runId: z.string(),
-    tick: z.number().int().positive(),
+    round: z.number().int().positive(),
     step: z.string(),
     probabilities: z.array(z.number()),
     tokens: z.number().int().nonnegative(),
@@ -271,7 +273,7 @@ export const RunEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('step.invoked'),
     runId: z.string(),
-    tick: z.number().int().positive(),
+    round: z.number().int().positive(),
     step: z.string(),
     ms: z.number(),
     error: z.string().optional(),

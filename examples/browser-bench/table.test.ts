@@ -19,7 +19,7 @@ describe('benchmark table aggregation', () => {
         steps: { count: 2, names: ['step1', 'step2'] },
         usage: { requests: 2, inputTokens: 4000 },
         wallClockMs: 3000,
-        firstTickOpsSize: { topLevel: 10, leaves: 10 },
+        firstRoundOpsSize: { topLevel: 10, leaves: 10 },
       },
       {
         task: 'docs-layout-a',
@@ -32,7 +32,7 @@ describe('benchmark table aggregation', () => {
         steps: { count: 1, names: ['step1'] },
         usage: { requests: 3, inputTokens: 5000 },
         wallClockMs: 4000,
-        firstTickOpsSize: { topLevel: 10, leaves: 10 },
+        firstRoundOpsSize: { topLevel: 10, leaves: 10 },
       },
       {
         task: 'docs-layout-a',
@@ -44,7 +44,7 @@ describe('benchmark table aggregation', () => {
         steps: { count: 2, names: ['step1', 'step2'] },
         usage: { requests: 2, inputTokens: 3500 },
         wallClockMs: 2500,
-        firstTickOpsSize: { topLevel: 3, leaves: 10 },
+        firstRoundOpsSize: { topLevel: 3, leaves: 10 },
       },
     ];
 
@@ -103,7 +103,7 @@ describe('benchmark table aggregation', () => {
         steps: { count: 2, names: ['step1', 'step2'] },
         usage: { requests: 2, inputTokens: 4000 },
         wallClockMs: 3000,
-        firstTickOpsSize: { topLevel: 10, leaves: 10 },
+        firstRoundOpsSize: { topLevel: 10, leaves: 10 },
       },
       {
         task: 'docs-layout-a',
@@ -114,7 +114,7 @@ describe('benchmark table aggregation', () => {
         reason: '3-minute hard wall timeout exceeded',
         steps: { count: 0, names: [] },
         wallClockMs: 180_000,
-        firstTickOpsSize: { topLevel: 0, leaves: 0 },
+        firstRoundOpsSize: { topLevel: 0, leaves: 0 },
       },
     ];
 
@@ -160,7 +160,7 @@ describe('benchmark table aggregation', () => {
         steps: { count: 3, names: ['click', 'click', 'done'] },
         usage: { requests: 3, inputTokens: 6000 },
         wallClockMs: 5000,
-        firstTickOpsSize: { topLevel: 0, leaves: 0 },
+        firstRoundOpsSize: { topLevel: 0, leaves: 0 },
       },
       {
         task: 'docs-layout-a',
@@ -172,7 +172,7 @@ describe('benchmark table aggregation', () => {
         steps: { count: 0, names: [] },
         usage: { requests: 0, inputTokens: 0 },
         wallClockMs: 12000,
-        firstTickOpsSize: { topLevel: 0, leaves: 0 },
+        firstRoundOpsSize: { topLevel: 0, leaves: 0 },
       },
     ];
 
@@ -205,7 +205,7 @@ describe('benchmark table aggregation', () => {
       status: 'achieved',
       steps: { count: 1, names: ['click'] },
       wallClockMs: 1200,
-      firstTickOpsSize: { topLevel: 1, leaves: 1 },
+      firstRoundOpsSize: { topLevel: 1, leaves: 1 },
     };
     expect(RunRecordSchema.safeParse(valid).success).toBe(true);
 

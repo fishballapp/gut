@@ -109,7 +109,7 @@ describe('task', () => {
       pick: state.value === 1 ? 'Goal achieved: the counter is 1' : 'Add one to the counter',
     });
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'the counter is 1', value: counter.value },
       ops: {
         add: op('Add one to the counter', () => counter.value++),
@@ -118,7 +118,7 @@ describe('task', () => {
 
     expect(result).toMatchObject({ status: 'achieved', steps: ['add'] });
     expect(counter.value).toBe(1);
-    // One op leaves nothing to choose, so each tick asks the goal alone before its step runs.
+    // One op leaves nothing to choose, so each round asks the goal alone before its step runs.
     expect(requests.map(r => Object.keys(r.questions))).toEqual([['achieved'], ['achieved']]);
   });
 
@@ -130,6 +130,7 @@ describe('task', () => {
     });
 
     const result = await runTask(
+      'test',
       async () => ({
         context: { goal: 'the counter is 2', value: counter.value },
         ops: {
@@ -146,7 +147,7 @@ describe('task', () => {
       context: { goal: 'the counter is 2', value: 2 },
       usage: { requests: 2 },
     });
-    // Ticks 1 and 2 ask only the move; tick 3 is checked in code and asks nothing.
+    // Rounds 1 and 2 ask only the move; round 3 is checked in code and asks nothing.
     expect(requests.map(r => Object.keys(r.questions))).toEqual([['next'], ['next']]);
   });
 
@@ -154,6 +155,7 @@ describe('task', () => {
     const counter = { value: 0 };
 
     const result = await runTask(
+      'test',
       async () => ({
         context: { goal: 'the counter is 2', value: counter.value },
         ops: {
@@ -186,6 +188,7 @@ describe('task', () => {
     };
 
     const result = await runTask(
+      'test',
       async () => ({
         context: { goal: 'item 42 is picked', picked: picked[0] ?? null },
         ops: {
@@ -205,6 +208,7 @@ describe('task', () => {
 
   it('halts when isGoalAchieved throws', async () => {
     const result = await runTask(
+      'test',
       async () => ({
         context: { goal: 'never' },
         ops: {
@@ -244,7 +248,7 @@ describe('task', () => {
       };
     };
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'item 42 is picked', picked: picked[0] ?? null },
       ops: {
         pick: op('Pick an item', {
@@ -256,8 +260,8 @@ describe('task', () => {
 
     expect(result).toMatchObject({ status: 'achieved', steps: ['pick("item 42")'] });
     expect(picked).toEqual(['item 42']);
-    // Tick 1: the goal rides with the first question, a part of the list (the one op isn't
-    // asked), then the item. Tick 2: the goal with the first question again, now met.
+    // Round 1: the goal rides with the first question, a part of the list (the one op isn't
+    // asked), then the item. Round 2: the goal with the first question again, now met.
     expect(requests.map(r => Object.keys(r.questions))).toEqual([
       ['achieved', 'next'],
       ['next'],
@@ -276,7 +280,7 @@ describe('task', () => {
       return { pick: offered.find(d => d === 'item 42') ?? offered[0] ?? 'not an item' };
     };
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'item 42 is picked', picked: picked[0] ?? null },
       ops: {
         pick: op('Pick an item', {
@@ -288,7 +292,7 @@ describe('task', () => {
     }));
 
     expect(result).toMatchObject({ status: 'achieved', steps: ['pick("item 42")'] });
-    // Pages of 26 real items, then the four page winners; no bundles. Tick 2 meets the goal with
+    // Pages of 26 real items, then the four page winners; no bundles. Round 2 meets the goal with
     // its first page.
     expect(questions.map(q => Object.keys(q.criteria).length)).toEqual([26, 26, 26, 22, 4, 26]);
     expect(
@@ -299,7 +303,7 @@ describe('task', () => {
   it('hides an op whose choices are empty, and a falsy entry', async () => {
     decide = () => ({ pick: 'Wait' });
 
-    await runTask(async () => ({
+    await runTask('test', async () => ({
       context: { goal: 'never' },
       ops: {
         wait: op('Wait', () => {}),
@@ -316,7 +320,7 @@ describe('task', () => {
     const invoke = vi.fn();
     decide = () => ({ pick: 'Outer › Inner › Deep' });
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'never' },
       ops: {
         skippedFalse: false,
@@ -341,7 +345,7 @@ describe('task', () => {
   it('preserves key order when showing options to the model', async () => {
     decide = () => ({ pick: 'First' });
 
-    await runTask(async () => ({
+    await runTask('test', async () => ({
       context: { goal: 'never' },
       ops: {
         first: op('First', () => {}),
@@ -358,7 +362,7 @@ describe('task', () => {
     decide = ({ state: seen }) =>
       seen.isDone === true ? { pick: 'Goal achieved: done' } : { pick: 'Finish', probability: 0.1 };
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'done', isDone: state.isDone },
       ops: {
         finish: op('Finish', () => (state.isDone = true)),
@@ -373,7 +377,7 @@ describe('task', () => {
     decide = () => ({ pick: 'Break' });
 
     const context = { goal: 'never', values: ['before'] };
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context,
       ops: {
         break: op('Break', () => {
@@ -396,7 +400,7 @@ describe('task', () => {
   it('halts a run that picks the same move on the same context a third time', async () => {
     decide = () => ({ pick: 'Wait' });
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'never' },
       ops: {
         wait: op('Wait', () => {}),
@@ -415,7 +419,7 @@ describe('task', () => {
     });
     decide = () => ({ pick: 'Search form › Choose destination › Tokyo' });
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'never' },
       ops: {
         searchForm: group('Search form', { to: shared }),
@@ -455,7 +459,7 @@ describe('task', () => {
       return { pick: options.find(option => option.endsWith('wrong 3')) ?? '' };
     };
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'never' },
       ops: {
         wrong: group('Wrong box', items('wrong', 14)),
@@ -464,7 +468,7 @@ describe('task', () => {
     }));
 
     expect(result.steps[0]).toBe('wrong.wrong3');
-    // The first tick's questions; the next ticks repeat it until the run stalls.
+    // The first round's questions; the next rounds repeat it until the run stalls.
     expect(questions.slice(0, 3).map(question => Object.values(question.criteria))).toEqual([
       [
         ...Array.from({ length: 14 }, (_, i) => `Wrong box › wrong ${i}`),
@@ -482,7 +486,7 @@ describe('task', () => {
   it('opens a group adding fewest options when maxOptions is small, keeping the larger group closed', async () => {
     await withMaxOptions(5, async runTask => {
       decide = () => ({ pick: 'a › a 0' });
-      await runTask(async () => ({
+      await runTask('test', async () => ({
         context: { goal: 'never' },
         ops: {
           a: group('a', items('a', 2)),
@@ -500,7 +504,7 @@ describe('task', () => {
   it('opens a group adding fewest options (smallest first) even when listed after a larger group', async () => {
     await withMaxOptions(5, async runTask => {
       decide = () => ({ pick: 'b › b 0' });
-      await runTask(async () => ({
+      await runTask('test', async () => ({
         context: { goal: 'never' },
         ops: {
           a: group('a', items('a', 4)),
@@ -518,7 +522,7 @@ describe('task', () => {
   it('opens a closed node at depth while a big group stays closed', async () => {
     await withMaxOptions(5, async runTask => {
       decide = () => ({ pick: 'Container › Small › small 0' });
-      await runTask(async () => ({
+      await runTask('test', async () => ({
         context: { goal: 'never' },
         ops: {
           big: group('Big', items('big', 10)),
@@ -541,7 +545,7 @@ describe('task', () => {
 
   it('opens the smaller group first when two closed groups do not both fit', async () => {
     decide = () => ({ pick: 'Small › small 0' });
-    await runTask(async () => ({
+    await runTask('test', async () => ({
       context: { goal: 'never' },
       ops: {
         big: group('Big', items('big', 20)),
@@ -567,7 +571,7 @@ describe('task', () => {
         if (nested !== undefined) return { pick: nested };
         return { pick: options.find(option => option.endsWith('first')) ?? '' };
       };
-      const result = await runTask(async () => ({
+      const result = await runTask('test', async () => ({
         context: { goal: 'never' },
         ops: {
           outer: group('Outer', {
@@ -593,7 +597,7 @@ describe('task', () => {
   it('previews a closed group as an indented outline, omitting inner groups with no shown moves', async () => {
     await withMaxOptions(2, async runTask => {
       decide = () => ({ pick: 'Other' });
-      await runTask(async () => ({
+      await runTask('test', async () => ({
         context: { goal: 'never' },
         ops: {
           other: op('Other', () => {}),
@@ -636,7 +640,7 @@ describe('task', () => {
   it('shows an op with choices as a level in the group outline', async () => {
     await withMaxOptions(2, async runTask => {
       decide = () => ({ pick: 'Other' });
-      await runTask(async () => ({
+      await runTask('test', async () => ({
         context: { goal: 'never' },
         ops: {
           other: op('Other', () => {}),
@@ -665,7 +669,7 @@ describe('task', () => {
   it('omits the more line when a group has 8 or fewer moves, and adds it when overflowing', async () => {
     await withMaxOptions(2, async runTask => {
       decide = () => ({ pick: 'Other' });
-      await runTask(async () => ({
+      await runTask('test', async () => ({
         context: { goal: 'never' },
         ops: {
           other: op('Other', () => {}),
@@ -680,7 +684,7 @@ describe('task', () => {
     questions.length = 0;
     await withMaxOptions(2, async runTask => {
       decide = () => ({ pick: 'Other' });
-      await runTask(async () => ({
+      await runTask('test', async () => ({
         context: { goal: 'never' },
         ops: {
           other: op('Other', () => {}),
@@ -703,7 +707,7 @@ describe('task', () => {
         const options = Object.values(criteria);
         return { pick: options[0] ?? '' };
       };
-      await runTask(async () => ({
+      await runTask('test', async () => ({
         context: { goal: 'never' },
         ops: {
           g1: group('G1', items('g1', 2)),
@@ -736,7 +740,7 @@ describe('task', () => {
       return { pick: options.find(option => option.startsWith('Right box')) ?? '' };
     };
 
-    await runTask(async () => ({
+    await runTask('test', async () => ({
       context: { goal: 'never' },
       ops: {
         wrong: group('Wrong box', items('wrong', 30)),
@@ -763,7 +767,7 @@ describe('task', () => {
             ) ?? 'Pick an item'),
     });
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'an item is picked', picked: picked[0] ?? null },
       ops: {
         pick: op('Pick an item', {
@@ -783,7 +787,7 @@ describe('task', () => {
     decide = ({ criteria }) => ({
       pick: Object.values(criteria).find(d => !d.startsWith('Goal achieved')) ?? '',
     });
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'never' },
       ops: {
         form: group('Form', {
@@ -808,7 +812,7 @@ describe('task', () => {
   });
 
   it('asks the goal alone, then halts, when every branch is empty', async () => {
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'never' },
       ops: {
         falsyFalse: false,
@@ -830,10 +834,10 @@ describe('task', () => {
     expect(requests.map(request => Object.keys(request.questions))).toEqual([['achieved']]);
   });
 
-  it('ends achieved on a tick with no ops when the model finds the goal met', async () => {
+  it('ends achieved on a round with no ops when the model finds the goal met', async () => {
     decide = () => ({ pick: 'Goal achieved: The page says "Thank you"' });
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'The page says "Thank you"' },
       ops: {},
     }));
@@ -843,7 +847,7 @@ describe('task', () => {
   });
 
   it('halts without asking the model when there are no ops and isGoalAchieved is set', async () => {
-    const result = await runTask(async () => ({ context: { goal: 'never' }, ops: {} }), {
+    const result = await runTask('test', async () => ({ context: { goal: 'never' }, ops: {} }), {
       isGoalAchieved: () => false,
     });
 
@@ -855,10 +859,10 @@ describe('task', () => {
     expect(requests).toEqual([]);
   });
 
-  it('keeps the last snapshot and successful steps when reading the next tick fails', async () => {
+  it('keeps the last snapshot and successful steps when reading the next round fails', async () => {
     const context = { goal: 'never', count: 0 };
     decide = () => ({ pick: 'Add' });
-    const result = await runTask(async () => {
+    const result = await runTask('test', async () => {
       if (context.count === 1) throw new Error('read failed');
       return {
         context,
@@ -878,8 +882,8 @@ describe('task', () => {
     });
   });
 
-  it('returns a null context when the first tick fails', async () => {
-    const result = await runTask(async () => {
+  it('returns a null context when the first round fails', async () => {
+    const result = await runTask('test', async () => {
       throw new Error('read failed');
     });
     expect(result).toEqual({
@@ -897,6 +901,7 @@ describe('task', () => {
     const context = { goal: 'never', count: 0 };
     decide = () => ({ pick: 'Add' });
     const result = await runTask(
+      'test',
       async () => ({
         context,
         ops: {
@@ -933,7 +938,7 @@ describe('task', () => {
       };
     };
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'the item is picked', picked: picked[0] ?? null },
       ops: {
         pick: op('Pick an item', {
@@ -968,7 +973,7 @@ describe('task', () => {
     decide = ({ state }) => (state.isDone ? { pick: 'Goal achieved: done' } : { pick: 'Finish' });
     const state = { isDone: false };
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'done', isDone: state.isDone },
       ops: {
         finish: op('Finish', () => (state.isDone = true)),
@@ -979,7 +984,7 @@ describe('task', () => {
 
     expect(result).toMatchObject({ status: 'achieved', steps: ['finish'] });
     // Refused; the goal with the first half (Finish, Rest); the second half (Wait) needs no request;
-    // the two winners; then the next tick, where the goal is met.
+    // the two winners; then the next round, where the goal is met.
     expect(requests.map(r => Object.keys(r.questions))).toEqual([
       ['achieved', 'next'],
       ['next'],
@@ -995,7 +1000,7 @@ describe('task', () => {
     );
     const invoke = vi.fn();
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'never' },
       ops: {
         wait: op('Wait', invoke),
@@ -1037,7 +1042,7 @@ describe('task', () => {
     );
     const invoke = vi.fn();
 
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'never' },
       ops: {
         wait: op('Wait', invoke),
@@ -1052,8 +1057,8 @@ describe('task', () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it('halts when the budget runs out partway through a tick, keeping what it spent', async () => {
-    // 100 items: the goal with a bundle, then an item: two requests a tick. The budget runs out
+  it('halts when the budget runs out partway through a round, keeping what it spent', async () => {
+    // 100 items: the goal with a bundle, then an item: two requests a round. The budget runs out
     // after the first.
     const items = Array.from({ length: 100 }, (_, i) => `item ${i}`);
     const invoke = vi.fn();
@@ -1062,6 +1067,7 @@ describe('task', () => {
     });
 
     const result = await runTask(
+      'test',
       async () => ({
         context: { goal: 'never' },
         ops: {
@@ -1091,7 +1097,7 @@ describe('task', () => {
     });
     decide = () => ({ pick: 'Goal achieved: done' });
 
-    await runWithApiKey(async () => ({
+    await runWithApiKey('test', async () => ({
       context: { goal: 'done' },
       ops: {
         wait: op('Wait', () => {}),
@@ -1116,7 +1122,7 @@ describe('task', () => {
       ),
     );
     const invoke = vi.fn();
-    const result = await runTask(async () => ({
+    const result = await runTask('test', async () => ({
       context: { goal: 'never' },
       ops: {
         wait: op('Wait', invoke),
@@ -1147,7 +1153,7 @@ describe('task', () => {
         return { pick: picked ?? '' };
       };
 
-      const result = await runTask(async () => ({
+      const result = await runTask('test', async () => ({
         context: { goal: 'never' },
         ops: {
           other: op('Other move', () => executed.push('other')),
@@ -1184,7 +1190,7 @@ describe('task', () => {
         return { pick: '' };
       };
 
-      const result = await runTask(async () => ({
+      const result = await runTask('test', async () => ({
         context: { goal: 'never' },
         ops: {
           a: group('A', {

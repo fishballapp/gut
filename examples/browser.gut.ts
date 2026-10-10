@@ -21,7 +21,7 @@ const isOnSite = (control: Control) => {
   return URL.canParse(control.url) && new URL(control.url).host === site;
 };
 
-const result = await runTask(async () => {
+const result = await runTask(`${site}: ${goal}`, async () => {
   const { context, ops } = await observe(page, { values, shouldOffer: isOnSite });
   return { context: { goal, page: context }, ops };
 });

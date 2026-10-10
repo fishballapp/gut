@@ -35,7 +35,7 @@ const NAVIGATION_DEADLINE_MS = 10_000;
 const COVERED_DEADLINE_MS = 3_000;
 const COVERED_RETRY_MS = 250;
 
-/** A read of the page: what a tick returns, and whether a click could reach none of it. */
+/** A read of the page: what a round returns, and whether a click could reach none of it. */
 type PageRead = { context: PageContext; ops: Ops; isEverythingCovered: boolean };
 
 /** The page navigated while `observe` read it, so what it read may mix two pages. */

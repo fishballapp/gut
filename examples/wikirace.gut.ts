@@ -13,6 +13,7 @@ const instruction =
 const { runTask } = await initGut();
 
 await runTask(
+  `${from} → ${target}`,
   async () => {
     const article = await readArticle(path.at(-1) ?? from);
     // A link can name a redirect ("Chaturaṅga" for "Chaturanga"), so keep the article's real title,

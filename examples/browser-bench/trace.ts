@@ -1,5 +1,5 @@
 // A readable trace of one run: every request gut sends the decision model (the state it sees, each
-// question's options, what it chose) and gut's own tick lines, in the order they happened. It wraps
+// question's options, what it chose) and gut's own round lines, in the order they happened. It wraps
 // `fetch` and stderr in this process only, so gut itself knows nothing of it.
 import {
   describeCriterion,

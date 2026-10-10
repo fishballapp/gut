@@ -17,7 +17,7 @@ export const INSPECTOR_KEY = Symbol.for('gut.run.inspector');
 
 /**
  * Who answers one turn: the model (the run's, or one supplied here), the developer with answers
- * keyed by question → criterion, or a re-pick of this tick.
+ * keyed by question → criterion, or a re-pick of this round.
  */
 export type TurnAnswer =
   | { by: 'model'; model?: DecisionModel }
@@ -28,9 +28,9 @@ export type TurnAnswer =
 export type RunHooks = {
   /** Synchronous, never awaited. */
   onEvent: (event: RunEvent) => void;
-  answer: (turn: { tick: number; turn: number; request: DecisionRequest }) => Promise<TurnAnswer>;
-  beforePick: (tick: { tick: number }) => Promise<{ maxOptions: number }>;
-  beforeInvoke: (step: { tick: number; step: string }) => Promise<'invoke' | 'repick'>;
+  answer: (turn: { round: number; turn: number; request: DecisionRequest }) => Promise<TurnAnswer>;
+  beforePick: (round: { round: number }) => Promise<{ maxOptions: number }>;
+  beforeInvoke: (step: { round: number; step: string }) => Promise<'invoke' | 'repick'>;
 };
 
 /** What `globalThis[INSPECTOR_KEY]` holds when an inspector is attached. */

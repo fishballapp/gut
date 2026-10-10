@@ -1,4 +1,4 @@
-// Each tick: observe, let the decision model pick a move, invoke it.
+// Each round: observe, let the decision model pick a move, invoke it.
 import type { Merge } from 'type-fest';
 import type { LoadedConfig } from './config.ts';
 import { type RunEvent, toOpTree } from './events.ts';
@@ -15,7 +15,7 @@ export type Json =
   | readonly Json[]
   | { readonly [key: string]: Json };
 
-/** What the model reads each tick: the goal, written as the end state to reach, and any JSON. */
+/** What the model reads each round: the goal, written as the end state to reach, and any JSON. */
 export type Context = { goal: string; [key: string]: Json };
 
 type Outcome =
@@ -28,9 +28,16 @@ export type Usage = { inputTokens: number; requests: number };
 
 export type TaskResult = Merge<Outcome, { steps: string[]; context: Context | null; usage: Usage }>;
 
-/** A task run on the config `initGut` read: what `initGut` returns as `runTask`. */
+/** What a round starts with: what the model reads (`context`) and the moves it may pick (`ops`). */
+export type Observe = () => Promise<{ context: Context; ops: Ops }>;
+
+/**
+ * A task run on the config `initGut` read: what `initGut` returns as `runTask`. `name` tells the run
+ * apart from the task's other runs, in an inspector; the model never reads it.
+ */
 export type RunTask = (
-  tick: () => Promise<{ context: Context; ops: Ops }>,
+  name: string,
+  observe: Observe,
   options?: TaskOptions,
 ) => Promise<TaskResult>;
 
@@ -38,7 +45,7 @@ export type TaskOptions = {
   /** Input tokens the run may spend on the decision model; it may overshoot by one request. */
   inputTokenBudget?: number;
   /**
-   * Checks the goal in code, after each tick's `tick` and before any request. When it is set, the
+   * Checks the goal in code, after each round's `observe` and before any request. When it is set, the
    * model is never asked whether the goal is met: only this check ends a run as `achieved`.
    */
   isGoalAchieved?: () => boolean | Promise<boolean>;
@@ -53,13 +60,13 @@ const errorOutcome = (error: unknown): Extract<Outcome, { reason: 'error' }> => 
 });
 
 const writeStderr = (event: RunEvent) => {
-  if (event.type === 'tick.goalChecked' && event.achieved) {
-    process.stderr.write(`tick ${event.tick}  achieved  checked  ${secondsSince(event.ms)}\n`);
+  if (event.type === 'round.goalChecked' && event.achieved) {
+    process.stderr.write(`round ${event.round}  achieved  checked  ${secondsSince(event.ms)}\n`);
     return;
   }
-  if (event.type === 'tick.picked') {
+  if (event.type === 'round.picked') {
     process.stderr.write(
-      `tick ${event.tick}  ${event.step}  ${event.probabilities.map(p => p.toFixed(2)).join('/')}  ${secondsSince(event.ms)}  ${event.tokens} input tokens\n`,
+      `round ${event.round}  ${event.step}  ${event.probabilities.map(p => p.toFixed(2)).join('/')}  ${secondsSince(event.ms)}  ${event.tokens} input tokens\n`,
     );
     return;
   }
@@ -77,16 +84,18 @@ const writeStderr = (event: RunEvent) => {
 };
 
 /**
- * Runs a task until the goal is met, or the run halts. `tick` runs at the start of every tick and
+ * Runs a task until the goal is met, or the run halts. `observe` runs at the start of every round and
  * returns what the model reads (`context`) and the moves it may pick (`ops`). The model judges the
- * goal, unless `options.isGoalAchieved` checks it in code.
+ * goal, unless `options.isGoalAchieved` checks it in code. `name` is for people; the model never
+ * reads it.
  *
  * The decision model comes from `config`; what a run may spend, from `options`. An inspector's
  * `attach` injects who answers each turn; without a model and without hooks the run cannot start.
  */
 export const runTask = async (
   config: LoadedConfig,
-  tick: () => Promise<{ context: Context; ops: Ops }>,
+  name: string,
+  observe: Observe,
   { inputTokenBudget = 50_000, isGoalAchieved }: TaskOptions = {},
   attach?: InspectorGlobal['attach'],
 ): Promise<TaskResult> => {
@@ -94,8 +103,8 @@ export const runTask = async (
   const hooks: RunHooks | undefined = attach?.({ runId });
 
   // Each pick's question size: the inspector's choice, else the model's own limit.
-  const maxOptionsFor = ((): ((tick: number) => Promise<number>) => {
-    if (hooks !== undefined) return async tick => (await hooks.beforePick({ tick })).maxOptions;
+  const maxOptionsFor = ((): ((round: number) => Promise<number>) => {
+    if (hooks !== undefined) return async round => (await hooks.beforePick({ round })).maxOptions;
     if (config.decisionModel === null) {
       throw new Error('no decision model: pass a config, or attach an inspector');
     }
@@ -119,14 +128,14 @@ export const runTask = async (
   const seen = new Map<string, number>(); // context + step → how many times it was picked
 
   // Runs the picked op; a failure keeps what was spent picking it.
-  const invoke = async (picked: Step, step: string, usage: Usage, tickNumber: number) => {
+  const invoke = async (picked: Step, step: string, usage: Usage, roundNumber: number) => {
     const started = performance.now();
     try {
       await picked.invoke();
       emit({
         type: 'step.invoked',
         runId,
-        tick: tickNumber,
+        round: roundNumber,
         step,
         ms: performance.now() - started,
       });
@@ -135,7 +144,7 @@ export const runTask = async (
       emit({
         type: 'step.invoked',
         runId,
-        tick: tickNumber,
+        round: roundNumber,
         step,
         ms: performance.now() - started,
         error: error instanceof Error ? error.message : String(error),
@@ -144,33 +153,33 @@ export const runTask = async (
     }
   };
 
-  const executeTick = async ({
+  const executeRound = async ({
     context,
     ops,
     usage,
-    tickNumber,
+    roundNumber,
     started,
   }: {
     context: Context;
     ops: Ops;
     usage: Usage;
-    tickNumber: number;
+    roundNumber: number;
     started: number;
   }): Promise<Merge<Outcome | { status: 'continue'; step: string }, { usage: Usage }>> => {
     try {
       if (isGoalAchieved !== undefined) {
         const achieved = await isGoalAchieved();
         emit({
-          type: 'tick.goalChecked',
+          type: 'round.goalChecked',
           runId,
-          tick: tickNumber,
+          round: roundNumber,
           achieved,
           ms: performance.now() - started,
         });
         if (achieved) return { status: 'achieved', usage };
       }
 
-      const asker = turnAnswerer.forTick(tickNumber);
+      const asker = turnAnswerer.forRound(roundNumber);
       let usageSoFar = usage;
 
       // A re-pick keeps what the abandoned pick spent, and asks the same ops again.
@@ -178,7 +187,7 @@ export const runTask = async (
         emit({
           type: 'pick.abandoned',
           runId,
-          tick: tickNumber,
+          round: roundNumber,
           usage: {
             inputTokens: spent.inputTokens - usageSoFar.inputTokens,
             requests: spent.requests - usageSoFar.requests,
@@ -188,8 +197,8 @@ export const runTask = async (
       };
 
       for (;;) {
-        const maxOptions = await maxOptionsFor(tickNumber);
-        emit({ type: 'pick.started', runId, tick: tickNumber, maxOptions });
+        const maxOptions = await maxOptionsFor(roundNumber);
+        emit({ type: 'pick.started', runId, round: roundNumber, maxOptions });
 
         const picked = await pick({
           asker,
@@ -212,9 +221,9 @@ export const runTask = async (
 
         const step = picked.status === 'achieved' ? 'achieved' : picked.step.name;
         emit({
-          type: 'tick.picked',
+          type: 'round.picked',
           runId,
-          tick: tickNumber,
+          round: roundNumber,
           step,
           probabilities: picked.probabilities,
           tokens: picked.usage.inputTokens - usage.inputTokens,
@@ -224,7 +233,7 @@ export const runTask = async (
         if (picked.status === 'achieved') return { status: 'achieved', usage: picked.usage };
 
         if (hooks !== undefined) {
-          const action = await hooks.beforeInvoke({ tick: tickNumber, step });
+          const action = await hooks.beforeInvoke({ round: roundNumber, step });
           if (action === 'repick') {
             abandon(picked.usage);
             continue;
@@ -236,7 +245,7 @@ export const runTask = async (
         seen.set(key, repeats);
         if (repeats >= 3) return { status: 'halted', reason: 'stalled', usage: picked.usage };
 
-        return await invoke(picked.step, step, picked.usage, tickNumber);
+        return await invoke(picked.step, step, picked.usage, roundNumber);
       }
     } catch (error) {
       return { ...errorOutcome(error), usage };
@@ -247,17 +256,17 @@ export const runTask = async (
     context,
     steps,
     usage,
-    tickNumber,
+    roundNumber,
   }: {
     context: Context | null;
     steps: string[];
     usage: Usage;
-    tickNumber: number;
+    roundNumber: number;
   }): Promise<TaskResult> => {
     const started = performance.now();
     const observed = await (async () => {
       try {
-        const { context, ops } = await tick();
+        const { context, ops } = await observe();
         // An invoke may mutate what the context points at; the result keeps this snapshot.
         return { status: 'observed' as const, context: structuredClone(context), ops };
       } catch (error) {
@@ -267,18 +276,18 @@ export const runTask = async (
     if (observed.status !== 'observed') return { ...observed, steps, context, usage };
 
     emit({
-      type: 'tick.observed',
+      type: 'round.observed',
       runId,
-      tick: tickNumber,
+      round: roundNumber,
       context: observed.context,
       ops: toOpTree(observed.ops),
     });
 
-    const outcome = await executeTick({
+    const outcome = await executeRound({
       context: observed.context,
       ops: observed.ops,
       usage,
-      tickNumber,
+      roundNumber,
       started,
     });
     if (outcome.status !== 'continue') return { ...outcome, steps, context: observed.context };
@@ -286,13 +295,14 @@ export const runTask = async (
       context: observed.context,
       steps: [...steps, outcome.step],
       usage: outcome.usage,
-      tickNumber: tickNumber + 1,
+      roundNumber: roundNumber + 1,
     });
   };
 
   emit({
     type: 'run.started',
     runId,
+    name,
     model:
       config.decisionModel === null
         ? null
@@ -309,7 +319,7 @@ export const runTask = async (
     context: null,
     steps: [],
     usage: { inputTokens: 0, requests: 0 },
-    tickNumber: 1,
+    roundNumber: 1,
   });
   emit({ type: 'run.ended', runId, result });
   return result;

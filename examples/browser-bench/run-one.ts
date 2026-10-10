@@ -100,7 +100,7 @@ const emit = (record: RunRecord) => {
 
 const run = async (): Promise<void> => {
   let server: FixtureServer | undefined;
-  let firstTickOpsSize: { topLevel: number; leaves: number } | undefined;
+  let firstRoundOpsSize: { topLevel: number; leaves: number } | undefined;
 
   try {
     const target = await (async () => {
@@ -149,13 +149,14 @@ const run = async (): Promise<void> => {
         };
 
         const result = await runTask(
+          taskDef.name,
           async () => {
             const { context: pageContext, ops } = await observe(page, {
               values: observeValues(taskDef),
               shouldOffer: isOnSite,
             });
-            if (firstTickOpsSize === undefined) {
-              firstTickOpsSize = { topLevel: Object.keys(ops).length, leaves: countLeaves(ops) };
+            if (firstRoundOpsSize === undefined) {
+              firstRoundOpsSize = { topLevel: Object.keys(ops).length, leaves: countLeaves(ops) };
             }
             const context: Context = {
               instruction: taskDef.instruction,
@@ -188,7 +189,7 @@ const run = async (): Promise<void> => {
         steps: { count: 0, names: [] },
         usage: { requests: 0, inputTokens: 0 },
         wallClockMs: Math.round(performance.now() - startTime),
-        firstTickOpsSize: { topLevel: 0, leaves: 0 },
+        firstRoundOpsSize: { topLevel: 0, leaves: 0 },
       });
       return;
     }
@@ -204,7 +205,7 @@ const run = async (): Promise<void> => {
       claimedDone: outcome.result.status === 'achieved',
       usage: outcome.result.usage,
       wallClockMs: Math.round(performance.now() - startTime),
-      firstTickOpsSize: firstTickOpsSize ?? { topLevel: 0, leaves: 0 },
+      firstRoundOpsSize: firstRoundOpsSize ?? { topLevel: 0, leaves: 0 },
     });
   } catch (error) {
     const wallClockMs = Math.round(performance.now() - startTime);
@@ -219,7 +220,7 @@ const run = async (): Promise<void> => {
       steps: { count: 0, names: [] },
       usage: { requests: 0, inputTokens: 0 },
       wallClockMs,
-      firstTickOpsSize: firstTickOpsSize ?? { topLevel: 0, leaves: 0 },
+      firstRoundOpsSize: firstRoundOpsSize ?? { topLevel: 0, leaves: 0 },
     });
   } finally {
     if (server !== undefined) {

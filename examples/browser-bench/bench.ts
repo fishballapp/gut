@@ -131,7 +131,7 @@ const runOneChild = async (
         reason: '3-minute hard wall timeout exceeded',
         steps: { count: 0, names: [] },
         wallClockMs: timeoutMs,
-        firstTickOpsSize: { topLevel: 0, leaves: 0 },
+        firstRoundOpsSize: { topLevel: 0, leaves: 0 },
       });
     }, timeoutMs);
 
@@ -174,7 +174,7 @@ const runOneChild = async (
         steps: { count: 0, names: [] },
         usage: { requests: 0, inputTokens: 0 },
         wallClockMs: 0,
-        firstTickOpsSize: { topLevel: 0, leaves: 0 },
+        firstRoundOpsSize: { topLevel: 0, leaves: 0 },
       });
     });
   });
@@ -230,7 +230,7 @@ const runUltrafastChild = async (
         reason: '3-minute hard wall timeout exceeded',
         steps: { count: 0, names: [] },
         wallClockMs: timeoutMs,
-        firstTickOpsSize: { topLevel: 0, leaves: 0 },
+        firstRoundOpsSize: { topLevel: 0, leaves: 0 },
       });
     }, timeoutMs);
 
@@ -277,7 +277,7 @@ const runUltrafastChild = async (
         steps: { count: 0, names: [] },
         usage: { requests: 0, inputTokens: 0 },
         wallClockMs: 0,
-        firstTickOpsSize: { topLevel: 0, leaves: 0 },
+        firstRoundOpsSize: { topLevel: 0, leaves: 0 },
       });
     });
   });
@@ -344,7 +344,7 @@ const main = async (): Promise<void> => {
   mkdirSync(benchDir, { recursive: true });
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const resultsJsonPath = join(benchDir, `${timestamp}.json`);
-  // One readable trace per run, every request and tick in order: tmp/gut-bench/<timestamp>/.
+  // One readable trace per run, every request and round in order: tmp/gut-bench/<timestamp>/.
   const tracesDir = join(benchDir, timestamp);
   mkdirSync(tracesDir, { recursive: true });
 

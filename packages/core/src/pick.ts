@@ -1,4 +1,4 @@
-// How a tick picks its step: the tick's ops are shown to the decision model level by level (a group,
+// How a round picks its step: the round's ops are shown to the decision model level by level (a group,
 // an op, its choice) until a step is picked or the goal is met. Closed groups open one by one
 // (smallest first) within the question limit; a level longer than one question takes is asked by
 // its op's ListStrategy (list-strategy.ts), else by `ListStrategy.bundle`.
@@ -180,7 +180,7 @@ const movesAt = (level: Level, maxOptions: number): Option[] => {
 };
 
 /**
- * Whether the goal is met is its own two-way question, asked in the tick's first request beside the
+ * Whether the goal is met is its own two-way question, asked in the round's first request beside the
  * move. Offered as one option among many moves, it drew the probability whenever no move fitted.
  */
 const goalQuestion = (goal: string): Question => ({
@@ -290,7 +290,7 @@ const createPickSession = ({
   };
 
   /**
-   * Chooses among 1 to `maxOptions` options in one request; the tick's first carries the goal. A
+   * Chooses among 1 to `maxOptions` options in one request; the round's first carries the goal. A
    * lone option needs no question, so it sends nothing.
    */
   const choose = async <T extends { description: string }>(
@@ -311,7 +311,7 @@ const createPickSession = ({
     return option;
   };
 
-  /** A tick with nothing to choose still asks the goal, alone, before its step runs or it halts. */
+  /** A round with nothing to choose still asks the goal, alone, before its step runs or it halts. */
   const checkGoal = async () => {
     if (isGoalPending) await send({});
   };
@@ -339,7 +339,7 @@ const questionsAt = (
       // ponytail: every refusal costs a round trip; learn a size from `usage` if they show up in timings.
       // ponytail: inside a group, going back chosen in one half still plays the final, which may pick
       // a move instead (askWithGoBack sees only the final answer). Refusals are rare and a wrong move
-      // shows next tick; thread go-back through here if traces show a refused group's first question.
+      // shows next round; thread go-back through here if traces show a refused group's first question.
       return knockoutInPagesOf(Math.ceil(options.length / 2))(options, { ask, maxOptions });
     }
   };
@@ -395,7 +395,7 @@ const descend = async (session: PickSession, option: Option, maxOptions: number)
   option.kind === 'step' ? option.step : pickAt(session, option.level, maxOptions);
 
 /**
- * Picks the tick's step among its ops, or finds the goal met when `isGoalAsked`; no ops halts the
+ * Picks the round's step among its ops, or finds the goal met when `isGoalAsked`; no ops halts the
  * run, once the goal is asked. Whatever ends the pick, it reports what the pick spent, a failure
  * included.
  */

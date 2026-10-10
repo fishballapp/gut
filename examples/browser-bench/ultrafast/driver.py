@@ -36,22 +36,22 @@ def redirecting_and_counting_post_json(url, key, body):
 
 model.post_json = redirecting_and_counting_post_json
 
-url, goal, max_ticks = sys.argv[1], sys.argv[2], int(sys.argv[3])
+url, goal, max_rounds = sys.argv[1], sys.argv[2], int(sys.argv[3])
 started = time.perf_counter()
 state = None
 error = None
-ticks = 0
+rounds = 0
 try:
     agent = Agent(url, goal)
     for state in agent.run():
-        ticks += 1
+        rounds += 1
         history = (state or {}).get("history", [])
         last_action = history[-1].get("action") if history else None
         recorded_events.append({
             "kind": "log",
-            "line": f"tick {ticks} {last_action or ''}".strip(),
+            "line": f"round {rounds} {last_action or ''}".strip(),
         })
-        if ticks >= max_ticks:
+        if rounds >= max_rounds:
             break
 except Exception as exc:  # report, don't crash: the runner grades whatever page is left
     error = f"{type(exc).__name__}: {exc}"
@@ -61,7 +61,7 @@ print("===UF_RESULT===")
 print(json.dumps({
     "status": (state or {}).get("status", "error"),
     "error": error,
-    "ticks": ticks,
+    "rounds": rounds,
     "actions": [h.get("action") for h in history],
     "requests": jev["requests"],
     "inputTokens": jev["inputTokens"],

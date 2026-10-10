@@ -1,4 +1,4 @@
-// The moves a tick offers, as the task wrote them: ops, and groups of ops. How they are shown to
+// The moves a round offers, as the task wrote them: ops, and groups of ops. How they are shown to
 // the decision model is pick.ts's strategy, not part of this data.
 import type { ExclusifyUnion, Merge } from 'type-fest';
 import type { ListStrategy } from './list-strategy.ts';
@@ -14,10 +14,10 @@ type Leaf = ExclusifyUnion<
 
 export type Op = Merge<{ description: string }, Leaf | { kind: 'node'; ops: Ops }>;
 
-/** What a tick's `ops` may hold: falsy entries are skipped, so `key: cond && op(…)` is a conditional op. */
+/** What a round's `ops` may hold: falsy entries are skipped, so `key: cond && op(…)` is a conditional op. */
 export type OpEntry = Op | false | null | undefined;
 
-/** A tick's or a group's ops, each named by its key; the model is offered them in key order. */
+/** A round's or a group's ops, each named by its key; the model is offered them in key order. */
 export type Ops = Readonly<Record<string, OpEntry>>;
 
 export const isOp = (entry: OpEntry): entry is Op =>

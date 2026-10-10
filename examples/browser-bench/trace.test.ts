@@ -91,12 +91,12 @@ describe('recordTrace', () => {
         },
       },
     });
-    trace.add({ kind: 'log', line: 'tick 1 click:submit' });
+    trace.add({ kind: 'log', line: 'round 1 click:submit' });
 
     expect(trace.events()).toHaveLength(2);
     const md = trace.render('Test Run');
     expect(md).toContain('# Test Run');
     expect(md).toContain('[1] Submit');
-    expect(md).toContain('> tick 1 click:submit');
+    expect(md).toContain('> round 1 click:submit');
   });
 });

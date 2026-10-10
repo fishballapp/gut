@@ -272,7 +272,7 @@ export const buildControlEntries = (
               await actOn(page, option.ref, loc => loc.click({ timeout: ACT_TIMEOUT_MS }), redact);
             } else {
               // ponytail: an option the page adds or removes before the pick shifts this index to a
-              // neighbour; the next tick shows the field's value. Bind the option element if seen.
+              // neighbour; the next round shows the field's value. Bind the option element if seen.
               await actOn(
                 page,
                 ref,

@@ -97,7 +97,7 @@ describe('initGut with an inspector', () => {
     vi.spyOn(process.stderr, 'write').mockReturnValue(true);
 
     const done = { value: false };
-    const tick = async () => ({
+    const observe = async () => ({
       context: { goal: 'done' },
       ops: {
         go: op('Go', () => {
@@ -107,9 +107,9 @@ describe('initGut with an inspector', () => {
       },
     });
 
-    await runTask(tick, { isGoalAchieved: () => done.value });
+    await runTask('test', observe, { isGoalAchieved: () => done.value });
     done.value = false;
-    await runTask(tick, { isGoalAchieved: () => done.value });
+    await runTask('test', observe, { isGoalAchieved: () => done.value });
 
     expect(attach).toHaveBeenCalledTimes(2);
     vi.unstubAllGlobals();
@@ -141,6 +141,7 @@ describe('initGut with an inspector', () => {
     vi.spyOn(process.stderr, 'write').mockReturnValue(true);
 
     const result = await runTask(
+      'test',
       async () => ({
         context: { goal: 'done' },
         ops: {
@@ -194,6 +195,7 @@ describe('initGut with an inspector', () => {
 
     const done = { value: false };
     const result = await runTask(
+      'test',
       async () => ({
         context: { goal: 'done' },
         ops: {

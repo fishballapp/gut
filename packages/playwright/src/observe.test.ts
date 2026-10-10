@@ -965,8 +965,8 @@ line two</textarea></label>
     }
   });
 
-  // 27. handles two observes in one tick without breaking refs
-  it('handles two observes in one tick without breaking refs', async () => {
+  // 27. handles two observes in one round without breaking refs
+  it('handles two observes in one round without breaking refs', async () => {
     const page = await browser.newPage();
     try {
       await page.setContent(`
