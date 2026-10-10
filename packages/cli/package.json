@@ -28,13 +28,17 @@
   },
   "scripts": {
     "build": "tsdown src/bin/cli.ts --format esm",
-    "prepack": "pnpm build"
+    "prepack": "pnpm build",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@stricli/core": "catalog:"
+    "@gut.run/core": "workspace:*",
+    "@stricli/core": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "tsdown": "catalog:"
+    "tsdown": "catalog:",
+    "vitest": "catalog:"
   }
 }

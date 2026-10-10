@@ -15,7 +15,7 @@ import type { TurnReply } from './pick.ts';
 import type { Usage } from './task.ts';
 
 /** A person's answers, shaped like the model's, or what is wrong with them. */
-const answersFromYou = (
+export const answersFromYou = (
   request: DecisionRequest,
   chosen: Readonly<Record<string, string>>,
 ): Record<string, Answer> | string => {

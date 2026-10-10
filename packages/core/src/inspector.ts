@@ -1,16 +1,28 @@
-// Hooks an inspector attaches to a run: who answers each turn, and the event stream.
-import type { DecisionModel, DecisionRequest } from './decision-model.ts';
+// Hooks an inspector attaches to a run: who answers each turn, and the event stream. Also the
+// protocol between the CLI and the inspector page: session events and the page's actions.
+import { z } from 'zod';
+import { type DecisionModel, DecisionModelSchema, type DecisionRequest } from './decision-model.ts';
 import {
   type OpAddress,
   type OpChoiceNode,
   type OpTreeNode,
+  type OptionInfo,
   PROTOCOL,
   type RunEvent,
   RunEventSchema,
 } from './events.ts';
 
-export type { OpAddress, OpChoiceNode, OpTreeNode, RunEvent };
-export { PROTOCOL, RunEventSchema };
+export { answersFromYou } from './turns.ts';
+export type {
+  DecisionModel,
+  DecisionRequest,
+  OpAddress,
+  OpChoiceNode,
+  OpTreeNode,
+  OptionInfo,
+  RunEvent,
+};
+export { DecisionModelSchema, PROTOCOL, RunEventSchema };
 
 /** Symbol the CLI sets on `globalThis` before importing a task; `initGut` reads it once. */
 export const INSPECTOR_KEY = Symbol.for('gut.run.inspector');
@@ -38,3 +50,93 @@ export type InspectorGlobal = {
   protocol: number;
   attach: (run: { runId: string }) => RunHooks;
 };
+
+/** A decision model as people see it: never its key. */
+const ModelInfoSchema = z.object({
+  name: z.string(),
+  endpoint: z.string(),
+  maxOptions: z.number().int().positive(),
+});
+
+export type ModelInfo = z.infer<typeof ModelInfoSchema>;
+
+/**
+ * Play: the model answers every turn and every picked step runs. Step: the run waits for the
+ * developer at every turn and before every step.
+ */
+const ModeSchema = z.enum(['play', 'step']);
+
+export type Mode = z.infer<typeof ModeSchema>;
+
+/**
+ * What the CLI adds to the run events, in the same log, so a reload rebuilds the session too: the
+ * mode, the model set in the page, and each decision the run waits on until it is resolved.
+ */
+export const SessionEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('session.started'),
+    protocol: z.number().int(),
+    /** The task file, as given to `gut run`. */
+    task: z.string(),
+    mode: ModeSchema,
+  }),
+  z.object({ type: z.literal('session.mode'), mode: ModeSchema }),
+  /** The model set in the page, used by every run that has none of its own. */
+  z.object({ type: z.literal('session.model'), model: ModelInfoSchema.nullable() }),
+  z.object({
+    type: z.literal('decision.pending'),
+    id: z.string(),
+    runId: z.string(),
+    round: z.number().int().positive(),
+    /** A turn waiting for answers, or a picked step waiting to run. */
+    on: z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('turn'), turn: z.number().int().positive() }),
+      z.object({ kind: z.literal('step'), step: z.string() }),
+    ]),
+  }),
+  z.object({
+    type: z.literal('decision.resolved'),
+    id: z.string(),
+    by: z.enum(['you', 'model', 'run', 'repick']),
+  }),
+  /** The task's top-level code finished, or threw; the record stays until the CLI exits. */
+  z.object({ type: z.literal('session.ended'), error: z.string().optional() }),
+]);
+
+export type SessionEvent = z.infer<typeof SessionEventSchema>;
+
+/** Everything the page reads from `GET /api/events`. */
+export const InspectorEventSchema = z.union([RunEventSchema, SessionEventSchema]);
+
+export type InspectorEvent = z.infer<typeof InspectorEventSchema>;
+
+/**
+ * What the page asks of the CLI (`POST /api/actions`). A decision is answered by its id; once it is
+ * resolved, a later action on it is refused (409), so the first tab to act wins.
+ */
+export const ActionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('play') }),
+  z.object({ type: z.literal('pause') }),
+  /** Answer a waiting turn yourself: question key → criterion key. */
+  z.object({
+    type: z.literal('answer'),
+    decision: z.string(),
+    answers: z.record(z.string(), z.string()),
+  }),
+  z.object({ type: z.literal('askModel'), decision: z.string() }),
+  z.object({ type: z.literal('run'), decision: z.string() }),
+  /** Drop this round's pick and ask its turns afresh. */
+  z.object({ type: z.literal('repick'), decision: z.string() }),
+  /** A model for runs that have none; its key stays in the CLI's memory. */
+  z.object({
+    type: z.literal('setModel'),
+    model: z.object({
+      endpoint: z.url(),
+      name: z.string().min(1),
+      apiKey: z.string().optional(),
+      maxOptions: z.number().int().min(2).optional(),
+    }),
+  }),
+]);
+
+export type Action = z.infer<typeof ActionSchema>;
