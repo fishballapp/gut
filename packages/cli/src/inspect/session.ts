@@ -50,9 +50,6 @@ const infoOf = (model: DecisionModel): ModelInfo => ({
   maxOptions: model.capabilities.choiceQuestions.maxOptions,
 });
 
-/** Where a `loadConfig` action reads a config from. */
-export type ConfigFrom = Extract<Action, { type: 'loadConfig' }>['from'];
-
 /**
  * What a stale task's call gets: a promise that never settles, so nothing the task does after a
  * restart reaches the record, and a stopped task doesn't spin on a harmless answer until it is killed.
@@ -73,7 +70,7 @@ export const createSession = ({
   clear: () => void;
   warn: (message: string) => void;
   /** Reads a gut config's model; throws, with a message for the page, when it can't. */
-  readConfig: (from: ConfigFrom) => Promise<DecisionModel>;
+  readConfig: (path: string) => Promise<DecisionModel>;
   /** Starts the task's process, reporting to `link`. */
   start: (link: TaskLink) => TaskProcess;
 }) => {
@@ -304,7 +301,7 @@ export const createSession = ({
       }
       case 'loadConfig': {
         try {
-          setPageModel(await readConfig(action.from));
+          setPageModel(await readConfig(action.path));
           return { status: 204 };
         } catch (error) {
           return { status: 400, error: error instanceof Error ? error.message : String(error) };

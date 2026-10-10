@@ -1,14 +1,12 @@
 import type { ModelInfo } from '@gut.run/core/inspector';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   chooseProvider,
   chooseSource,
   forgetSent,
   formFor,
-  MAX_CONFIG_BYTES,
   type ModelForm,
   type ModelProblems,
-  pickedFileOf,
   readAction,
 } from './model-form.ts';
 
@@ -123,14 +121,14 @@ describe('readAction for a config', () => {
   it('sends ~/gut.config.json as a path', () => {
     expect(readAction({ ...chooseSource('config'), configFile: 'home' })).toEqual({
       ok: true,
-      action: { type: 'loadConfig', from: { kind: 'path', path: '~/gut.config.json' } },
+      action: { type: 'loadConfig', path: '~/gut.config.json' },
     });
   });
 
   it('sends ./gut.config.json as a path, which the CLI reads from where gut started', () => {
     expect(readAction({ ...chooseSource('config'), configFile: 'cwd' })).toEqual({
       ok: true,
-      action: { type: 'loadConfig', from: { kind: 'path', path: './gut.config.json' } },
+      action: { type: 'loadConfig', path: './gut.config.json' },
     });
   });
 
@@ -142,27 +140,14 @@ describe('readAction for a config', () => {
     };
     expect(readAction(form)).toEqual({
       ok: true,
-      action: { type: 'loadConfig', from: { kind: 'path', path: '/a/gut.json' } },
+      action: { type: 'loadConfig', path: '/a/gut.json' },
     });
   });
 
-  it('sends a picked file as its text, over a typed path', () => {
-    const form = {
-      ...chooseSource('config'),
-      configFile: 'other' as const,
-      configPath: '/a/gut.json',
-      picked: { name: 'gut.config.json', text: '{"decisionModel":{}}' },
-    };
-    expect(readAction(form)).toEqual({
-      ok: true,
-      action: { type: 'loadConfig', from: { kind: 'text', text: '{"decisionModel":{}}' } },
-    });
-  });
-
-  it('asks for a path when another file has neither a typed path nor a picked one', () => {
+  it('asks for a path when another file has none typed', () => {
     const form = { ...chooseSource('config'), configFile: 'other' as const };
     expect(problemsOf(form)).toEqual({
-      configPath: 'Enter the path to a gut config, or pick a file',
+      configPath: 'Enter the path to a gut config',
     });
   });
 });
@@ -307,16 +292,14 @@ describe('readAction for a custom endpoint', () => {
 });
 
 describe('forgetSent', () => {
-  it('drops the key and the picked file once the form is sent, and keeps the rest', () => {
+  it('drops the key once the form is sent, and keeps the rest', () => {
     const sent = forgetSent({
       ...chooseProvider('typesafe'),
       apiKey: 'tk-secret',
-      picked: { name: 'gut.config.json', text: '{"apiKey":"sk-in-file"}' },
       name: 'jev-preview',
     });
     expect(sent).toMatchObject({
       apiKey: '',
-      picked: null,
       name: 'jev-preview',
       provider: 'typesafe',
     });
@@ -359,49 +342,6 @@ describe('Cloudflare account IDs', () => {
         type: 'setModel',
         model: { endpoint: expect.stringContaining(`/accounts/${LOWER}/`) },
       },
-    });
-  });
-});
-
-describe('a picked config file', () => {
-  it('reads the file as text', async () => {
-    const file = new File(['{"decisionModel":{}}'], 'gut.config.json');
-    expect(await pickedFileOf(file)).toEqual({
-      name: 'gut.config.json',
-      text: '{"decisionModel":{}}',
-    });
-  });
-
-  it('refuses a file over the limit, without reading it', async () => {
-    const file = new File([new Uint8Array(MAX_CONFIG_BYTES + 1)], 'big.json');
-    expect(await pickedFileOf(file)).toEqual({
-      name: 'big.json',
-      problem: 'big.json is over 32 KiB, too big for a gut config',
-    });
-  });
-
-  it('accepts a file exactly at the limit', async () => {
-    const file = new File([new Uint8Array(MAX_CONFIG_BYTES)], 'edge.json');
-    expect(await pickedFileOf(file)).toMatchObject({ name: 'edge.json', text: expect.any(String) });
-  });
-
-  it('says why a file could not be read, rather than failing silently', async () => {
-    const file = new File(['x'], 'locked.json');
-    vi.spyOn(file, 'text').mockRejectedValue(new Error('permission denied'));
-    expect(await pickedFileOf(file)).toEqual({
-      name: 'locked.json',
-      problem: "Couldn't read locked.json: permission denied",
-    });
-  });
-
-  it('is not sent: its problem is the config file problem', () => {
-    const form = {
-      ...chooseSource('config'),
-      configFile: 'other' as const,
-      picked: { name: 'big.json', problem: 'big.json is over 32 KiB, too big for a gut config' },
-    };
-    expect(problemsOf(form)).toEqual({
-      configFile: 'big.json is over 32 KiB, too big for a gut config',
     });
   });
 });

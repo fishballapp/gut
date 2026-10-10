@@ -145,16 +145,10 @@ export const ActionSchema = z.discriminatedUnion('type', [
   /** Drop the page's model: runs without their own go back to a person answering every turn. */
   z.object({ type: z.literal('clearModel') }),
   /**
-   * Use a gut config's model for runs that have none, read by the CLI: a path (`~/` and paths
-   * relative to where gut started are fine), or a file's text the page read.
+   * Use a gut config's model for runs that have none, read by the CLI from a path (`~/` and paths
+   * relative to where gut started are fine). A browser never tells the page a file's own path.
    */
-  z.object({
-    type: z.literal('loadConfig'),
-    from: z.discriminatedUnion('kind', [
-      z.object({ kind: z.literal('path'), path: z.string().min(1) }),
-      z.object({ kind: z.literal('text'), text: z.string() }),
-    ]),
-  }),
+  z.object({ type: z.literal('loadConfig'), path: z.string().min(1) }),
 ]);
 
 export type Action = z.infer<typeof ActionSchema>;

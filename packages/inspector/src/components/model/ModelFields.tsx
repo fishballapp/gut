@@ -81,7 +81,7 @@ export const ModelFields = ({
               </Select.Icon>
             </Select.Trigger>
             <Select.Portal>
-              <Select.Positioner sideOffset={4}>
+              <Select.Positioner sideOffset={4} alignItemWithTrigger={false}>
                 <Select.Popup className="min-w-(--anchor-width) rounded-md border border-line bg-raised py-1 font-mono text-[13px] text-ink shadow-lg">
                   <Select.List>
                     {list.models.map(name => (

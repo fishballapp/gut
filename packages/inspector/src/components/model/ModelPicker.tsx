@@ -63,7 +63,7 @@ const PickerForm = ({
   const send = async (action: Action) => {
     if (isSending) return;
     setFailure(undefined);
-    // The key and a picked file's text have left the page with the request, so they are not kept.
+    // The key has left the page with the request, so it is not kept.
     setForm(forgetSent);
     setIsSending(true);
     try {

@@ -20,7 +20,7 @@ export type LoadedConfig = { decisionModel: DecisionModel | null };
 export type ConfigSource = ExclusifyUnion<{ configJsonPath: string } | { config: ConfigInput }>;
 
 /** A config file's text, checked; `source` names it in the error. */
-export const parseConfig = (text: string, source: string): Config => {
+const parseConfig = (text: string, source: string): Config => {
   const json = (() => {
     try {
       return JSON.parse(text);

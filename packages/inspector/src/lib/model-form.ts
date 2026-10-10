@@ -26,22 +26,11 @@ export type ModelForm = {
   maxOptions: string;
   apiKey: string;
   configFile: ConfigFile;
-  /** The path typed for another config file. */
+  /** The path typed for another config file: a browser never tells the page a picked file's path. */
   configPath: string;
-  /** A config file picked in the browser: its text, or why it can't be sent. */
-  picked: PickedFile | null;
 };
 
-export type PickedFile = { name: string } & ({ text: string } | { problem: string });
-
-export type ModelField =
-  | 'accountId'
-  | 'endpoint'
-  | 'name'
-  | 'maxOptions'
-  | 'apiKey'
-  | 'configPath'
-  | 'configFile';
+export type ModelField = 'accountId' | 'endpoint' | 'name' | 'maxOptions' | 'apiKey' | 'configPath';
 
 export type ModelProblems = Partial<Record<ModelField, string>>;
 
@@ -59,7 +48,7 @@ export const SOURCE_LABELS: Record<ModelSource, string> = {
 export const CONFIG_FILES: Record<ConfigFile, { label: string; detail: string }> = {
   home: { label: '~/gut.config.json', detail: 'In your home folder' },
   cwd: { label: './gut.config.json', detail: 'In the folder gut started from' },
-  other: { label: 'Another file', detail: 'An absolute path, or a file you pick' },
+  other: { label: 'Another file', detail: 'Its path on this machine' },
 };
 
 const CONFIG_PATHS = { home: '~/gut.config.json', cwd: './gut.config.json' } as const;
@@ -126,24 +115,8 @@ const ACCOUNT_ID = /^[0-9a-f]{32}$/;
 /** Account IDs are kept lowercase, so an endpoint saved with one reopens as the same provider. */
 export const normalizeAccountId = (text: string): string => text.trim().toLowerCase();
 
-/** A gut config picked in the browser is sent as text, and the server takes at most 64 KiB of request. */
-export const MAX_CONFIG_BYTES = 32 * 1024;
-
-/** Reads a picked file for the form; a file that is too big or can't be read says so instead. */
-export const pickedFileOf = async (file: File): Promise<PickedFile> => {
-  if (file.size > MAX_CONFIG_BYTES) {
-    return { name: file.name, problem: `${file.name} is over 32 KiB, too big for a gut config` };
-  }
-  try {
-    return { name: file.name, text: await file.text() };
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    return { name: file.name, problem: `Couldn't read ${file.name}: ${reason}` };
-  }
-};
-
-/** What the form keeps once its action is sent: the key and the picked file's text leave with it. */
-export const forgetSent = (form: ModelForm): ModelForm => ({ ...form, apiKey: '', picked: null });
+/** What the form keeps once its action is sent: the key leaves with it. */
+export const forgetSent = (form: ModelForm): ModelForm => ({ ...form, apiKey: '' });
 
 /** A fresh form for a source and provider: the source's first model, and nothing typed. */
 const freshForm = (source: ModelSource, provider: Provider): ModelForm => {
@@ -157,7 +130,6 @@ const freshForm = (source: ModelSource, provider: Provider): ModelForm => {
     apiKey: '',
     configFile: 'home',
     configPath: '',
-    picked: null,
   };
   if (source === 'config') return blank;
   if (source === 'ollama') return { ...blank, name: OLLAMA.models[0], endpoint: OLLAMA.endpoint };
@@ -294,25 +266,11 @@ const modelOf = (form: ModelForm): ModelInput => {
 const readConfigAction = (form: ModelForm): ReadAction => {
   if (form.configFile === 'home' || form.configFile === 'cwd') {
     const path = CONFIG_PATHS[form.configFile];
-    return { ok: true, action: { type: 'loadConfig', from: { kind: 'path', path } } };
-  }
-  if (form.picked !== null && 'problem' in form.picked) {
-    return { ok: false, problems: { configFile: form.picked.problem } };
-  }
-  if (form.picked !== null && 'text' in form.picked) {
-    return {
-      ok: true,
-      action: { type: 'loadConfig', from: { kind: 'text', text: form.picked.text } },
-    };
+    return { ok: true, action: { type: 'loadConfig', path } };
   }
   const path = form.configPath.trim();
-  if (path === '') {
-    return {
-      ok: false,
-      problems: { configPath: 'Enter the path to a gut config, or pick a file' },
-    };
-  }
-  return { ok: true, action: { type: 'loadConfig', from: { kind: 'path', path } } };
+  if (path === '') return { ok: false, problems: { configPath: 'Enter the path to a gut config' } };
+  return { ok: true, action: { type: 'loadConfig', path } };
 };
 
 /** The action the form sends, or what is wrong with it. A key is read here, never shown back. */

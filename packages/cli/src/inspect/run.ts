@@ -5,12 +5,12 @@ import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { loadConfig, parseConfig } from '@gut.run/core';
+import { loadConfig } from '@gut.run/core';
 import type { DecisionModel } from '@gut.run/core/inspector';
 import { createEventLog } from './log.ts';
 import { inspectorRoot } from './page-root.ts';
 import { startServer } from './server.ts';
-import { type ConfigFrom, createSession } from './session.ts';
+import { createSession } from './session.ts';
 import { forkTask } from './task-process.ts';
 
 /** How each platform opens a URL in the default browser. */
@@ -28,11 +28,10 @@ const openInBrowser = (url: string) => {
     .unref();
 };
 
-/** A gut config's model, for the page: a path (`~/` is home) or a file's text the page read. */
-const readConfigModel = async (from: ConfigFrom): Promise<DecisionModel> => {
-  if (from.kind === 'text') return parseConfig(from.text, 'the chosen file').decisionModel;
-  const path = from.path.startsWith('~/') ? join(homedir(), from.path.slice(2)) : from.path;
-  return (await loadConfig({ configJsonPath: path })).decisionModel;
+/** A gut config's model, for the page, read from a path (`~/` is home). */
+const readConfigModel = async (path: string): Promise<DecisionModel> => {
+  const resolved = path.startsWith('~/') ? join(homedir(), path.slice(2)) : path;
+  return (await loadConfig({ configJsonPath: resolved })).decisionModel;
 };
 
 const say = (line: string) => {

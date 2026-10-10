@@ -42,11 +42,11 @@ const setup = () => {
     emit: event => events.push(event),
     clear: () => events.splice(0),
     warn: message => warnings.push(message),
-    readConfig: async from => {
-      if (from.kind === 'path' && from.path === '~/gut.config.json') {
+    readConfig: async path => {
+      if (path === '~/gut.config.json') {
         return DecisionModelSchema.parse({ endpoint: jev.endpoint, name: 'jev', apiKey: 'k' });
       }
-      throw new Error(`No gut config at ${from.kind === 'path' ? from.path : 'the text given'}`);
+      throw new Error(`No gut config at ${path}`);
     },
     start: link => {
       links.push(link);
@@ -244,9 +244,9 @@ describe('createSession', () => {
 
   it("loads a gut config's model, keeps its key, and clears it again", async () => {
     const { events, session } = setup();
-    expect(
-      await session.act({ type: 'loadConfig', from: { kind: 'path', path: '~/gut.config.json' } }),
-    ).toEqual({ status: 204 });
+    expect(await session.act({ type: 'loadConfig', path: '~/gut.config.json' })).toEqual({
+      status: 204,
+    });
     expect(events.at(-1)).toEqual({ type: 'session.model', model: jev });
     expect(JSON.stringify(events)).not.toContain('"k"');
     expect(await session.act({ type: 'clearModel' })).toEqual({ status: 204 });
@@ -255,9 +255,10 @@ describe('createSession', () => {
 
   it("refuses a config it can't read, saying why", async () => {
     const { session } = setup();
-    expect(
-      await session.act({ type: 'loadConfig', from: { kind: 'path', path: './missing.json' } }),
-    ).toEqual({ status: 400, error: 'No gut config at ./missing.json' });
+    expect(await session.act({ type: 'loadConfig', path: './missing.json' })).toEqual({
+      status: 400,
+      error: 'No gut config at ./missing.json',
+    });
   });
 
   it('ends with the task, recording its error', () => {
