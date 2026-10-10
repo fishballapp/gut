@@ -320,7 +320,7 @@ describe('inspector hooks via runTask', () => {
     expect(options.slice(0, -1).every(option => option.kind === 'bundle')).toBe(true);
   });
 
-  it('keeps turn numbers unique within a round across a re-pick, and restarts at 1 next round', async () => {
+  it('numbers turns from 1 in each pick: a re-pick and the next round start again at 1', async () => {
     const { events, hooks } = collect();
     const counter = { value: 0 };
     let picks = 0;
@@ -358,7 +358,7 @@ describe('inspector hooks via runTask', () => {
     );
     const round1 = turns.filter(e => e.round === 1).map(e => e.turn);
     const round2 = turns.filter(e => e.round === 2).map(e => e.turn);
-    expect(round1).toEqual([1, 2]);
+    expect(round1).toEqual([1, 1]);
     expect(round2[0]).toBe(1);
   });
 
@@ -774,10 +774,13 @@ describe('inspector hooks via runTask', () => {
 
   it('ends every asked turn exactly once: answered, failed or dropped', async () => {
     const endings = (events: readonly RunEvent[]) => {
+      // Turns are numbered within a pick, so a turn is its round, its pick and its number.
       const byTurn = new Map<string, string[]>();
+      let pick = 0;
       for (const event of events) {
+        if (event.type === 'pick.started') pick += 1;
         if (!('turn' in event)) continue;
-        const key = `${event.round}.${event.turn}`;
+        const key = `${event.round}.${pick}.${event.turn}`;
         byTurn.set(key, [...(byTurn.get(key) ?? []), event.type]);
       }
       return [...byTurn.values()].map(types =>

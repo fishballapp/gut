@@ -179,10 +179,9 @@ export const runTask = async (
         if (achieved) return { status: 'achieved', usage };
       }
 
-      const asker = turnAnswerer.forRound(roundNumber);
       let usageSoFar = usage;
 
-      // A re-pick keeps what the abandoned pick spent, and asks the same ops again.
+      // A re-pick keeps what the abandoned pick spent, and asks the same ops again from turn 1.
       const abandon = (spent: Usage) => {
         emit({
           type: 'pick.abandoned',
@@ -201,7 +200,7 @@ export const runTask = async (
         emit({ type: 'pick.started', runId, round: roundNumber, maxOptions });
 
         const picked = await pick({
-          asker,
+          asker: turnAnswerer.forPick(roundNumber),
           context,
           ops,
           usage: usageSoFar,

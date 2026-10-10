@@ -61,7 +61,8 @@ export const createTurnAnswerer = ({
   hooks: RunHooks | undefined;
   emit: (event: RunEvent) => void;
 }) => {
-  const forRound = (round: number) => {
+  /** Asks one pick's turns, numbered from 1: a re-pick starts again at turn 1. */
+  const forPick = (round: number) => {
     let turn = 0;
 
     const answer = async (
@@ -163,5 +164,5 @@ export const createTurnAnswerer = ({
     return { answer };
   };
 
-  return { forRound };
+  return { forPick };
 };

@@ -114,16 +114,20 @@ describe('reduce', () => {
   });
 
   it("drops the turns of a pick a re-pick abandons, and keeps the pick's spend", async () => {
-    const events = await record((turn, round) =>
-      round === 1 && turn === 1 ? { repick: true } : { by: 'model' },
-    );
+    let hasRepicked = false;
+    const events = await record(() => {
+      if (hasRepicked) return { by: 'model' };
+      hasRepicked = true;
+      return { repick: true };
+    });
     const firstRound = events.reduce(reduce, initialState).runs[0]?.rounds[0];
     expect(firstRound?.picks).toEqual([
       { maxOptions: 26, abandoned: { inputTokens: 0, requests: 0 } },
       { maxOptions: 26 },
     ]);
+    // The pick after a re-pick starts again at turn 1.
     expect(firstRound?.turns.map(turn => [turn.turn, turn.outcome.status])).toEqual([
-      [2, 'answered'],
+      [1, 'answered'],
     ]);
   });
 
@@ -144,7 +148,7 @@ describe('reduce', () => {
     });
     expect(firstRound?.picks[1]?.picked).toBeUndefined();
     expect(firstRound?.picked).toMatchObject({ step: 'add' });
-    expect(firstRound?.turns.map(turn => turn.turn)).toEqual([2]);
+    expect(firstRound?.turns.map(turn => turn.turn)).toEqual([1]);
   });
 
   it('reads nothing after a session that speaks another protocol', () => {
