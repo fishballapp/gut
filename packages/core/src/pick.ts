@@ -9,17 +9,18 @@ import {
   type Question,
   RequestTooLargeError,
 } from './decision-model.ts';
+import type { OpAddress, OptionInfo, OptionInfoByQuestion } from './events.ts';
 import { knockoutInPagesOf, ListStrategy, type Questions } from './list-strategy.ts';
 import { isOp, type Ops } from './ops.ts';
 import type { Context, Usage } from './task.ts';
 import { keepLeaves, mapLeaves, pruneTree, type Tree } from './tree.ts';
 
-/** An executable move, named by its key path, e.g. `openLink("Rome")`. */
-export type Step = { name: string; invoke: () => unknown };
+/** An executable move, named by its key path, e.g. `openLink("Rome")`, and where it is in the ops. */
+export type Step = { name: string; address: OpAddress; invoke: () => unknown };
 
 type StepTree = Tree<
   { description: string; step: Step },
-  { description: string; strategy?: ListStrategy; isGroup?: true }
+  { description: string; address: OpAddress; strategy?: ListStrategy; isGroup?: true }
 >;
 
 /**
@@ -27,27 +28,33 @@ type StepTree = Tree<
  * long list can be asked as a level of its own. Every leaf is a named step, and a node with no step
  * under it is dropped.
  */
-const toStepTrees = (ops: Ops, parentName?: string): StepTree[] =>
+const toStepTrees = (ops: Ops, parentKeys: readonly string[] = []): StepTree[] =>
   Object.entries(ops).flatMap(([key, op]): StepTree[] => {
     if (!isOp(op)) return [];
-    const name = parentName === undefined ? key : `${parentName}.${key}`;
+    const keys = [...parentKeys, key];
+    const name = keys.join('.');
     if (op.kind === 'node') {
-      const children = toStepTrees(op.ops, name);
+      const children = toStepTrees(op.ops, keys);
       if (children.length === 0) return [];
-      return [{ kind: 'node', description: op.description, children, isGroup: true }];
+      const address = { keys };
+      return [{ kind: 'node', description: op.description, address, children, isGroup: true }];
     }
     if (op.choices === undefined) {
-      return [{ kind: 'leaf', description: op.description, step: { name, invoke: op.invoke } }];
+      const step = { name, address: { keys }, invoke: op.invoke };
+      return [{ kind: 'leaf', description: op.description, step }];
     }
     if (op.choices.length === 0) return [];
     const children = op.choices.map(
-      ({ label, invoke }): StepTree => ({
+      ({ label, invoke }, choice): StepTree => ({
         kind: 'leaf',
         description: label,
-        step: { name: `${name}(${JSON.stringify(label)})`, invoke },
+        step: { name: `${name}(${JSON.stringify(label)})`, address: { keys, choice }, invoke },
       }),
     );
-    return [{ kind: 'node', description: op.description, strategy: op.strategy, children }];
+    const address = { keys };
+    return [
+      { kind: 'node', description: op.description, address, strategy: op.strategy, children },
+    ];
   });
 
 /**
@@ -69,7 +76,17 @@ const GO_BACK = 'None of these: go back';
 /** What the model reads as one option, and what choosing it leads to: a step, or another level. */
 type Option =
   | { kind: 'step'; description: string; step: Step }
-  | { kind: 'level'; description: string; level: Level };
+  | { kind: 'level'; description: string; level: Level; info: OptionInfo };
+
+/** Every `Option` gut makes, so an asked option can be told from one a list strategy made. */
+const ownOptions = new WeakSet<object>();
+
+const own = <T extends Option>(option: T): T => {
+  ownOptions.add(option);
+  return option;
+};
+
+const isOwnOption = (option: object): option is Option => ownOptions.has(option);
 
 /** The nearest level above that still has something to choose among. */
 const nearestBack = (level: Level | undefined): Level | undefined => {
@@ -83,7 +100,7 @@ const goBackAt = ({ back }: Level): Extract<Option, { kind: 'level' }> | undefin
   const ancestor = nearestBack(back?.());
   return ancestor === undefined
     ? undefined
-    : { kind: 'level', description: GO_BACK, level: ancestor };
+    : own({ kind: 'level', description: GO_BACK, level: ancestor, info: { kind: 'back' } });
 };
 
 /** How many of a group's moves its option names before "+N more". */
@@ -155,7 +172,7 @@ const movesAt = (level: Level, maxOptions: number): Option[] => {
     trees.flatMap((tree): Option[] => {
       if (tree.kind === 'leaf') {
         const description = [...path.map(node => node.description), tree.description].join(' › ');
-        return [{ kind: 'step', description, step: tree.step }];
+        return [own({ kind: 'step', description, step: tree.step })];
       }
       if (opened.has(tree)) {
         return toOptions(tree.children, [...path, tree]);
@@ -173,7 +190,12 @@ const movesAt = (level: Level, maxOptions: number): Option[] => {
           ? `${tree.description} — ${previewOf(tree.children)}`
           : tree.description;
       const description = [...path.map(node => node.description), nodeDescription].join(' › ');
-      return [{ kind: 'level', description, level: inside }];
+      const moves = mapLeaves(tree.children, leaf => leaf).length;
+      const info: OptionInfo =
+        tree.isGroup === true
+          ? { kind: 'group', address: tree.address, moves }
+          : { kind: 'choices', address: tree.address, moves };
+      return [own({ kind: 'level', description, level: inside, info })];
     });
 
   return toOptions(level.trees);
@@ -212,7 +234,11 @@ export type TurnReply =
 
 /** What every request in a run shares. */
 export type Asker = {
-  answer: (request: DecisionRequest, usage: Usage) => Promise<TurnReply>;
+  answer: (
+    request: DecisionRequest,
+    usage: Usage,
+    optionInfo: OptionInfoByQuestion,
+  ) => Promise<TurnReply>;
 };
 
 type Ending =
@@ -235,6 +261,15 @@ const chosenOption = <T>(options: readonly T[], answer: Answer | undefined) => {
   const option = new Map(options.map((option, i) => [`o${i + 1}`, option])).get(answer.choice);
   if (option === undefined) throw new Error(`the decision model chose "${answer.choice}"`);
   return { option, probability: answer.probabilities[answer.choice] ?? 0 };
+};
+
+/** What an asked option is: one of gut's own, or a bundle a list strategy made. */
+const infoOf = (option: { description: string }): OptionInfo => {
+  if (isOwnOption(option)) {
+    return option.kind === 'step' ? { kind: 'move', address: option.step.address } : option.info;
+  }
+  const size = 'items' in option && Array.isArray(option.items) ? option.items.length : undefined;
+  return size === undefined || size === 0 ? { kind: 'bundle' } : { kind: 'bundle', size };
 };
 
 /**
@@ -270,7 +305,10 @@ const createPickSession = ({
   };
 
   /** Sends one request, with the goal question while it is pending. */
-  const send = async (questions: Record<string, Question>) => {
+  const send = async (
+    questions: Record<string, Question>,
+    optionInfo: OptionInfoByQuestion = {},
+  ) => {
     const request: DecisionRequest = {
       state: context,
       questions: {
@@ -278,7 +316,7 @@ const createPickSession = ({
         ...questions,
       },
     };
-    const reply = await asker.answer(request, usage);
+    const reply = await asker.answer(request, usage, optionInfo);
     if (reply.kind === 'repick') throw new PickEnded({ status: 'repick' });
     if (reply.kind === 'budget') throw new PickEnded({ status: 'halted', reason: 'budget' });
     usage = {
@@ -303,7 +341,10 @@ const createPickSession = ({
       probabilities.push(1);
       return first;
     }
-    const answers = await send({ next: nextQuestion(trail, options) });
+    const answers = await send(
+      { next: nextQuestion(trail, options) },
+      { next: Object.fromEntries(options.map((option, i) => [`o${i + 1}`, infoOf(option)])) },
+    );
     // Picks run whatever their probability: no threshold separated right picks from wrong ones, so
     // they are logged for the caller, and stalls and the budget stop a run instead.
     const { option, probability } = chosenOption(options, answers.next);

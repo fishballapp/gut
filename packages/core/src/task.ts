@@ -225,6 +225,7 @@ export const runTask = async (
           runId,
           round: roundNumber,
           step,
+          address: picked.status === 'achieved' ? null : picked.step.address,
           probabilities: picked.probabilities,
           tokens: picked.usage.inputTokens - usage.inputTokens,
           ms: performance.now() - started,

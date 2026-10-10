@@ -4,7 +4,7 @@ import type { DecisionModel } from './decision-model.ts';
 import type { RunEvent } from './events.ts';
 import type { RunHooks, TurnAnswer } from './inspector.ts';
 import { ListStrategy } from './list-strategy.ts';
-import { op } from './ops.ts';
+import { group, op } from './ops.ts';
 import { runTask } from './task.ts';
 
 const QuestionSchema = z.object({
@@ -235,6 +235,89 @@ describe('inspector hooks via runTask', () => {
     // 6 items / 3 per page = 2 pages + 1 final.
     expect(turns.length).toBe(3);
     expect(picked).toEqual(['item 4']);
+  });
+
+  it('says what each asked option is, and where the picked step is', async () => {
+    const { events, hooks } = collect();
+    const items = Array.from({ length: 6 }, (_, i) => `item ${i}`);
+    const picked: string[] = [];
+    decide = ({ criteria }) => {
+      const descriptions = Object.values(criteria);
+      return {
+        pick:
+          descriptions.find(d => d === 'Pick an item' || d === 'item 4') ??
+          descriptions.find(d => d.includes('item 4')) ??
+          '',
+      };
+    };
+
+    await runTask(
+      { decisionModel: model({ maxOptions: 3 }) },
+      'test',
+      async () => ({
+        context: { goal: 'item 4 is picked' },
+        ops: {
+          nav: group('Navigation', {
+            home: op('Home', () => {}),
+            about: op('About', () => {}),
+            contact: op('Contact', () => {}),
+          }),
+          pick: op('Pick an item', { choices: items, invoke: item => picked.push(item) }),
+          save: op('Save', () => {}),
+        },
+      }),
+      { isGoalAchieved: () => picked.length > 0 },
+      () => hooks({ beforePick: async () => ({ maxOptions: 3 }) }),
+    );
+
+    const asked = events.filter(e => e.type === 'turn.asked');
+    expect(asked.map(e => e.optionInfo.next)).toEqual([
+      {
+        o1: { kind: 'group', address: { keys: ['nav'] }, moves: 3 },
+        o2: { kind: 'choices', address: { keys: ['pick'] }, moves: 6 },
+        o3: { kind: 'move', address: { keys: ['save'] } },
+      },
+      {
+        o1: { kind: 'bundle', size: 2 },
+        o2: { kind: 'bundle', size: 2 },
+        o3: { kind: 'bundle', size: 2 },
+      },
+      {
+        o1: { kind: 'move', address: { keys: ['pick'], choice: 4 } },
+        o2: { kind: 'move', address: { keys: ['pick'], choice: 5 } },
+      },
+    ]);
+    expect(events.find(e => e.type === 'round.picked')).toMatchObject({
+      step: 'pick("item 4")',
+      address: { keys: ['pick'], choice: 4 },
+    });
+  });
+
+  it('says which option goes back out of a group', async () => {
+    const { events, hooks } = collect();
+    const moves = Object.fromEntries(
+      Array.from({ length: 30 }, (_, i) => [`m${i}`, op(`Move ${i}`, () => {})]),
+    );
+    decide = ({ criteria }) => ({
+      pick:
+        Object.values(criteria).find(d => d.startsWith('Many moves')) ?? 'None of these: go back',
+    });
+
+    await runTask(
+      { decisionModel: model() },
+      'test',
+      async () => ({
+        context: { goal: 'never' },
+        ops: { many: group('Many moves', moves), other: op('Other', () => {}) },
+      }),
+      { inputTokenBudget: 250 },
+      () => hooks(),
+    );
+
+    const [, inside] = events.filter(e => e.type === 'turn.asked');
+    const options = Object.values(inside?.optionInfo.next ?? {});
+    expect(options.at(-1)).toEqual({ kind: 'back' });
+    expect(options.slice(0, -1).every(option => option.kind === 'bundle')).toBe(true);
   });
 
   it('keeps turn numbers unique within a round across a re-pick, and restarts at 1 next round', async () => {

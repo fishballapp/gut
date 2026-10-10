@@ -34,6 +34,31 @@ const UsageSchema = z.object({
   requests: z.number().int().nonnegative(),
 });
 
+/**
+ * What one option of a question is, for people reading the turn: a move, a closed group or op with
+ * choices (and how many moves it holds), a bundle a list strategy made, or going back out of a group.
+ */
+export const OptionInfoSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('move'), address: OpAddressSchema }),
+  z.object({
+    kind: z.literal('group'),
+    address: OpAddressSchema,
+    moves: z.number().int().positive(),
+  }),
+  z.object({
+    kind: z.literal('choices'),
+    address: OpAddressSchema,
+    moves: z.number().int().positive(),
+  }),
+  z.object({ kind: z.literal('bundle'), size: z.number().int().positive().optional() }),
+  z.object({ kind: z.literal('back') }),
+]);
+
+export type OptionInfo = z.infer<typeof OptionInfoSchema>;
+
+/** Each question's options described, by question key then criterion key; the goal question has none. */
+export type OptionInfoByQuestion = Record<string, Record<string, OptionInfo>>;
+
 const QuestionSchema = z.object({
   instructions: z.string(),
   criteria: z.record(z.string(), z.string()),
@@ -213,6 +238,7 @@ export const RunEventSchema = z.discriminatedUnion('type', [
     round: z.number().int().positive(),
     turn: z.number().int().positive(),
     request: DecisionRequestSchema,
+    optionInfo: z.record(z.string(), z.record(z.string(), OptionInfoSchema)),
   }),
   z.object({
     type: z.literal('turn.retrying'),
@@ -266,6 +292,8 @@ export const RunEventSchema = z.discriminatedUnion('type', [
     runId: z.string(),
     round: z.number().int().positive(),
     step: z.string(),
+    /** Where the step is in the round's op tree; null when the goal was found met instead. */
+    address: OpAddressSchema.nullable(),
     probabilities: z.array(z.number()),
     tokens: z.number().int().nonnegative(),
     ms: z.number(),

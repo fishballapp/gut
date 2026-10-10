@@ -9,7 +9,7 @@ import {
   RequestTooLargeError,
   requestAnswers,
 } from './decision-model.ts';
-import type { RunEvent } from './events.ts';
+import type { OptionInfoByQuestion, RunEvent } from './events.ts';
 import type { RunHooks, TurnAnswer } from './inspector.ts';
 import type { TurnReply } from './pick.ts';
 import type { Usage } from './task.ts';
@@ -64,10 +64,14 @@ export const createTurnAnswerer = ({
   const forRound = (round: number) => {
     let turn = 0;
 
-    const answer = async (request: DecisionRequest, usage: Usage): Promise<TurnReply> => {
+    const answer = async (
+      request: DecisionRequest,
+      usage: Usage,
+      optionInfo: OptionInfoByQuestion,
+    ): Promise<TurnReply> => {
       turn += 1;
       const turnNumber = turn;
-      emit({ type: 'turn.asked', runId, round, turn: turnNumber, request });
+      emit({ type: 'turn.asked', runId, round, turn: turnNumber, request, optionInfo });
       const started = performance.now();
 
       const turnAnswer: TurnAnswer =
