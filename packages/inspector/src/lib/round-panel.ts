@@ -1,6 +1,7 @@
 import type { OpTreeNode } from '@gut.run/core/inspector';
 import type { Round, Run } from '../state/inspector-state.ts';
 import { formatDuration, formatProbabilities, formatTokens } from './format.ts';
+import { isPickedByYou } from './turn-display.ts';
 
 /** Leaf moves under a node: one per op or choice; groups sum their children. */
 export const countMoves = (node: OpTreeNode): number => {
@@ -67,7 +68,9 @@ export const roundSummaryLine = (round: Round, run: Run | undefined): RoundSumma
   return {
     kind: 'picked',
     step: round.picked.step,
-    probabilities: formatProbabilities(round.picked.probabilities),
+    probabilities: isPickedByYou(round)
+      ? 'picked by you'
+      : formatProbabilities(round.picked.probabilities),
     meta: `${formatDuration(round.picked.ms)} · ${formatTokens(round.picked.tokens)} tokens`,
   };
 };

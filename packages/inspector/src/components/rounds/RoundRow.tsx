@@ -36,6 +36,8 @@ const MainLine = ({ headline }: { headline: RoundHeadline }) => {
   switch (headline.kind) {
     case 'your-turn':
       return <span className="truncate font-semibold text-you">Your turn</span>;
+    case 'pick-made':
+      return <span className="truncate font-semibold text-ink">Pick made · not run</span>;
     case 'goal':
       return <span className="truncate">goal achieved</span>;
     case 'pending':
@@ -69,17 +71,19 @@ const DetailView = ({ picked }: { picked: PickedOp }) => (
 export const RoundRow = ({
   round,
   isYourTurn,
+  isWaitingToRun,
   isSelected,
   ref,
   onSelect,
 }: {
   round: Round;
   isYourTurn: boolean;
+  isWaitingToRun: boolean;
   isSelected: boolean;
   ref?: Ref<HTMLButtonElement>;
   onSelect: () => void;
 }) => {
-  const headline = roundHeadline(round, isYourTurn);
+  const headline = roundHeadline(round, { isYourTurn, isWaitingToRun });
   return (
     <Tooltip.Root disabled={headline.kind !== 'title'}>
       <Tooltip.Trigger

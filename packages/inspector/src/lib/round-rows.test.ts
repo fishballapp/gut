@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Decision, Round, Turn } from '../state/inspector-state.ts';
-import { isAwaitingYou, isSameRow, stopRows, visibleRows } from './round-rows.ts';
+import {
+  findAwaitingTurn,
+  findWaitingStep,
+  isAwaitingYou,
+  isSameRow,
+  isWaitingToRun,
+  stopRows,
+  visibleRows,
+} from './round-rows.ts';
 
 const turn = (number: number): Turn => ({
   turn: number,
@@ -102,5 +110,36 @@ describe('isAwaitingYou', () => {
   it('ignores a step waiting to run', () => {
     const pending = [turnDecision({ on: { kind: 'step', step: 'add' } })];
     expect(isAwaitingYou(pending, 'run', 2, 1)).toBe(false);
+  });
+});
+
+describe('findWaitingStep and isWaitingToRun', () => {
+  const stepDecision = (overrides: Partial<Decision> = {}): Decision => ({
+    id: 'd2',
+    runId: 'run',
+    round: 2,
+    on: { kind: 'step', step: 'add' },
+    ...overrides,
+  });
+
+  it('finds the step waiting to run in its run and round', () => {
+    const pending = [stepDecision()];
+    expect(findWaitingStep(pending, 'run', 2)).toEqual(stepDecision());
+    expect(isWaitingToRun(pending, 'run', 2)).toBe(true);
+  });
+
+  it('is not waiting for another round, run, or a turn', () => {
+    const pending = [stepDecision(), stepDecision({ id: 'd3', on: { kind: 'turn', turn: 1 } })];
+    expect(isWaitingToRun(pending, 'run', 3)).toBe(false);
+    expect(isWaitingToRun(pending, 'other', 2)).toBe(false);
+    expect(isWaitingToRun([stepDecision({ on: { kind: 'turn', turn: 1 } })], 'run', 2)).toBe(false);
+  });
+});
+
+describe('findAwaitingTurn', () => {
+  it('finds the decision a turn waits on', () => {
+    const decision: Decision = { id: 'd1', runId: 'run', round: 2, on: { kind: 'turn', turn: 1 } };
+    expect(findAwaitingTurn([decision], 'run', 2, 1)).toEqual(decision);
+    expect(findAwaitingTurn([decision], 'run', 2, 2)).toBeUndefined();
   });
 });

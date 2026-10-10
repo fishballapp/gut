@@ -119,6 +119,27 @@ describe('roundSummaryLine', () => {
     });
   });
 
+  it('says picked by you in place of the probabilities when you answered its turns', () => {
+    const round: Round = {
+      ...baseRound(),
+      turns: [
+        {
+          turn: 1,
+          pick: 1,
+          request: { state: { goal: 'g' }, questions: {} },
+          optionInfo: {},
+          retries: [],
+          outcome: { status: 'answered', by: { kind: 'you' }, answers: {}, inputTokens: 0, ms: 1 },
+        },
+      ],
+      picked: { step: 'add', address: { keys: ['add'] }, probabilities: [1], tokens: 0, ms: 900 },
+    };
+    expect(roundSummaryLine(round, run(false))).toMatchObject({
+      kind: 'picked',
+      probabilities: 'picked by you',
+    });
+  });
+
   it('says not picked yet while the round is open', () => {
     expect(roundSummaryLine(baseRound(), run(true))).toEqual({
       kind: 'pending',

@@ -9,10 +9,7 @@ const splitFirstLine = (text: string): { first: string; rest: string | undefined
   return { first: text.slice(0, newline), rest: text.slice(newline + 1) };
 };
 
-/**
- * One option of a question. Ticket 5 extends this into a choosable control; keep the row's props
- * and layout stable for that.
- */
+/** One option of a question, as the turn was answered: its text, its kind, and its probability. */
 export const OptionRow = ({
   optionKey,
   text,

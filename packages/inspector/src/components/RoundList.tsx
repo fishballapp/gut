@@ -3,6 +3,7 @@ import { useCallback, useEffect, useEffectEvent, useRef } from 'react';
 import {
   isAwaitingYou,
   isSameRow,
+  isWaitingToRun,
   type RoundRowKey,
   stopRows,
   visibleRows,
@@ -82,6 +83,7 @@ export const RoundList = ({
           {run !== undefined &&
             run.rounds.map(round => {
               const isSelectedRound = round.round === current?.round;
+              const isStepWaiting = isWaitingToRun(pending, run.runId, round.round);
               return (
                 <li key={round.round}>
                   <RoundRow
@@ -89,6 +91,7 @@ export const RoundList = ({
                     isYourTurn={round.turns.some(turn =>
                       isAwaitingYou(pending, run.runId, round.round, turn.turn),
                     )}
+                    isWaitingToRun={isStepWaiting}
                     isSelected={isSelectedRound}
                     ref={isCurrentRow({ round: round.round }) ? attachCurrentRow : undefined}
                     onSelect={() => select({ runId: run.runId, round: round.round })}
@@ -122,6 +125,11 @@ export const RoundList = ({
                           </li>
                         );
                       })}
+                      {isStepWaiting && (
+                        <li className="py-1 ps-7 pe-2.5 text-[13px] font-semibold text-you">
+                          → waiting to run
+                        </li>
+                      )}
                     </ul>
                   )}
                 </li>

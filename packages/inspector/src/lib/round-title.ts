@@ -1,6 +1,7 @@
 import type { OpAddress, OpTreeNode } from '@gut.run/core/inspector';
 import type { Round } from '../state/inspector-state.ts';
 import { formatProbability } from './format.ts';
+import { isPickedByYou } from './turn-display.ts';
 
 /**
  * A round's title as parts, read from the op tree at the picked address: a choice is its list's
@@ -18,6 +19,7 @@ export type PickedOp = { title: RoundTitle; subtitle: string; description: strin
 
 export type RoundHeadline =
   | { kind: 'your-turn' }
+  | { kind: 'pick-made' }
   | { kind: 'goal' }
   | { kind: 'pending' }
   | { kind: 'title'; picked: PickedOp }
@@ -64,8 +66,12 @@ export const pickedOp = (ops: readonly OpTreeNode[], address: OpAddress): Picked
 };
 
 /** What a round row says in place of its number: the title, or the state it is in. */
-export const roundHeadline = (round: Round, isYourTurn: boolean): RoundHeadline => {
-  if (isYourTurn) return { kind: 'your-turn' };
+export const roundHeadline = (
+  round: Round,
+  waiting: { isYourTurn: boolean; isWaitingToRun: boolean },
+): RoundHeadline => {
+  if (waiting.isYourTurn) return { kind: 'your-turn' };
+  if (waiting.isWaitingToRun) return { kind: 'pick-made' };
   const { picked } = round;
   if (picked === undefined) {
     return round.goalChecked?.achieved === true ? { kind: 'goal' } : { kind: 'pending' };
@@ -77,8 +83,12 @@ export const roundHeadline = (round: Round, isYourTurn: boolean): RoundHeadline 
   return { kind: 'title', picked: op };
 };
 
-/** The pick's last probability, the one of the move the round took: `.64`, or `—` when nothing was picked. */
+/**
+ * The pick's last probability, the one of the move the round took: `.64`; `you` when you answered
+ * its turns; `—` when nothing was picked.
+ */
 export const roundProbability = (round: Round): string => {
   const last = round.picked?.probabilities.at(-1);
-  return last === undefined ? '—' : formatProbability(last);
+  if (last === undefined) return '—';
+  return isPickedByYou(round) ? 'you' : formatProbability(last);
 };

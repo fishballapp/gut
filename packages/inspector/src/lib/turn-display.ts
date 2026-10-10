@@ -30,6 +30,18 @@ export const formatRetry = (retry: Turn['retries'][number]): string => {
 export const isAbandonedPick = (round: Round, turn: Turn): boolean =>
   turn.pick !== Math.max(round.picks.length, 1);
 
+/**
+ * Whether you answered any turn of the round's current pick. Your answer carries probability 1, so
+ * such a pick shows who chose it rather than a certainty nobody claimed.
+ */
+export const isPickedByYou = (round: Round): boolean =>
+  round.turns.some(
+    turn =>
+      !isAbandonedPick(round, turn) &&
+      turn.outcome.status === 'answered' &&
+      turn.outcome.by.kind === 'you',
+  );
+
 /** Right-side status of the turn header. */
 export const turnStatusLabel = (turn: Turn): string => {
   const { outcome } = turn;

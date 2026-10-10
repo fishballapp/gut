@@ -2,25 +2,20 @@ import { Button } from '@base-ui/react/button';
 import { Tooltip } from '@base-ui/react/tooltip';
 import { cn } from '@fishballapps/cn';
 import type { Action } from '@gut.run/core/inspector';
-import { type ReactNode, useEffect, useEffectEvent, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useEffectEvent } from 'react';
 import type { ActOutcome } from '../../lib/connection.ts';
+import { isKeyBlocked } from '../../lib/key-target.ts';
 import { isShortcutBlockedTarget } from '../../lib/shortcut-target.ts';
+import { useAction } from '../../lib/use-action.ts';
 import type { Decision, InspectorState, Run } from '../../state/inspector-state.ts';
 import { Keycap } from './Keycap.tsx';
-
-const ERROR_MS = 4000;
 
 const oldestPending = (pending: Decision[], runId: string | undefined): Decision | undefined => {
   if (runId === undefined) return undefined;
   return pending.find(decision => decision.runId === runId);
 };
 
-const actionErrorMessage = (outcome: Extract<ActOutcome, { ok: false }>): string => {
-  if (outcome.status === 409) return 'Answered in another tab';
-  return outcome.error;
-};
-
-const controlClass = (isPrimary: boolean, isDisabled: boolean) =>
+export const controlClass = (isPrimary: boolean, isDisabled: boolean) =>
   cn(
     'inline-flex h-7 items-center rounded-md border px-2.5 text-[12px] font-medium',
     isDisabled && 'cursor-not-allowed border-line text-muted opacity-60',
@@ -79,9 +74,7 @@ export const RunControls = ({
   run: Run | undefined;
   act: (action: Action) => Promise<ActOutcome>;
 }) => {
-  const [error, setError] = useState<string | undefined>();
-  const errorTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const isInFlight = useRef(false);
+  const { send, error } = useAction(act);
 
   const model = run?.model ?? state.pageModel;
   const hasModel = model !== null;
@@ -96,40 +89,22 @@ export const RunControls = ({
     if (!hasModel) return 'Play needs a model: add one';
     return undefined;
   })();
+  // Running a picked step needs no model; only asking one does.
   const stepDisabledReason = (() => {
     if (hasEnded) return 'The task has ended';
-    if (!hasModel) return 'Step needs a model: add one';
     if (pending === undefined) return 'Nothing is waiting';
+    if (pending.on.kind === 'turn' && !hasModel) return 'Step needs a model: add one';
     return undefined;
   })();
 
-  const showError = (message: string) => {
-    setError(message);
-    if (errorTimer.current !== undefined) clearTimeout(errorTimer.current);
-    errorTimer.current = setTimeout(() => setError(undefined), ERROR_MS);
-  };
-
-  const post = async (action: Action) => {
-    if (isInFlight.current) return;
-    isInFlight.current = true;
-    try {
-      const outcome = await act(action);
-      if (!outcome.ok) showError(actionErrorMessage(outcome));
-    } catch {
-      showError("Can't reach gut");
-    } finally {
-      isInFlight.current = false;
-    }
-  };
-
   const playPause = () => {
     if (isPlayDisabled) return;
-    void post({ type: isPlaying ? 'pause' : 'play' });
+    void send({ type: isPlaying ? 'pause' : 'play' });
   };
 
   const step = () => {
-    if (!hasModel || pending === undefined) return;
-    void post(
+    if (pending === undefined || stepDisabledReason !== undefined) return;
+    void send(
       pending.on.kind === 'turn'
         ? { type: 'askModel', decision: pending.id }
         : { type: 'run', decision: pending.id },
@@ -139,13 +114,14 @@ export const RunControls = ({
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
     if (event.repeat) return;
-    if (isShortcutBlockedTarget(event.target)) return;
     if (event.key === ' ' || event.code === 'Space') {
+      if (isShortcutBlockedTarget(event.target)) return;
       event.preventDefault();
       playPause();
       return;
     }
     if (event.key === 's' || event.key === 'S') {
+      if (isKeyBlocked(event.target)) return;
       event.preventDefault();
       step();
     }
@@ -153,10 +129,7 @@ export const RunControls = ({
 
   useEffect(() => {
     window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      if (errorTimer.current !== undefined) clearTimeout(errorTimer.current);
-    };
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   return (

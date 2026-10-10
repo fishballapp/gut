@@ -30,17 +30,40 @@ export const stopRows = (
       !(selected?.turn !== undefined && row.turn === undefined && row.round === selected.round),
   );
 
-/** Whether a turn of this run has a decision pending on it, for the developer to answer. */
-export const isAwaitingYou = (
+/** The decision a turn of this run waits on for the developer to answer, if any. */
+export const findAwaitingTurn = (
   pending: readonly Decision[],
   runId: string,
   round: number,
   turn: number,
-): boolean =>
-  pending.some(
+): Decision | undefined =>
+  pending.find(
     decision =>
       decision.runId === runId &&
       decision.round === round &&
       decision.on.kind === 'turn' &&
       decision.on.turn === turn,
   );
+
+/** The decision that holds a round's picked step until the developer runs it, if any. */
+export const findWaitingStep = (
+  pending: readonly Decision[],
+  runId: string,
+  round: number,
+): Decision | undefined =>
+  pending.find(
+    decision => decision.runId === runId && decision.round === round && decision.on.kind === 'step',
+  );
+
+export const isAwaitingYou = (
+  pending: readonly Decision[],
+  runId: string,
+  round: number,
+  turn: number,
+): boolean => findAwaitingTurn(pending, runId, round, turn) !== undefined;
+
+export const isWaitingToRun = (
+  pending: readonly Decision[],
+  runId: string,
+  round: number,
+): boolean => findWaitingStep(pending, runId, round) !== undefined;
