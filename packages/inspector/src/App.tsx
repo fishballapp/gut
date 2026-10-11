@@ -15,6 +15,7 @@ import {
   selectChoice,
   selectionIn,
 } from './lib/selection.ts';
+import { useEditDraft } from './lib/use-edit-draft.ts';
 
 /**
  * The page, by level: gut's bar; the run (its goal, controls and the strip of its rounds); then
@@ -32,6 +33,7 @@ export const App = () => {
   const setSelectionState = (next: Selection) =>
     setHeld({ session: state.sessionNumber, selection: next });
   const selected = resolveSelection(state, selection);
+  const edit = useEditDraft(selected, state.pending);
   const setSelection: Select = choice => setSelectionState(selectChoice(state, choice));
   return (
     <div className="relative isolate grid min-h-full grid-cols-1 lg:h-full lg:grid-cols-[220px_1fr_340px] xl:grid-cols-[264px_1fr_400px] lg:grid-rows-[auto_auto_1fr]">
@@ -47,8 +49,14 @@ export const App = () => {
         act={act}
       />
       <RoundList selected={selected} select={setSelection} pending={state.pending} />
-      <TurnView state={state} selected={selected} status={status} act={act} />
-      <RoundPanel selected={selected} />
+      <TurnView
+        state={state}
+        selected={selected}
+        status={status}
+        isEditing={edit.draft !== undefined}
+        act={act}
+      />
+      <RoundPanel selected={selected} edit={edit} act={act} />
     </div>
   );
 };

@@ -11,6 +11,7 @@ import {
 const turn = (number: number): Turn => ({
   turn: number,
   request: { state: { goal: 'g' }, questions: {} },
+  edits: [],
   optionInfo: {},
   retries: [],
   outcome: { status: 'asked' },

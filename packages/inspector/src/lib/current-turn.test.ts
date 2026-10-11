@@ -10,6 +10,7 @@ import {
 const turn = (number: number, outcome: Turn['outcome']): Turn => ({
   turn: number,
   request: { state: { goal: 'g' }, questions: {} },
+  edits: [],
   optionInfo: {},
   retries: [],
   outcome,

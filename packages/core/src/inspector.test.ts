@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { DecisionModel } from './decision-model.ts';
-import type { RunEvent } from './events.ts';
+import type { Edit, RunEvent } from './events.ts';
 import { effectiveMaxOptions, type RunHooks, type TurnAnswer } from './inspector.ts';
 import { ListStrategy } from './list-strategy.ts';
 import { group, op } from './ops.ts';
@@ -838,6 +838,105 @@ describe('inspector hooks via runTask', () => {
     );
     expect(invalidResult).toMatchObject({ status: 'halted', reason: 'error' });
     expect(endings(invalid.events)).toEqual([['turn.failed']]);
+  });
+});
+
+describe('edits from beforePick', () => {
+  it('asks what the edits say and runs what the task wrote', async () => {
+    const { events, hooks } = collect();
+    const counter = { value: 0 };
+    const edits: Edit[] = [
+      { kind: 'context', context: { goal: 'the counter is 2', value: 99 } },
+      { kind: 'description', keys: ['add'], description: 'Increment' },
+      { kind: 'label', keys: ['set'], choice: 1, label: 'two' },
+      { kind: 'hide', address: { keys: ['more'] } },
+    ];
+    const asked: Question[] = [];
+    decide = question => {
+      asked.push(question);
+      return { pick: 'Set it to › two' };
+    };
+
+    const result = await runTask(
+      { decisionModel: model() },
+      'test',
+      async () => ({
+        context: { goal: 'the counter is 2', value: counter.value },
+        ops: {
+          add: op('Add one', () => counter.value++),
+          set: op('Set it to', {
+            choices: ['1', '2', '3'],
+            invoke: choice => {
+              counter.value = Number(choice);
+            },
+          }),
+          more: group('More', { reset: op('Reset', () => {}) }),
+        },
+      }),
+      { isGoalAchieved: () => counter.value === 2 },
+      () => hooks({ beforePick: async () => ({ maxOptions: 26, edits }) }),
+    );
+
+    expect(asked[0]?.state).toEqual({ goal: 'the counter is 2', value: 99 });
+    expect(Object.values(asked[0]?.criteria ?? {})).toEqual([
+      'Increment',
+      'Set it to › 1',
+      'Set it to › two',
+      'Set it to › 3',
+    ]);
+    expect(counter.value).toBe(2);
+    expect(result).toMatchObject({ status: 'achieved', steps: ['set("2")'] });
+    expect(events.find(e => e.type === 'pick.started')).toMatchObject({ edits });
+    expect(events.find(e => e.type === 'round.picked')).toMatchObject({
+      step: 'set("2")',
+      address: { keys: ['set'], choice: 1 },
+    });
+  });
+
+  it('keys the stall rule on the observed context and the step as written, never an edit', async () => {
+    const { hooks } = collect();
+    let picks = 0;
+    decide = ({ criteria }) => ({ pick: Object.values(criteria)[0] ?? '' });
+
+    const result = await runTask(
+      { decisionModel: model() },
+      'test',
+      async () => ({
+        context: { goal: 'never' },
+        ops: { wait: op('Wait', () => {}), other: op('Other', () => {}) },
+      }),
+      { isGoalAchieved: () => false },
+      () =>
+        hooks({
+          beforePick: async () => {
+            picks += 1;
+            return {
+              maxOptions: 26,
+              edits: [
+                { kind: 'context', context: { goal: 'never', pick: picks } },
+                { kind: 'description', keys: ['wait'], description: `Wait ${picks}` },
+              ],
+            };
+          },
+        }),
+    );
+
+    expect(result).toMatchObject({ status: 'halted', reason: 'stalled', steps: ['wait', 'wait'] });
+  });
+
+  it('records a pick with no edits as an empty list', async () => {
+    const { events, hooks } = collect();
+    decide = () => ({ pick: 'Goal achieved: done' });
+
+    await runTask(
+      { decisionModel: model() },
+      'test',
+      async () => ({ context: { goal: 'done' }, ops: { a: op('A', () => {}) } }),
+      {},
+      () => hooks(),
+    );
+
+    expect(events.find(e => e.type === 'pick.started')).toMatchObject({ edits: [] });
   });
 });
 

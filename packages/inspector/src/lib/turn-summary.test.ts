@@ -51,6 +51,7 @@ describe('summarizeOptions', () => {
 const baseTurn = (overrides: Partial<Turn> = {}): Turn => ({
   turn: 2,
   request: { state: { goal: 'g' }, questions: { next: { instructions: '', criteria: {} } } },
+  edits: [],
   optionInfo: { next: { o1: bundle, o2: bundle } },
   retries: [],
   outcome: { status: 'asked' },
@@ -73,6 +74,7 @@ describe('turnSummary', () => {
 
   it('reads a turn with no move question as the goal alone', () => {
     const turn = baseTurn({
+      edits: [],
       optionInfo: {},
       request: {
         state: { goal: 'g' },

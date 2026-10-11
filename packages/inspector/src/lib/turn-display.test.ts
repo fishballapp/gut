@@ -13,6 +13,7 @@ import {
 const baseTurn = (overrides: Partial<Turn> = {}): Turn => ({
   turn: 1,
   request: { state: { goal: 'g' }, questions: {} },
+  edits: [],
   optionInfo: {},
   retries: [],
   outcome: { status: 'asked' },
@@ -164,6 +165,7 @@ describe('optionRowsOf', () => {
   const pick = { instructions: 'Pick', criteria: { a: 'first', b: 'second' } };
   const turn = baseTurn({
     request: { state: { goal: 'g' }, questions: { pick } },
+    edits: [],
     optionInfo: { pick: { b: { kind: 'group', address: { keys: ['g'] }, moves: 2 } } },
     outcome: {
       status: 'answered',

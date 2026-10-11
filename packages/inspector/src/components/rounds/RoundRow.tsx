@@ -1,6 +1,7 @@
 import { Tooltip } from '@base-ui/react/tooltip';
 import type { Ref } from 'react';
 import { type CurrentState, isAwaitingYou } from '../../lib/current-turn.ts';
+import { roundEdits } from '../../lib/edit-draft.ts';
 import {
   type PickedOp,
   type RoundHeadline,
@@ -101,6 +102,9 @@ export const RoundRow = ({
           <MainLine headline={headline} />
         </span>
         <span className="col-start-3 row-start-2 flex items-center gap-1.5 font-mono text-xs text-muted tabular-nums">
+          {roundEdits(round).length > 0 && (
+            <span className="font-sans text-[11px] text-muted">edited</span>
+          )}
           {current !== undefined && <CurrentMarker isAwaitingYou={isAwaitingYou(current)} />}
           {roundProbability(round)}
         </span>

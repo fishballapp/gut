@@ -31,14 +31,18 @@ export const useAction = (act: (action: Action) => Promise<ActOutcome>) => {
     errorTimer.current = setTimeout(() => setError(undefined), ERROR_MS);
   };
 
-  const send = async (action: Action) => {
-    if (isInFlight) return;
+  /** Sends an action; resolves to whether the CLI took it. */
+  const send = async (action: Action): Promise<boolean> => {
+    if (isInFlight) return false;
     isInFlight = true;
     try {
       const outcome = await act(action);
-      if (!outcome.ok) showError(actionErrorMessage(outcome));
+      if (outcome.ok) return true;
+      showError(actionErrorMessage(outcome));
+      return false;
     } catch {
       showError("Can't reach gut");
+      return false;
     } finally {
       isInFlight = false;
     }

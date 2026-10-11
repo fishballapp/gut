@@ -1,6 +1,7 @@
 // What the page knows: a pure function of the ordered event stream the CLI serves. Every run, round
 // and turn is kept, answered or not, so any of them can be opened during or after the run.
 import type {
+  Edit,
   InspectorEvent,
   Mode,
   ModelInfo,
@@ -21,6 +22,8 @@ export type TaskResult = EventOf<'run.ended'>['result'];
 /** A turn of the round's current pick: a re-pick drops the turns of the pick it abandons. */
 export type Turn = {
   turn: number;
+  /** The edits the pick this turn belongs to was made with; none for a pick as the task wrote it. */
+  edits: readonly Edit[];
   /** The state and questions exactly as sent. */
   request: EventOf<'turn.asked'>['request'];
   /** By question key, then criterion key: what each option is. */
@@ -44,6 +47,8 @@ export type PickedStep = {
 
 export type Pick = {
   maxOptions: number;
+  /** What the developer changed of what the model read, for this pick. */
+  edits: readonly Edit[];
   /** Set when a re-pick abandoned it: what it spent, and the step it had picked if it got that far. */
   abandoned?: Usage;
   picked?: PickedStep;
@@ -188,7 +193,7 @@ const reduceRun = (state: InspectorState, event: RunEvent): InspectorState => {
       return updateRun(state, event.runId, run =>
         updateRound(run, event.round, round => ({
           ...round,
-          picks: [...round.picks, { maxOptions: event.maxOptions }],
+          picks: [...round.picks, { maxOptions: event.maxOptions, edits: event.edits }],
         })),
       );
     case 'pick.abandoned':
@@ -211,6 +216,7 @@ const reduceRun = (state: InspectorState, event: RunEvent): InspectorState => {
             ...round.turns,
             {
               turn: event.turn,
+              edits: round.picks.at(-1)?.edits ?? [],
               request: event.request,
               optionInfo: event.optionInfo,
               retries: [],

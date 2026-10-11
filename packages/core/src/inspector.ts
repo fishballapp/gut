@@ -8,6 +8,8 @@ import {
   type DecisionRequest,
 } from './decision-model.ts';
 import {
+  type Edit,
+  EditSchema,
   type OpAddress,
   type OpChoiceNode,
   type OpTreeNode,
@@ -21,13 +23,14 @@ export { answersFromYou } from './turns.ts';
 export type {
   DecisionModel,
   DecisionRequest,
+  Edit,
   OpAddress,
   OpChoiceNode,
   OpTreeNode,
   OptionInfo,
   RunEvent,
 };
-export { DecisionModelSchema, PROTOCOL, RunEventSchema };
+export { DecisionModelSchema, EditSchema, PROTOCOL, RunEventSchema };
 
 /** Symbol the CLI sets on `globalThis` before importing a task; `initGut` reads it once. */
 export const INSPECTOR_KEY = Symbol.for('gut.run.inspector');
@@ -67,7 +70,10 @@ export type RunHooks = {
   /** Synchronous, never awaited. */
   onEvent: (event: RunEvent) => void;
   answer: (turn: { round: number; turn: number; request: DecisionRequest }) => Promise<TurnAnswer>;
-  beforePick: (round: { round: number }) => Promise<{ maxOptions: number }>;
+  /** This pick's question size, and what the developer changed of what the model reads (none if absent). */
+  beforePick: (round: {
+    round: number;
+  }) => Promise<{ maxOptions: number; edits?: readonly Edit[] }>;
   beforeInvoke: (step: { round: number; step: string }) => Promise<'invoke' | 'repick'>;
 };
 
@@ -163,8 +169,16 @@ export const ActionSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('askModel'), decision: z.string() }),
   z.object({ type: z.literal('run'), decision: z.string() }),
-  /** Drop this round's pick and ask its turns afresh. */
-  z.object({ type: z.literal('repick'), decision: z.string() }),
+  /**
+   * Drop this round's pick and ask its turns afresh. With `edits`, the round's picks read them from
+   * now on (an empty list drops them); without, the round keeps the edits it has. A round's edits end
+   * with it.
+   */
+  z.object({
+    type: z.literal('repick'),
+    decision: z.string(),
+    edits: z.array(EditSchema).optional(),
+  }),
   /** A model for runs that have none; its key stays in the CLI's memory. */
   z.object({
     type: z.literal('setModel'),

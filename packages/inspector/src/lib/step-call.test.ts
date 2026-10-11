@@ -33,7 +33,7 @@ const round = (overrides: Partial<Round> = {}): Round => ({
   round: 4,
   context: { goal: 'g' },
   ops,
-  picks: [{ maxOptions: 9 }],
+  picks: [{ maxOptions: 9, edits: [] }],
   turns: [],
   ...overrides,
 });

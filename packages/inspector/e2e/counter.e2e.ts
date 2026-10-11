@@ -130,3 +130,70 @@ test('moving the options slider in Step re-picks the waiting question at the new
   await expect(slider).toHaveAttribute('aria-valuenow', '2');
   await expect(question.getByRole('radio')).toHaveCount(2);
 });
+
+test('edits what the model reads in Step: the edited text is asked again, and the round reads as edited', async ({
+  page,
+}) => {
+  if (inspectorUrl === undefined) throw new Error('the inspector did not start');
+  const question = page.getByRole('radiogroup', { name: 'What should happen next?' });
+  const slider = page.getByRole('slider', { name: 'Options' });
+
+  // Each slider move re-picks the question, and the count of its options says the re-pick landed:
+  // at the top, "Add one" is a move, not a bundle. Waiting on the count keeps E from reaching an
+  // older question, which a re-pick would then drop with its draft.
+  await page.goto(inspectorUrl);
+  await slider.focus();
+  await page.keyboard.press('Home');
+  await expect(question.getByRole('radio')).toHaveCount(2);
+  await page.keyboard.press('End');
+  await expect(slider).toHaveAttribute('aria-valuenow', '255');
+  await expect(question.getByRole('radio')).toHaveCount(14);
+  // A fresh page, so no control keeps focus and the page takes E.
+  await page.goto(inspectorUrl);
+  await expect(question.getByRole('radio')).toHaveCount(14);
+
+  await test.step('E opens the edits on the waiting pick, and a changed text is counted', async () => {
+    await page.keyboard.press('e');
+    await page.getByRole('textbox', { name: 'Description of add' }).fill('Add one more');
+    await expect(page.getByText('1 change', { exact: true })).toBeVisible();
+  });
+
+  await test.step('Pick again with edits asks the question again with the edited text', async () => {
+    await page.getByRole('button', { name: /^Pick again with edits/ }).click();
+    await expect(question.getByRole('radio', { name: /Add one more/ })).toBeVisible();
+    await expect(page.getByText(/with edits/)).toBeVisible();
+  });
+
+  await test.step('answer it and Confirm, then the round reads as edited, with its copy-back', async () => {
+    await question.getByRole('radio', { name: /Add one more/ }).click();
+    await page.getByRole('button', { name: /^Answer/ }).click();
+    await page.getByRole('button', { name: /^Confirm/ }).click();
+    await page.getByRole('button', { name: 'round 1', exact: true }).click();
+    await expect(
+      page.getByRole('navigation', { name: 'Rounds' }).getByText('edited'),
+    ).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Copy into your task' })).toContainText(
+      'add: "Add one" → "Add one more"',
+    );
+  });
+});
+
+test('a slider move re-picks the question, and keeps the edits being made', async ({ page }) => {
+  if (inspectorUrl === undefined) throw new Error('the inspector did not start');
+  await page.goto(inspectorUrl);
+  const question = page.getByRole('radiogroup', { name: 'What should happen next?' });
+  const slider = page.getByRole('slider', { name: 'Options' });
+  const description = page.getByRole('textbox', { name: /^Description of add$/ });
+  await expect(question).toBeVisible();
+
+  await page.keyboard.press('e');
+  await description.fill('Add a lot');
+  await expect(page.getByText('1 change', { exact: true })).toBeVisible();
+
+  await slider.focus();
+  await page.keyboard.press('Home');
+  await expect(slider).toHaveAttribute('aria-valuenow', '2');
+  await expect(question.getByRole('radio')).toHaveCount(2);
+  await expect(description).toHaveValue('Add a lot');
+  await expect(page.getByText('1 change', { exact: true })).toBeVisible();
+});

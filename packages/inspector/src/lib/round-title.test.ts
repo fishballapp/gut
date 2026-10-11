@@ -43,7 +43,7 @@ const round = (overrides: Partial<Round> = {}): Round => ({
   round: 1,
   context: { goal: 'g' },
   ops,
-  picks: [{ maxOptions: 26 }],
+  picks: [{ maxOptions: 26, edits: [] }],
   turns: [],
   ...overrides,
 });
@@ -144,6 +144,7 @@ describe('roundProbability', () => {
     const yours: Turn = {
       turn: 1,
       request: { state: { goal: 'g' }, questions: {} },
+      edits: [],
       optionInfo: {},
       retries: [],
       outcome: { status: 'answered', by: { kind: 'you' }, answers: {}, inputTokens: 0, ms: 1 },

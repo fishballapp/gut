@@ -5,6 +5,7 @@ import { formatBudgetLabel, runBudget } from './run-budget.ts';
 const turn = (outcome: Turn['outcome']): Turn => ({
   turn: 1,
   request: { state: { goal: 'g' }, questions: {} },
+  edits: [],
   optionInfo: {},
   retries: [],
   outcome,

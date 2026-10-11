@@ -35,6 +35,7 @@ export const TurnHeader = ({
   return (
     <p className="font-mono text-xs whitespace-nowrap text-muted">
       round {round.round} · turn {turn.turn}
+      {turn.edits.length > 0 && <span className="text-muted"> · with edits</span>}
       {isAwaitingYou && <span className="text-you"> · waiting for you</span>}
     </p>
   );

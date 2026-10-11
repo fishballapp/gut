@@ -106,6 +106,7 @@ describe('roundSummaryLine', () => {
         {
           turn: 1,
           request: { state: { goal: 'g' }, questions: {} },
+          edits: [],
           optionInfo: {},
           retries: [],
           outcome: { status: 'answered', by: { kind: 'you' }, answers: {}, inputTokens: 0, ms: 1 },
@@ -134,6 +135,7 @@ describe('abandonedPickedSteps', () => {
       picks: [
         {
           maxOptions: 26,
+          edits: [],
           abandoned: { inputTokens: 10, requests: 1 },
           picked: {
             step: 'add',
@@ -143,8 +145,8 @@ describe('abandonedPickedSteps', () => {
             ms: 1,
           },
         },
-        { maxOptions: 26, abandoned: { inputTokens: 0, requests: 0 } },
-        { maxOptions: 26 },
+        { maxOptions: 26, edits: [], abandoned: { inputTokens: 0, requests: 0 } },
+        { maxOptions: 26, edits: [] },
       ],
     };
     expect(abandonedPickedSteps(round)).toEqual(['add']);

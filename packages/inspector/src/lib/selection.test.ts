@@ -12,10 +12,11 @@ const round = (n: number, turns: number[]): Round => ({
   round: n,
   context: { goal: 'g' },
   ops: [],
-  picks: [{ maxOptions: 26 }],
+  picks: [{ maxOptions: 26, edits: [] }],
   turns: turns.map(turn => ({
     turn,
     request: { state: { goal: 'g' }, questions: {} },
+    edits: [],
     optionInfo: {},
     retries: [],
     outcome: { status: 'asked' },

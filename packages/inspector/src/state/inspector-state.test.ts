@@ -1,5 +1,6 @@
 import { initGut, op } from '@gut.run/core';
 import {
+  type Edit,
   INSPECTOR_KEY,
   type InspectorEvent,
   type InspectorGlobal,
@@ -9,7 +10,7 @@ import {
 } from '@gut.run/core/inspector';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { initialState, reduce } from './inspector-state.ts';
+import { type InspectorState, initialState, reduce } from './inspector-state.ts';
 
 const RequestSchema = z.object({ questions: z.record(z.string(), z.unknown()) });
 
@@ -48,7 +49,7 @@ const record = async (
     attach: (): RunHooks => ({
       onEvent: event => events.push(event),
       answer: async ({ round, turn }) => answerFor(turn, round),
-      beforePick: async () => ({ maxOptions: 26 }),
+      beforePick: async () => ({ maxOptions: 26, edits: [] }),
       beforeInvoke,
     }),
   };
@@ -93,6 +94,7 @@ describe('reduce', () => {
     expect(run?.rounds[0]?.turns).toEqual([
       expect.objectContaining({
         turn: 1,
+        edits: [],
         optionInfo: {
           next: {
             o1: { kind: 'move', address: { keys: ['add'] } },
@@ -122,8 +124,8 @@ describe('reduce', () => {
     });
     const firstRound = events.reduce(reduce, initialState).runs[0]?.rounds[0];
     expect(firstRound?.picks).toEqual([
-      { maxOptions: 26, abandoned: { inputTokens: 0, requests: 0 } },
-      { maxOptions: 26 },
+      { maxOptions: 26, edits: [], abandoned: { inputTokens: 0, requests: 0 } },
+      { maxOptions: 26, edits: [] },
     ]);
     // The pick after a re-pick starts again at turn 1.
     expect(firstRound?.turns.map(turn => [turn.turn, turn.outcome.status])).toEqual([
@@ -149,6 +151,37 @@ describe('reduce', () => {
     expect(firstRound?.picks[1]?.picked).toBeUndefined();
     expect(firstRound?.picked).toMatchObject({ step: 'add' });
     expect(firstRound?.turns.map(turn => turn.turn)).toEqual([1]);
+  });
+
+  it('keeps the edits a pick was made with, and marks the turns asked under them', () => {
+    const edits: Edit[] = [{ kind: 'description', keys: ['add'], description: 'Add two' }];
+    const state = [
+      {
+        type: 'run.started',
+        runId: 'r1',
+        name: 'counter',
+        model: null,
+        inputTokenBudget: 1000,
+        isGoalCheckedInCode: false,
+      },
+      { type: 'round.observed', runId: 'r1', round: 1, context: { goal: 'done' }, ops: [] },
+      { type: 'pick.started', runId: 'r1', round: 1, maxOptions: 26, edits: [] },
+      { type: 'pick.started', runId: 'r1', round: 1, maxOptions: 26, edits },
+      {
+        type: 'turn.asked',
+        runId: 'r1',
+        round: 1,
+        turn: 1,
+        request: { state: { goal: 'done' }, questions: {} },
+        optionInfo: {},
+      },
+    ].reduce<InspectorState>(
+      (current, event) => reduce(current, event as InspectorEvent),
+      initialState,
+    );
+    const [round] = state.runs[0]?.rounds ?? [];
+    expect(round?.picks.map(pick => pick.edits)).toEqual([[], edits]);
+    expect(round?.turns[0]?.edits).toEqual(edits);
   });
 
   it('reads nothing after a session that speaks another protocol', () => {

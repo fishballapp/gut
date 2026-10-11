@@ -1,6 +1,7 @@
 // Events emitted during a gut run, observed by stderr and any attached inspector.
 import { z } from 'zod';
 import { isOp, type Ops } from './ops.ts';
+import type { Json } from './task.ts';
 
 /**
  * Protocol version for the inspector event schema. Bump this whenever a change would break older
@@ -14,7 +15,7 @@ export const OpAddressSchema = z.object({
 });
 export type OpAddress = z.infer<typeof OpAddressSchema>;
 
-const JsonSchema: z.ZodType<unknown> = z.lazy(() =>
+const JsonSchema: z.ZodType<Json> = z.lazy(() =>
   z.union([
     z.string(),
     z.number(),
@@ -28,6 +29,32 @@ const JsonSchema: z.ZodType<unknown> = z.lazy(() =>
 // ponytail: a context holding NaN or Infinity (a number, but not JSON) fails this schema, and so
 // does an `inputTokenBudget` of Infinity. No task does either; the CLI's validation names the event.
 const ContextSchema = z.object({ goal: z.string() }).catchall(JsonSchema);
+
+/**
+ * A change to what the model reads in one pick, made from the inspector: the context replaced whole,
+ * an op's or group's description, a choice's label, or a move left out (an op, a group, or one
+ * choice). Addressed as `round.observed`'s op tree is. What runs never changes: an edited label
+ * still invokes its own choice, and nothing can be added.
+ */
+export const EditSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('context'), context: ContextSchema }),
+  z.object({
+    kind: z.literal('description'),
+    keys: z.array(z.string()).min(1),
+    description: z.string(),
+  }),
+  z.object({
+    kind: z.literal('label'),
+    keys: z.array(z.string()).min(1),
+    choice: z.number().int().nonnegative(),
+    label: z.string(),
+  }),
+  z.object({
+    kind: z.literal('hide'),
+    address: OpAddressSchema.extend({ keys: z.array(z.string()).min(1) }),
+  }),
+]);
+export type Edit = z.infer<typeof EditSchema>;
 
 const UsageSchema = z.object({
   inputTokens: z.number().int().nonnegative(),
@@ -231,6 +258,8 @@ export const RunEventSchema = z.discriminatedUnion('type', [
     runId: z.string(),
     round: z.number().int().positive(),
     maxOptions: z.number().int().positive(),
+    /** What the developer changed for this pick; none for a pick as the task wrote it. */
+    edits: z.array(EditSchema),
   }),
   z.object({
     type: z.literal('turn.asked'),

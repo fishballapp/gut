@@ -42,7 +42,8 @@ while you choose, an option's radio keeps the letter, digit and ↵ keys.
 | Space | Play, or Pause: the model answers every turn until you pause |
 | S | Step: asks the model the waiting turn, or runs the picked step |
 | T | Restart: stops the task and runs it again in a fresh child process; the record starts afresh |
-| R | Pick again: re-picks a step that is waiting to run |
+| E | Edit what the model reads on the waiting pick: descriptions, labels, hidden moves, the context. Pick again (R) then re-picks with the edits |
+| R | Pick again: re-picks a step that is waiting to run; with edits open, re-picks with them |
 | ↵ | Answer the waiting turn once every question has a choice; run the picked step |
 | G / N | While you choose: "achieved" or "not yet" on the goal question |
 | 1 to 9 | While you choose: one of the first nine options a question shows |

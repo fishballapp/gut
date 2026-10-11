@@ -7,15 +7,18 @@ import {
   type DecisionModel,
   DecisionModelSchema,
   type DecisionRequest,
+  type Edit,
   effectiveMaxOptions,
   type InspectorEvent,
   type Mode,
   type ModelInfo,
+  type OpTreeNode,
   PROTOCOL,
   type RunHooks,
   type TurnAnswer,
 } from '@gut.run/core/inspector';
 import { z } from 'zod';
+import { editProblem } from './edits.ts';
 
 type Resolution =
   | { by: 'you'; answers: Readonly<Record<string, string>> }
@@ -24,7 +27,7 @@ type Resolution =
   | { by: 'repick' };
 
 /** A turn keeps its request, to check a person's answers before core sees them. */
-type Pending = { runId: string; resolve: (resolution: Resolution) => void } & (
+type Pending = { runId: string; round: number; resolve: (resolution: Resolution) => void } & (
   | { on: 'turn'; request: DecisionRequest }
   | { on: 'step' }
 );
@@ -77,6 +80,10 @@ export const createSession = ({
   let pageModel: DecisionModel | null = null;
   /** Each run's own model, from its `run.started`. */
   const runModels = new Map<string, ModelInfo | null>();
+  /** Each run's latest observed op tree, which the developer's edits are checked against. */
+  const observed = new Map<string, { round: number; ops: OpTreeNode[] }>();
+  /** The edits a run's round is picked with: a re-pick gives them, and they end with the round. */
+  const held = new Map<string, { round: number; edits: Edit[] }>();
   /** The question size the developer chose; null until they choose one. */
   let chosenMaxOptions: number | null = null;
   /** Runs whose pick in flight starts over at its next turn or step, after a size change in Step. */
@@ -111,6 +118,18 @@ export const createSession = ({
   const maxOptionsFor = (runId: string) =>
     effectiveMaxOptions({ chosen: chosenMaxOptions, modelMax: modelMaxOptionsFor(runId) });
 
+  /** The op tree a round was observed with; none for another round. */
+  const opsOf = (runId: string, round: number): OpTreeNode[] => {
+    const entry = observed.get(runId);
+    return entry?.round === round ? entry.ops : [];
+  };
+
+  /** The edits a round is picked with: those a re-pick gave it, none for another round. */
+  const editsOf = (runId: string, round: number): Edit[] => {
+    const entry = held.get(runId);
+    return entry?.round === round ? entry.edits : [];
+  };
+
   /** The run's own model when it has one, else the page's. */
   const modelAnswer = (runId: string): TurnAnswer =>
     runModels.get(runId) === null && pageModel !== null
@@ -133,8 +152,8 @@ export const createSession = ({
       pending.set(
         id,
         on.kind === 'turn'
-          ? { runId, on: 'turn', request: on.request, resolve: settle }
-          : { runId, on: 'step', resolve: settle },
+          ? { runId, round, on: 'turn', request: on.request, resolve: settle }
+          : { runId, round, on: 'step', resolve: settle },
       );
       emit({
         type: 'decision.pending',
@@ -152,6 +171,9 @@ export const createSession = ({
       onEvent: event => {
         if (!isLatest()) return;
         if (event.type === 'run.started') runModels.set(runId, event.model);
+        if (event.type === 'round.observed') {
+          observed.set(runId, { round: event.round, ops: event.ops });
+        }
         emit(event);
       },
       answer: async ({ round, turn, request }) => {
@@ -164,11 +186,11 @@ export const createSession = ({
         if (resolution.by === 'repick') return { repick: true };
         return modelAnswer(runId);
       },
-      beforePick: async () => {
+      beforePick: async ({ round }) => {
         if (!isLatest()) return stalled();
         // A pick starting now takes the size as it is, so a re-pick held for the last one is moot.
         heldRepicks.delete(runId);
-        return { maxOptions: maxOptionsFor(runId) };
+        return { maxOptions: maxOptionsFor(runId), edits: editsOf(runId, round) };
       },
       beforeInvoke: async ({ round, step }) => {
         if (!isLatest()) return stalled();
@@ -208,6 +230,8 @@ export const createSession = ({
     generation += 1;
     pending.clear();
     runModels.clear();
+    observed.clear();
+    held.clear();
     heldRepicks.clear();
     return generation;
   };
@@ -306,6 +330,11 @@ export const createSession = ({
       case 'repick': {
         const decision = decisionFor(action.decision);
         if ('error' in decision) return decision;
+        if (action.edits !== undefined) {
+          const problem = editProblem(opsOf(decision.runId, decision.round), action.edits);
+          if (problem !== undefined) return { status: 400, error: problem };
+          held.set(decision.runId, { round: decision.round, edits: action.edits });
+        }
         decision.resolve({ by: 'repick' });
         return { status: 204 };
       }

@@ -1,7 +1,8 @@
 // Each round: observe, let the decision model pick a move, invoke it.
 import type { Merge } from 'type-fest';
 import type { LoadedConfig } from './config.ts';
-import { type RunEvent, toOpTree } from './events.ts';
+import { editContext } from './edits.ts';
+import { type Edit, type RunEvent, toOpTree } from './events.ts';
 import type { InspectorGlobal, RunHooks } from './inspector.ts';
 import type { Ops } from './ops.ts';
 import { pick, type Step } from './pick.ts';
@@ -102,14 +103,21 @@ export const runTask = async (
   const runId = crypto.randomUUID();
   const hooks: RunHooks | undefined = attach?.({ runId });
 
-  // Each pick's question size: the inspector's choice, else the model's own limit.
-  const maxOptionsFor = ((): ((round: number) => Promise<number>) => {
-    if (hooks !== undefined) return async round => (await hooks.beforePick({ round })).maxOptions;
+  // Each pick's question size and edits: the inspector's, else the model's own limit and none.
+  const pickSettingsFor = ((): ((
+    round: number,
+  ) => Promise<{ maxOptions: number; edits: readonly Edit[] }>) => {
+    if (hooks !== undefined) {
+      return async round => {
+        const { maxOptions, edits = [] } = await hooks.beforePick({ round });
+        return { maxOptions, edits };
+      };
+    }
     if (config.decisionModel === null) {
       throw new Error('no decision model: pass a config, or attach an inspector');
     }
     const { maxOptions } = config.decisionModel.capabilities.choiceQuestions;
-    return async () => maxOptions;
+    return async () => ({ maxOptions, edits: [] });
   })();
 
   const emit = (event: RunEvent) => {
@@ -196,16 +204,18 @@ export const runTask = async (
       };
 
       for (;;) {
-        const maxOptions = await maxOptionsFor(roundNumber);
-        emit({ type: 'pick.started', runId, round: roundNumber, maxOptions });
+        const { maxOptions, edits } = await pickSettingsFor(roundNumber);
+        emit({ type: 'pick.started', runId, round: roundNumber, maxOptions, edits: [...edits] });
 
+        // Edits change what the model reads; the stall rule below keys on the context as observed.
         const picked = await pick({
           asker: turnAnswerer.forPick(roundNumber),
-          context,
+          context: editContext(context, edits),
           ops,
           usage: usageSoFar,
           isGoalAsked: isGoalAchieved === undefined,
           maxOptions,
+          edits,
         });
 
         if (picked.status === 'repick') {

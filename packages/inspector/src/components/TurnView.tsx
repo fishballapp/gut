@@ -22,11 +22,13 @@ export const TurnView = ({
   state,
   selected,
   status,
+  isEditing,
   act,
 }: {
   state: InspectorState;
   selected: Selected;
   status: ConnectionStatus;
+  isEditing: boolean;
   act: (action: Action) => Promise<ActOutcome>;
 }) => {
   const { run, round, turn } = selected;
@@ -58,6 +60,7 @@ export const TurnView = ({
               round={round}
               turn={turn}
               stepWaiting={stepWaiting}
+              isEditing={isEditing}
               act={act}
             />
           ) : (
@@ -67,6 +70,7 @@ export const TurnView = ({
                 round={round.round}
                 decision={stepWaiting}
                 pickedCall={stepCall(round, round.picked)}
+                isEditing={isEditing}
                 act={act}
               />
             )
@@ -87,6 +91,7 @@ const SelectedTurn = ({
   round,
   turn,
   stepWaiting,
+  isEditing,
   act,
 }: {
   state: InspectorState;
@@ -94,6 +99,7 @@ const SelectedTurn = ({
   round: Round;
   turn: Turn;
   stepWaiting: Decision | undefined;
+  isEditing: boolean;
   act: (action: Action) => Promise<ActOutcome>;
 }) => {
   // Unset until you choose: the turn's default, which follows the model's answer when it comes.
@@ -154,7 +160,7 @@ const SelectedTurn = ({
       />
 
       {stepWaiting !== undefined && isLastTurn && (
-        <StepActions round={round.round} decision={stepWaiting} act={act} />
+        <StepActions round={round.round} decision={stepWaiting} isEditing={isEditing} act={act} />
       )}
     </>
   );

@@ -9,7 +9,8 @@ import {
   type Question,
   RequestTooLargeError,
 } from './decision-model.ts';
-import type { OpAddress, OptionInfo, OptionInfoByQuestion } from './events.ts';
+import { editTrees } from './edits.ts';
+import type { Edit, OpAddress, OptionInfo, OptionInfoByQuestion } from './events.ts';
 import { knockoutInPagesOf, ListStrategy, type Questions } from './list-strategy.ts';
 import { isOp, type Ops } from './ops.ts';
 import type { Context, Usage } from './task.ts';
@@ -18,7 +19,7 @@ import { keepLeaves, mapLeaves, pruneTree, type Tree } from './tree.ts';
 /** An executable move, named by its key path, e.g. `openLink("Rome")`, and where it is in the ops. */
 export type Step = { name: string; address: OpAddress; invoke: () => unknown };
 
-type StepTree = Tree<
+export type StepTree = Tree<
   { description: string; step: Step },
   { description: string; address: OpAddress; strategy?: ListStrategy; isGroup?: true }
 >;
@@ -447,6 +448,7 @@ export const pick = async ({
   usage,
   isGoalAsked,
   maxOptions,
+  edits = [],
 }: {
   asker: Asker;
   context: Context;
@@ -454,6 +456,8 @@ export const pick = async ({
   usage: Usage;
   isGoalAsked: boolean;
   maxOptions: number;
+  /** What the developer changed of the ops' text, or hid; `context` already carries a context edit. */
+  edits?: readonly Edit[];
 }): Promise<
   Merge<
     | { status: 'picked'; step: Step; probabilities: number[] }
@@ -464,7 +468,7 @@ export const pick = async ({
     { usage: Usage }
   >
 > => {
-  const trees = toStepTrees(ops);
+  const trees = editTrees(toStepTrees(ops), edits);
   const session = createPickSession({ asker, context, usage, isGoalAsked });
   try {
     // A page with nothing left to do may be the finish line, so the goal is asked before halting.

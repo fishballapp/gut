@@ -397,7 +397,9 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
 ends. Every round and every turn is there, with the text the model read and the probability it gave
 each option. Use it to answer "why did it pick that?", or to be the decider yourself. The options slider in
 the run header sets how many options a question offers: in Step, moving it re-picks the waiting question
-at the new size, capped by the model's limit.
+at the new size, capped by the model's limit. In Step, E edits what the model reads for the waiting
+pick (descriptions, labels, hidden moves, the context), and Pick again re-picks with the edits; the
+round is marked edited, and its panel copies the changes into your task.
 
 ```sh
 gut run /path/to/task.gut.ts --inspect
