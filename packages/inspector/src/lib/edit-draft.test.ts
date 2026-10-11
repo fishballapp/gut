@@ -113,6 +113,7 @@ describe('saving edits', () => {
     context,
     ops,
     picks: [{ maxOptions: 26, edits }],
+    dropped: { inputTokens: 0, requests: 0 },
     turns: [],
     ...overrides,
   });

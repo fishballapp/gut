@@ -18,6 +18,7 @@ const baseRun = (overrides: Partial<Run> = {}): Run => ({
       context: { goal: 'The counter is 3' },
       ops: [],
       picks: [],
+      dropped: { inputTokens: 0, requests: 0 },
       turns: [],
     },
   ],

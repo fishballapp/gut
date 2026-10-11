@@ -24,6 +24,7 @@ const round = (turns: Turn[] = []): Round => ({
   context: { goal: 'g' },
   ops: [],
   picks: [],
+  dropped: { inputTokens: 0, requests: 0 },
   turns,
 });
 

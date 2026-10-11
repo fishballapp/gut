@@ -20,16 +20,23 @@ import {
 import { z } from 'zod';
 import { editProblem } from './edits.ts';
 
-/** How a decision ends; on a turn under review, `model` keeps the model's answer. */
+/**
+ * How a decision ends. On a turn under review, `model` keeps the model's answer and `reopen` drops
+ * it; `repick` picks the round again from `fromTurn`.
+ */
 type Resolution =
   | { by: 'you'; answers: Readonly<Record<string, string>> }
   | { by: 'model' }
   | { by: 'run' }
-  | { by: 'repick' };
+  | { by: 'reopen' }
+  | { by: 'repick'; fromTurn: number };
+
+/** The whole pick again: what a size change, or edits, start. */
+const REPICK_ALL = { by: 'repick', fromTurn: 1 } as const;
 
 /**
  * A turn keeps its request, to check a person's answers before core sees them, and whether it is
- * under review: the model has answered it, and the developer keeps or replaces that answer.
+ * under review: the model has answered it, and the developer keeps or drops that answer.
  */
 type Pending = { runId: string; round: number; resolve: (resolution: Resolution) => void } & (
   | { on: 'turn'; request: DecisionRequest; isReview: boolean }
@@ -198,7 +205,7 @@ export const createSession = ({
         if (!isLatest()) return stalled();
         decided.delete(runId);
         if (mode === 'play' && hasModel(runId)) return modelAnswer(runId);
-        if (heldRepicks.delete(runId)) return { repick: true };
+        if (heldRepicks.delete(runId)) return { repickFrom: 1 };
         const resolution = await waitFor(runId, round, {
           kind: 'turn',
           turn,
@@ -210,14 +217,14 @@ export const createSession = ({
           decided.add(runId);
           return { by: 'you', answers: resolution.answers };
         }
-        if (resolution.by === 'repick') return { repick: true };
+        if (resolution.by === 'repick') return { repickFrom: resolution.fromTurn };
         // Asked in Step, the model's answer waits for the developer; Play takes it as it comes.
         return { ...modelAnswer(runId), shouldReview: mode === 'step' };
       },
       review: async ({ round, turn, request }) => {
         if (!isLatest()) return stalled();
         if (mode === 'play') return { by: 'model' };
-        if (heldRepicks.delete(runId)) return { repick: true };
+        if (heldRepicks.delete(runId)) return { repickFrom: 1 };
         const resolution = await waitFor(runId, round, {
           kind: 'turn',
           turn,
@@ -225,11 +232,11 @@ export const createSession = ({
           isReview: true,
         });
         if (!isLatest()) return stalled();
-        if (resolution.by === 'repick') return { repick: true };
+        if (resolution.by === 'repick') return { repickFrom: resolution.fromTurn };
+        if (resolution.by === 'reopen') return { reopen: true };
         // Settled by the developer, not by Play taking every answer as it comes: a Pause before the
         // step still stops there.
         if (mode === 'step') decided.add(runId);
-        if (resolution.by === 'you') return { by: 'you', answers: resolution.answers };
         return { by: 'model' };
       },
       beforePick: async ({ round }) => {
@@ -242,11 +249,11 @@ export const createSession = ({
       beforeInvoke: async ({ round, step }) => {
         if (!isLatest()) return stalled();
         if (mode === 'play' && hasModel(runId)) return 'invoke';
-        if (heldRepicks.delete(runId)) return 'repick';
+        if (heldRepicks.delete(runId)) return { repickFrom: 1 };
         if (decided.has(runId)) return 'invoke';
         const resolution = await waitFor(runId, round, { kind: 'step', step });
         if (!isLatest()) return stalled();
-        return resolution.by === 'repick' ? 'repick' : 'invoke';
+        return resolution.by === 'repick' ? { repickFrom: resolution.fromTurn } : 'invoke';
       },
     };
   };
@@ -335,7 +342,7 @@ export const createSession = ({
         if (mode === 'play') return { status: 204 };
         // In Step a pick waiting on a person starts over now; one in flight starts over at its next turn or step.
         for (const runId of runModels.keys()) heldRepicks.add(runId);
-        for (const decision of [...pending.values()]) decision.resolve({ by: 'repick' });
+        for (const decision of [...pending.values()]) decision.resolve(REPICK_ALL);
         return { status: 204 };
       }
       case 'pause': {
@@ -351,6 +358,12 @@ export const createSession = ({
         const decision = decisionFor(action.decision);
         if ('error' in decision) return decision;
         if (decision.on !== 'turn') return notA(action.decision, 'turn');
+        if (decision.isReview) {
+          return {
+            status: 400,
+            error: `the model has answered ${action.decision}: confirm it, or reopen it first`,
+          };
+        }
         const checked = answersFromYou(decision.request, action.answers);
         if (typeof checked === 'string') return { status: 400, error: checked };
         decision.resolve({ by: 'you', answers: action.answers });
@@ -369,7 +382,7 @@ export const createSession = ({
         const isTooBig = Object.values(decision.request.questions).some(
           question => Object.keys(question.criteria).length > maxOptionsFor(decision.runId),
         );
-        decision.resolve(isTooBig ? { by: 'repick' } : { by: 'model' });
+        decision.resolve(isTooBig ? REPICK_ALL : { by: 'model' });
         return { status: 204 };
       }
       case 'confirm': {
@@ -379,6 +392,15 @@ export const createSession = ({
           return { status: 400, error: `${action.decision} is not a model's answer to confirm` };
         }
         decision.resolve({ by: 'model' });
+        return { status: 204 };
+      }
+      case 'reopen': {
+        const decision = decisionFor(action.decision);
+        if ('error' in decision) return decision;
+        if (decision.on !== 'turn' || !decision.isReview) {
+          return { status: 400, error: `${action.decision} is not a model's answer to reopen` };
+        }
+        decision.resolve({ by: 'reopen' });
         return { status: 204 };
       }
       case 'run': {
@@ -391,12 +413,16 @@ export const createSession = ({
       case 'repick': {
         const decision = decisionFor(action.decision);
         if ('error' in decision) return decision;
+        const fromTurn = action.fromTurn ?? 1;
         if (action.edits !== undefined) {
+          if (fromTurn !== 1) {
+            return { status: 400, error: 'edits pick the round again from turn 1' };
+          }
           const problem = editProblem(opsOf(decision.runId, decision.round), action.edits);
           if (problem !== undefined) return { status: 400, error: problem };
           held.set(decision.runId, { round: decision.round, edits: action.edits });
         }
-        decision.resolve({ by: 'repick' });
+        decision.resolve({ by: 'repick', fromTurn });
         return { status: 204 };
       }
       case 'setModel': {

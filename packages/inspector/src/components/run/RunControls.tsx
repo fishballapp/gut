@@ -23,6 +23,10 @@ export const controlClass = (isPrimary: boolean, isDisabled: boolean) =>
     !isDisabled && !isPrimary && 'border-line bg-raised text-ink hover:border-ink/40',
   );
 
+/** A control a step larger, for the actions on a turn and in dialogs. */
+export const actionClass = (isPrimary: boolean, isDisabled = false) =>
+  cn(controlClass(isPrimary, isDisabled), 'h-8 px-3 text-[13px]');
+
 /** Focusable even when disabled, so a tooltip reason can open on focus. */
 const ControlButton = ({
   reason,

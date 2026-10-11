@@ -19,7 +19,7 @@ export type Usage = { inputTokens: number; requests: number };
 
 export type TaskResult = EventOf<'run.ended'>['result'];
 
-/** A turn of the round's current pick: a re-pick drops the turns of the pick it abandons. */
+/** A turn of the round's current pick: a re-pick drops the turns from where it starts. */
 export type Turn = {
   turn: number;
   /** The edits the pick this turn belongs to was made with; none for a pick as the task wrote it. */
@@ -29,7 +29,7 @@ export type Turn = {
   /** By question key, then criterion key: what each option is. */
   optionInfo: Record<string, Record<string, OptionInfo>>;
   retries: Omit<EventOf<'turn.retrying'>, 'type' | 'runId' | 'round' | 'turn'>[];
-  /** The model's answer, held for you to keep or replace; kept once you have replaced it. */
+  /** The model's answer, held for you to keep or drop; kept with the answer once you keep it. */
   suggestion?: Omit<EventOf<'turn.suggested'>, 'type' | 'runId' | 'round' | 'turn'>;
   outcome:
     | { status: 'asked' }
@@ -51,9 +51,6 @@ export type Pick = {
   maxOptions: number;
   /** What the developer changed of what the model read, for this pick. */
   edits: readonly Edit[];
-  /** Set when a re-pick abandoned it: what it spent, and the step it had picked if it got that far. */
-  abandoned?: Usage;
-  picked?: PickedStep;
 };
 
 export type Round = {
@@ -63,7 +60,9 @@ export type Round = {
   goalChecked?: { achieved: boolean; ms: number };
   picks: Pick[];
   turns: Turn[];
-  /** The current pick's step; a re-pick moves it to the abandoned pick. */
+  /** What the model was asked for answers no longer in the record: dropped in review, or by a re-pick. */
+  dropped: Usage;
+  /** The current pick's step; a re-pick drops it. */
   picked?: PickedStep;
   invoked?: { step: string; ms: number; error?: string };
 };
@@ -121,6 +120,30 @@ const updateRound = (run: Run, round: number, update: (round: Round) => Round): 
 const updateTurn = (round: Round, turn: number, update: (turn: Turn) => Turn): Round => ({
   ...round,
   turns: round.turns.map(entry => (entry.turn === turn ? update(entry) : entry)),
+});
+
+const NOTHING: Usage = { inputTokens: 0, requests: 0 };
+
+const addUsage = (a: Usage, b: Usage): Usage => ({
+  inputTokens: a.inputTokens + b.inputTokens,
+  requests: a.requests + b.requests,
+});
+
+/** What the model was asked for a turn's answer: the one it suggested, else the one it gave. */
+export const turnSpend = (turn: Turn): Usage => {
+  const asked =
+    turn.suggestion ??
+    (turn.outcome.status === 'answered' && turn.outcome.by.kind === 'model'
+      ? turn.outcome
+      : undefined);
+  return asked === undefined ? NOTHING : { inputTokens: asked.inputTokens, requests: 1 };
+};
+
+/** Drops the turns `isDropped` names, keeping what the model was asked for them. */
+const dropTurns = (round: Round, isDropped: (turn: Turn) => boolean): Round => ({
+  ...round,
+  turns: round.turns.filter(turn => !isDropped(turn)),
+  dropped: round.turns.filter(isDropped).map(turnSpend).reduce(addUsage, round.dropped),
 });
 
 const reduceSession = (state: InspectorState, event: SessionEvent): InspectorState => {
@@ -181,7 +204,14 @@ const reduceRun = (state: InspectorState, event: RunEvent): InspectorState => {
         ...run,
         rounds: [
           ...run.rounds,
-          { round: event.round, context: event.context, ops: event.ops, picks: [], turns: [] },
+          {
+            round: event.round,
+            context: event.context,
+            ops: event.ops,
+            picks: [],
+            turns: [],
+            dropped: NOTHING,
+          },
         ],
       }));
     case 'round.goalChecked':
@@ -198,17 +228,12 @@ const reduceRun = (state: InspectorState, event: RunEvent): InspectorState => {
           picks: [...round.picks, { maxOptions: event.maxOptions, edits: event.edits }],
         })),
       );
+    // The turns before `fromTurn` stay: the next pick answers them as they were.
     case 'pick.abandoned':
       return updateRun(state, event.runId, run =>
-        updateRound(run, event.round, ({ picked, ...round }) => ({
-          ...round,
-          turns: [],
-          picks: round.picks.map((pick, i) =>
-            i === round.picks.length - 1
-              ? { ...pick, abandoned: event.usage, ...(picked === undefined ? {} : { picked }) }
-              : pick,
-          ),
-        })),
+        updateRound(run, event.round, ({ picked: _, ...round }) =>
+          dropTurns(round, turn => turn.turn >= event.fromTurn),
+        ),
       );
     case 'turn.asked':
       return updateRun(state, event.runId, run =>
@@ -253,6 +278,18 @@ const reduceRun = (state: InspectorState, event: RunEvent): InspectorState => {
           })),
         ),
       );
+    case 'turn.reopened':
+      return updateRun(state, event.runId, run =>
+        updateRound(run, event.round, round => {
+          const turn = round.turns.find(entry => entry.turn === event.turn);
+          const spent = turn === undefined ? NOTHING : turnSpend(turn);
+          return updateTurn(
+            { ...round, dropped: addUsage(round.dropped, spent) },
+            event.turn,
+            ({ suggestion: _, ...turn }) => turn,
+          );
+        }),
+      );
     case 'turn.answered':
       return updateRun(state, event.runId, run =>
         updateRound(run, event.round, round =>
@@ -282,10 +319,9 @@ const reduceRun = (state: InspectorState, event: RunEvent): InspectorState => {
       // A re-pick's turns leave the record with the pick it abandons.
       if (reason === 'repick') {
         return updateRun(state, event.runId, run =>
-          updateRound(run, event.round, round => ({
-            ...round,
-            turns: round.turns.filter(turn => turn.turn !== event.turn),
-          })),
+          updateRound(run, event.round, round =>
+            dropTurns(round, turn => turn.turn === event.turn),
+          ),
         );
       }
       return updateRun(state, event.runId, run =>

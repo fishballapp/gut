@@ -180,22 +180,10 @@ describe("the model's suggestion", () => {
     ms: 900,
   };
 
-  it('shows its probabilities while it waits, and once you replaced it', () => {
+  it('shows its probabilities while it waits', () => {
     const held = baseTurn({ suggestion });
     expect(optionProbability(held, 'next', 'b')).toBe(0.3);
-    const replaced = baseTurn({
-      suggestion,
-      outcome: {
-        status: 'answered',
-        by: { kind: 'you' },
-        answers: { next: { choice: 'b', probabilities: { b: 1 } } },
-        inputTokens: 1200,
-        ms: 4000,
-      },
-    });
-    expect(optionProbability(replaced, 'next', 'a')).toBe(0.7);
-    expect(defaultSortFor(replaced)).toBe('by-probability');
-    expect(turnStatusLabel(replaced)).toBe('answered by you · 1,200 tokens · 4.0s');
+    expect(defaultSortFor(held)).toBe('by-probability');
   });
 
   it('says who suggested it while it waits', () => {

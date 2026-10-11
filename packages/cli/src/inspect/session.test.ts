@@ -185,7 +185,7 @@ describe('createSession', () => {
       model: { endpoint: jev.endpoint, name: 'tiny', maxOptions: 2 },
     });
     await session.act({ type: 'askModel', decision: pendingId() });
-    await expect(answer).resolves.toEqual({ repick: true });
+    await expect(answer).resolves.toEqual({ repickFrom: 1 });
     await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 2, edits: [] });
   });
 
@@ -241,17 +241,33 @@ describe('createSession', () => {
     await expect(hooks.beforeInvoke({ round: 1, step: 'a' })).resolves.toBe('invoke');
   });
 
-  it("replaces the model's answer with yours, checked like any answer", async () => {
-    const { session, hooks, pendingId } = setup();
+  it('reopens a turn under review, which then waits for an answer, and takes no answer of yours', async () => {
+    const { events, session, hooks, pendingId } = setup();
     hooks.onEvent(started(jev));
     const review = hooks.review({ round: 1, turn: 1, request, choices: { next: 'o1' } });
-    const bad = { achieved: 'notYet', next: 'o9' };
-    expect(
-      await session.act({ type: 'answer', decision: pendingId(), answers: bad }),
-    ).toMatchObject({ status: 400 });
     const answers = { achieved: 'notYet', next: 'o2' };
-    await session.act({ type: 'answer', decision: pendingId(), answers });
-    await expect(review).resolves.toEqual({ by: 'you', answers });
+    expect(await session.act({ type: 'answer', decision: pendingId(), answers })).toMatchObject({
+      status: 400,
+    });
+    expect(await session.act({ type: 'reopen', decision: pendingId() })).toEqual({ status: 204 });
+    await expect(review).resolves.toEqual({ reopen: true });
+    expect(events.at(-1)).toMatchObject({ type: 'decision.resolved', by: 'reopen' });
+
+    void hooks.answer({ round: 1, turn: 1, request });
+    expect(await session.act({ type: 'reopen', decision: pendingId() })).toMatchObject({
+      status: 400,
+    });
+  });
+
+  it('picks again from a turn, and only from turn 1 with edits', async () => {
+    const { session, hooks, pendingId } = setup();
+    hooks.onEvent(started(jev));
+    const step = hooks.beforeInvoke({ round: 1, step: 'a' });
+    expect(
+      await session.act({ type: 'repick', decision: pendingId(), fromTurn: 2, edits: [] }),
+    ).toMatchObject({ status: 400 });
+    await session.act({ type: 'repick', decision: pendingId(), fromTurn: 2 });
+    await expect(step).resolves.toEqual({ repickFrom: 2 });
   });
 
   it('confirms only a turn under review', async () => {
@@ -311,7 +327,7 @@ describe('createSession', () => {
     await expect(first).resolves.toBe('invoke');
     const second = hooks.beforeInvoke({ round: 2, step: 'b' });
     await session.act({ type: 'repick', decision: pendingId() });
-    await expect(second).resolves.toBe('repick');
+    await expect(second).resolves.toEqual({ repickFrom: 1 });
   });
 
   it("sizes questions by the run's model, else the page's, else for a person", async () => {
@@ -358,7 +374,7 @@ describe('createSession', () => {
     hooks.onEvent(started(null));
     const answer = hooks.answer({ round: 1, turn: 1, request });
     await session.act({ type: 'setMaxOptions', maxOptions: 2 });
-    await expect(answer).resolves.toEqual({ repick: true });
+    await expect(answer).resolves.toEqual({ repickFrom: 1 });
     await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 2, edits: [] });
 
     const step = hooks.beforeInvoke({ round: 1, step: 'a' });
@@ -366,7 +382,7 @@ describe('createSession', () => {
     expect(await session.act({ type: 'run', decision: pendingId() })).toMatchObject({
       status: 409,
     });
-    await expect(step).resolves.toBe('repick');
+    await expect(step).resolves.toEqual({ repickFrom: 1 });
   });
 
   it('in Step, a size change while a pick is in flight re-picks it at its next turn', async () => {
@@ -375,7 +391,7 @@ describe('createSession', () => {
     await hooks.beforePick({ round: 1 });
     await session.act({ type: 'setMaxOptions', maxOptions: 9 });
     expect(events.some(event => event.type === 'decision.pending')).toBe(false);
-    await expect(hooks.answer({ round: 1, turn: 2, request })).resolves.toEqual({ repick: true });
+    await expect(hooks.answer({ round: 1, turn: 2, request })).resolves.toEqual({ repickFrom: 1 });
   });
 
   it('in Step, a size change while a pick is in flight re-picks it at its next step', async () => {
@@ -383,7 +399,7 @@ describe('createSession', () => {
     hooks.onEvent(started(null));
     await hooks.beforePick({ round: 1 });
     await session.act({ type: 'setMaxOptions', maxOptions: 9 });
-    await expect(hooks.beforeInvoke({ round: 1, step: 'a' })).resolves.toBe('repick');
+    await expect(hooks.beforeInvoke({ round: 1, step: 'a' })).resolves.toEqual({ repickFrom: 1 });
   });
 
   it('a held re-pick is moot once the next pick starts, which takes the size as it is', async () => {
@@ -627,7 +643,7 @@ describe('createSession', () => {
       expect(
         await session.act({ type: 'repick', decision: pendingId(), edits: [relabel] }),
       ).toEqual({ status: 204 });
-      await expect(waiting).resolves.toEqual({ repick: true });
+      await expect(waiting).resolves.toEqual({ repickFrom: 1 });
       await expect(hooks.beforePick({ round: 1 })).resolves.toEqual(
         expect.objectContaining({ edits: [relabel] }),
       );
@@ -642,7 +658,7 @@ describe('createSession', () => {
       await waiting;
       const again = hooks.answer({ round: 1, turn: 1, request });
       await session.act({ type: 'repick', decision: pendingId() });
-      await expect(again).resolves.toEqual({ repick: true });
+      await expect(again).resolves.toEqual({ repickFrom: 1 });
       await expect(hooks.beforePick({ round: 1 })).resolves.toEqual(
         expect.objectContaining({ edits: [relabel] }),
       );

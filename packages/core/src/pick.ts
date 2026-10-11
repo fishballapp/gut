@@ -223,18 +223,15 @@ const nextQuestion = (
 });
 
 /**
- * Who answers each turn of a pick: the model, a person, a re-pick, or the budget. A re-pick may come
- * after the model answered, so it says what the turn spent too.
+ * How each turn of a pick ends: answered (by the model, a person, or as before), failed (a refused
+ * request among them, which the pick splits), a re-pick, or the budget. Each says what the model
+ * was asked for it, answers dropped on the way included.
  */
 export type TurnReply =
-  | {
-      kind: 'answered';
-      answers: Record<string, Answer>;
-      inputTokens: number;
-      isModel: boolean;
-    }
-  | { kind: 'repick'; inputTokens: number; isModel: boolean }
-  | { kind: 'budget' };
+  | { kind: 'answered'; answers: Record<string, Answer>; spent: Usage }
+  | { kind: 'failed'; error: unknown; spent: Usage }
+  | { kind: 'repick'; fromTurn: number; spent: Usage }
+  | { kind: 'budget'; spent: Usage };
 
 /** What every request in a run shares. */
 export type Asker = {
@@ -248,7 +245,7 @@ export type Asker = {
 type Ending =
   | { status: 'achieved' }
   | { status: 'halted'; reason: 'budget' }
-  | { status: 'repick' };
+  | { status: 'repick'; fromTurn: number };
 
 /** Ends a pick from whichever request finds the goal met or the budget spent. */
 class PickEnded extends Error {
@@ -321,12 +318,15 @@ const createPickSession = ({
       },
     };
     const reply = await asker.answer(request, usage, optionInfo);
-    if (reply.kind === 'budget') throw new PickEnded({ status: 'halted', reason: 'budget' });
     usage = {
-      inputTokens: usage.inputTokens + reply.inputTokens,
-      requests: usage.requests + (reply.isModel ? 1 : 0),
+      inputTokens: usage.inputTokens + reply.spent.inputTokens,
+      requests: usage.requests + reply.spent.requests,
     };
-    if (reply.kind === 'repick') throw new PickEnded({ status: 'repick' });
+    if (reply.kind === 'failed') throw reply.error;
+    if (reply.kind === 'budget') throw new PickEnded({ status: 'halted', reason: 'budget' });
+    if (reply.kind === 'repick') {
+      throw new PickEnded({ status: 'repick', fromTurn: reply.fromTurn });
+    }
     if (isGoalPending) settleGoal(reply.answers.achieved);
     return reply.answers;
   };
@@ -466,7 +466,7 @@ export const pick = async ({
     | { status: 'picked'; step: Step; probabilities: number[] }
     | { status: 'achieved'; probabilities: number[] }
     | { status: 'halted'; reason: 'noOptions' | 'budget' }
-    | { status: 'repick' }
+    | { status: 'repick'; fromTurn: number }
     | { status: 'failed'; error: unknown },
     { usage: Usage }
   >

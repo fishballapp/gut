@@ -167,3 +167,48 @@ test('edits what the model reads in Step: the edited text is asked again, and th
     );
   });
 });
+
+test('picks a round again from an earlier turn: the turns before it stay, it and the rest are asked again', async ({
+  page,
+}) => {
+  if (inspectorUrl === undefined) throw new Error('the inspector did not start');
+  await page.goto(inspectorUrl);
+  // An action waits for the one before it, so each is sent only once the last has landed.
+  const sendBy = async (press: () => Promise<void>) => {
+    const sent = page.waitForResponse(response => response.url().endsWith('/api/actions'));
+    await press();
+    await sent;
+  };
+  await sendBy(() => page.getByRole('button', { name: 'Restart' }).click());
+  const slider = page.getByRole('slider', { name: 'Options' });
+  const turnButton = (turn: number) =>
+    page.getByRole('button', { name: new RegExp(`^round 1, turn ${turn}:`) });
+
+  await test.step('at 4 options, More moves is a group: three turns reach a number', async () => {
+    const question = page.getByRole('radiogroup', { name: 'What should happen next?' });
+    await expect(question).toBeVisible();
+    await slider.focus();
+    await sendBy(() => page.keyboard.press('Home'));
+    await sendBy(() => page.keyboard.press('ArrowRight'));
+    await sendBy(() => page.keyboard.press('ArrowRight'));
+    await expect(slider).toHaveAttribute('aria-valuenow', '4');
+    await expect(question.getByRole('radio')).toHaveCount(3);
+    await page.getByRole('radio', { name: 'More moves' }).click();
+    await page.getByRole('button', { name: /^Answer/ }).click();
+    await page.getByRole('radio', { name: 'Set it to' }).click();
+    await page.getByRole('button', { name: /^Answer/ }).click();
+    await expect(turnButton(3)).toBeVisible();
+  });
+
+  await test.step('turn 2 picks again after asking, and turn 3 is cleared', async () => {
+    await turnButton(2).click();
+    await page.getByRole('button', { name: 'Pick again', exact: true }).click();
+    const dialog = page.getByRole('alertdialog', { name: 'Pick again from turn 2?' });
+    await expect(dialog).toContainText('Turns 2 and 3 are cleared');
+    await dialog.getByRole('button', { name: 'Pick again' }).click();
+    await expect(turnButton(3)).toHaveCount(0);
+    await expect(turnButton(1)).toHaveAccessibleName(/answered by you/);
+    await expect(page.getByText(/turn 2 · waiting for you/)).toBeVisible();
+    await expect(page.getByRole('radio', { name: 'Set it to' })).toBeEnabled();
+  });
+});

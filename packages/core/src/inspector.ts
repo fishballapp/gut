@@ -57,6 +57,12 @@ export const effectiveMaxOptions = ({
 };
 
 /**
+ * Asks the round's pick again from `fromTurn`: the turns before it keep their answers, and it and
+ * every turn after it are asked afresh. From turn 1 is the whole pick again.
+ */
+export type Repick = { repickFrom: number };
+
+/**
  * Who answers one turn: the model (the run's, or one supplied here), the developer with answers
  * keyed by question → criterion, or a re-pick of this round.
  */
@@ -64,13 +70,13 @@ export type TurnAnswer =
   /** With `shouldReview`, the model's answer waits on `review` before it counts. */
   | { by: 'model'; model?: DecisionModel; shouldReview?: boolean }
   | { by: 'you'; answers: Readonly<Record<string, string>> }
-  | { repick: true };
+  | Repick;
 
-/** What the developer makes of the model's answer: keep it, answer the turn otherwise, or re-pick. */
-export type TurnReview =
-  | { by: 'model' }
-  | { by: 'you'; answers: Readonly<Record<string, string>> }
-  | { repick: true };
+/**
+ * What the developer makes of the model's answer: keep it, drop it and answer the turn again (`answer`
+ * is asked again), or re-pick.
+ */
+export type TurnReview = { by: 'model' } | { reopen: true } | Repick;
 
 /** Hooks an inspector returns for one run. Tagged values only; never throw across this boundary. */
 export type RunHooks = {
@@ -88,7 +94,7 @@ export type RunHooks = {
   beforePick: (round: {
     round: number;
   }) => Promise<{ maxOptions: number; edits?: readonly Edit[] }>;
-  beforeInvoke: (step: { round: number; step: string }) => Promise<'invoke' | 'repick'>;
+  beforeInvoke: (step: { round: number; step: string }) => Promise<'invoke' | Repick>;
 };
 
 /** What `globalThis[INSPECTOR_KEY]` holds when an inspector is attached. */
@@ -138,7 +144,7 @@ export const SessionEventSchema = z.discriminatedUnion('type', [
     round: z.number().int().positive(),
     /**
      * A turn waiting for answers (`isReview`: the model has answered it, and waits for you to keep
-     * or replace that answer), or a picked step waiting to run.
+     * that answer or drop it), or a picked step waiting to run.
      */
     on: z.discriminatedUnion('kind', [
       z.object({
@@ -152,7 +158,7 @@ export const SessionEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('decision.resolved'),
     id: z.string(),
-    by: z.enum(['you', 'model', 'run', 'repick']),
+    by: z.enum(['you', 'model', 'run', 'reopen', 'repick']),
   }),
   /** The task's top-level code finished, or threw; the record stays until the CLI exits. */
   z.object({ type: z.literal('session.ended'), error: z.string().optional() }),
@@ -182,7 +188,7 @@ export const ActionSchema = z.discriminatedUnion('type', [
    * and the model set in the page stay.
    */
   z.object({ type: z.literal('restart') }),
-  /** Answer a waiting turn yourself, or replace the model's answer to it: question key → criterion key. */
+  /** Answer a waiting turn yourself: question key → criterion key. */
   z.object({
     type: z.literal('answer'),
     decision: z.string(),
@@ -191,15 +197,19 @@ export const ActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('askModel'), decision: z.string() }),
   /** Keep the model's answer to a turn waiting on your review. */
   z.object({ type: z.literal('confirm'), decision: z.string() }),
+  /** Drop the model's answer to a turn waiting on your review: the turn waits for an answer again. */
+  z.object({ type: z.literal('reopen'), decision: z.string() }),
   z.object({ type: z.literal('run'), decision: z.string() }),
   /**
-   * Drop this round's pick and ask its turns afresh. With `edits`, the round's picks read them from
-   * now on (an empty list drops them); without, the round keeps the edits it has. A round's edits end
-   * with it.
+   * Pick this round again from `fromTurn` (1 when absent): the turns before it keep their answers,
+   * and it and every turn after it are asked afresh. With `edits`, the round's picks read them from
+   * now on (an empty list drops them), and the pick starts from turn 1; without, the round keeps the
+   * edits it has. A round's edits end with it.
    */
   z.object({
     type: z.literal('repick'),
     decision: z.string(),
+    fromTurn: z.number().int().positive().optional(),
     edits: z.array(EditSchema).optional(),
   }),
   /** A model for runs that have none; its key stays in the CLI's memory. */

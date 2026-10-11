@@ -3,7 +3,7 @@ import { cn } from '@fishballapps/cn';
 import { motion, useReducedMotion } from 'motion/react';
 import { formatProbability } from '../../lib/format.ts';
 import { REORDER_SECONDS, staggerSeconds } from '../../lib/option-motion.ts';
-import { isPickingPhase, type OptionsPhase } from '../../lib/turn-display.ts';
+import type { OptionsPhase } from '../../lib/turn-display.ts';
 import { Keycap } from '../run/Keycap.tsx';
 
 /** Split so only the first line of a chosen option gets the highlight mark. */
@@ -38,7 +38,7 @@ export const OptionRow = ({
   /** Position in the list as shown, so the bars grow with a light stagger. */
   index: number;
   phase: OptionsPhase;
-  /** The option the turn settled on (read) or the one you picked (choose). */
+  /** The option the turn settled on (read), the model's answer (review), or the one you picked (choose). */
   isChosen: boolean;
   isAnsweredByYou: boolean;
   probability: number;
@@ -47,7 +47,7 @@ export const OptionRow = ({
   const reduceMotion = useReducedMotion() === true;
   const { first, rest } = splitFirstLine(text);
   const isRecorded = phase === 'read' && isChosen;
-  const isChoosing = isPickingPhase(phase);
+  const isChoosing = phase === 'choose';
   const barScale = showsProbability ? Math.min(probability, 1) : 0;
   const barTransition = reduceMotion
     ? { duration: 0 }
@@ -66,8 +66,8 @@ export const OptionRow = ({
         value={optionKey}
         className={cn(
           'grid w-full grid-cols-[1rem_3rem_minmax(0,1fr)_3.5rem] items-center gap-x-3 rounded-md border border-transparent px-2.5 py-1.5 text-left outline-none',
-          isChoosing &&
-            'hover:bg-raised focus-visible:outline-2 focus-visible:outline-ink data-[checked]:border-ink',
+          isChoosing && 'hover:bg-raised focus-visible:outline-2 focus-visible:outline-ink',
+          (isChoosing || phase === 'review') && 'data-[checked]:border-ink',
           !isChoosing && 'data-[disabled]:cursor-default',
         )}
       >

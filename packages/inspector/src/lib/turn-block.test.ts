@@ -85,6 +85,18 @@ describe('blockLook', () => {
     });
   });
 
+  it("fills a turn waiting on your review to the model's probability, and empties it once dropped", () => {
+    const suggestion = {
+      by: { kind: 'model' as const, name: 'clef', endpoint: 'http://x' },
+      answers: { next: { choice: 'o2', probabilities: { o2: 0.64 } } },
+      inputTokens: 100,
+      ms: 1,
+    };
+    const waiting = { ...turn(1, { status: 'asked' }), suggestion };
+    expect(blockLook(waiting)).toEqual({ kind: 'suggested', probability: 0.64 });
+    expect(blockLook(turn(1, { status: 'asked' }))).toEqual({ kind: 'unanswered' });
+  });
+
   it('shows an unanswered turn as empty, whoever it waits on', () => {
     expect(blockLook(turn(1, { status: 'asked' }))).toEqual({ kind: 'unanswered' });
   });
@@ -134,7 +146,14 @@ describe('isRoundWaiting', () => {
 
 describe('adjacentRound', () => {
   const rounds = [1, 2, 3].map(
-    (round): Round => ({ round, context: { goal: 'g' }, ops: [], picks: [], turns: [] }),
+    (round): Round => ({
+      round,
+      context: { goal: 'g' },
+      ops: [],
+      picks: [],
+      dropped: { inputTokens: 0, requests: 0 },
+      turns: [],
+    }),
   );
 
   it('steps to the neighbouring round', () => {
@@ -160,10 +179,25 @@ describe('adjacentStop', () => {
       context: { goal: 'g' },
       ops: [],
       picks: [],
+      dropped: { inputTokens: 0, requests: 0 },
       turns: [answered, { ...answered, turn: 2 }],
     },
-    { round: 2, context: { goal: 'g' }, ops: [], picks: [], turns: [] },
-    { round: 3, context: { goal: 'g' }, ops: [], picks: [], turns: [answered] },
+    {
+      round: 2,
+      context: { goal: 'g' },
+      ops: [],
+      picks: [],
+      dropped: { inputTokens: 0, requests: 0 },
+      turns: [],
+    },
+    {
+      round: 3,
+      context: { goal: 'g' },
+      ops: [],
+      picks: [],
+      dropped: { inputTokens: 0, requests: 0 },
+      turns: [answered],
+    },
   ];
 
   it('steps through the turns in order, across rounds', () => {

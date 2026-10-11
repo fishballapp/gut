@@ -8,6 +8,8 @@ type Answers = Extract<Turn['outcome'], { status: 'answered' }>['answers'];
 
 export type BlockLook =
   | { kind: 'model'; probability: number }
+  /** The model's answer, waiting for you to keep or drop it. */
+  | { kind: 'suggested'; probability: number }
   | { kind: 'you' }
   | { kind: 'dropped' }
   | { kind: 'failed' }
@@ -35,7 +37,9 @@ export const blockLook = (turn: Turn): BlockLook => {
       if (outcome.by.kind === 'you') return { kind: 'you' };
       return { kind: 'model', probability: chosenProbability(outcome.answers) };
     case 'asked':
-      return { kind: 'unanswered' };
+      return turn.suggestion === undefined
+        ? { kind: 'unanswered' }
+        : { kind: 'suggested', probability: chosenProbability(turn.suggestion.answers) };
   }
 };
 
@@ -43,6 +47,8 @@ const lookPhrase = (look: BlockLook, state: CurrentState | undefined): string =>
   switch (look.kind) {
     case 'model':
       return `${formatProbability(look.probability)}, answered by the model`;
+    case 'suggested':
+      return `${formatProbability(look.probability)}, suggested by the model, waiting for you`;
     case 'you':
       return 'answered by you';
     case 'dropped':

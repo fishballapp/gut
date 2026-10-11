@@ -17,6 +17,7 @@ const baseRound = (): Round => ({
   context: { goal: 'g' },
   ops: [],
   picks: [],
+  dropped: { inputTokens: 0, requests: 0 },
   turns: [],
 });
 

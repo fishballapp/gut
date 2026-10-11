@@ -47,11 +47,7 @@ export const turnStatusLabel = (turn: Turn): string => {
       return 'dropped: the budget ran out';
     case 'answered': {
       const duration = formatDuration(outcome.ms);
-      if (outcome.by.kind === 'you') {
-        return outcome.inputTokens > 0
-          ? `answered by you · ${formatTokens(outcome.inputTokens)} tokens · ${duration}`
-          : `answered by you · ${duration}`;
-      }
+      if (outcome.by.kind === 'you') return `answered by you · ${duration}`;
       return `answered by ${outcome.by.name} · ${formatTokens(outcome.inputTokens)} tokens · ${duration}`;
     }
   }
@@ -68,10 +64,7 @@ export const isAnsweredByYou = (turn: Turn): boolean =>
 export const defaultSortFor = (turn: Turn | undefined): OptionSort =>
   turn !== undefined && showsProbabilities(turn) ? 'by-probability' : 'as-sent';
 
-/**
- * The model's answers a turn shows: the model's own answer, else the one it suggested, which waits
- * for you or which you replaced.
- */
+/** The model's answers a turn shows: the model's own answer, else the one it suggested, which waits for you. */
 export const modelAnswersOf = (turn: Turn) => {
   if (turn.outcome.status === 'answered' && turn.outcome.by.kind === 'model') {
     return turn.outcome.answers;
@@ -105,7 +98,7 @@ export const optionProbability = (
 };
 
 /**
- * Where a turn's options stand: you choose them (a decision waits), you keep or replace the model's
+ * Where a turn's options stand: you choose them (a decision waits), you keep or drop the model's
  * answer to them, the model is answering them, or they are read back as the turn settled.
  */
 export type OptionsPhase = 'choose' | 'review' | 'asking' | 'read';
@@ -117,10 +110,6 @@ export const optionsPhaseOf = (turn: Turn, decision: Decision | undefined): Opti
   if (turn.outcome.status === 'asked') return 'asking';
   return 'read';
 };
-
-/** Whether you pick this turn's options now: answering it, or keeping or replacing the model's answer. */
-export const isPickingPhase = (phase: OptionsPhase): boolean =>
-  phase === 'choose' || phase === 'review';
 
 /** One option of a question as the turn sent it, with what its row shows. */
 export type OptionRowData = {

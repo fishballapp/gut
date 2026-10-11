@@ -909,6 +909,35 @@ exports[`RunEventSchema > toJSONSchema snapshot — bump PROTOCOL if older reade
     {
       "additionalProperties": false,
       "properties": {
+        "round": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "runId": {
+          "type": "string",
+        },
+        "turn": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "type": {
+          "const": "turn.reopened",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "round",
+        "turn",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
         "answers": {
           "additionalProperties": {
             "additionalProperties": false,
@@ -1090,6 +1119,11 @@ exports[`RunEventSchema > toJSONSchema snapshot — bump PROTOCOL if older reade
     {
       "additionalProperties": false,
       "properties": {
+        "fromTurn": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
         "round": {
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991,
@@ -1127,6 +1161,7 @@ exports[`RunEventSchema > toJSONSchema snapshot — bump PROTOCOL if older reade
         "type",
         "runId",
         "round",
+        "fromTurn",
         "usage",
       ],
       "type": "object",

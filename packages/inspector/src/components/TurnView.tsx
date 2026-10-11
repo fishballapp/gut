@@ -2,13 +2,15 @@ import type { Action } from '@gut.run/core/inspector';
 import { motion } from 'motion/react';
 import { useState } from 'react';
 import type { ActOutcome, ConnectionStatus } from '../lib/connection.ts';
-import { findAwaitingTurn, findWaitingStep } from '../lib/round-rows.ts';
+import { canPickAgainFrom } from '../lib/pick-again.ts';
+import { findAwaitingTurn, findRoundDecision, findWaitingStep } from '../lib/round-rows.ts';
 import type { Selected } from '../lib/selection.ts';
 import type { OptionSort } from '../lib/sort-options.ts';
 import { stepCall } from '../lib/step-call.ts';
 import { defaultSortFor, formatRetry, optionsPhaseOf } from '../lib/turn-display.ts';
 import type { Decision, InspectorState, Round, Run, Turn } from '../state/inspector-state.ts';
 import { TurnEndings } from './endings/TurnEndings.tsx';
+import { PickAgainFromTurn } from './turn/PickAgainFromTurn.tsx';
 import { SortToggle } from './turn/SortToggle.tsx';
 import { StepActions } from './turn/StepActions.tsx';
 import { TurnHeader, TurnStatus } from './turn/TurnHeader.tsx';
@@ -16,18 +18,21 @@ import { TurnOptions } from './turn/TurnOptions.tsx';
 
 /**
  * The selected turn: what was asked and how it was answered, or what waits for an answer. A pick
- * waiting to run is confirmed or picked again under the round's last turn.
+ * waiting to run is confirmed under the round's last turn; a turn before the one the round waits on
+ * can be picked again from, after which the page follows the run again.
  */
 export const TurnView = ({
   state,
   selected,
   status,
   act,
+  follow,
 }: {
   state: InspectorState;
   selected: Selected;
   status: ConnectionStatus;
   act: (action: Action) => Promise<ActOutcome>;
+  follow: () => void;
 }) => {
   const { run, round, turn } = selected;
   const stepDecision =
@@ -59,6 +64,7 @@ export const TurnView = ({
               turn={turn}
               stepWaiting={stepWaiting}
               act={act}
+              follow={follow}
             />
           ) : (
             stepWaiting !== undefined &&
@@ -88,6 +94,7 @@ const SelectedTurn = ({
   turn,
   stepWaiting,
   act,
+  follow,
 }: {
   state: InspectorState;
   run: Run | undefined;
@@ -95,6 +102,7 @@ const SelectedTurn = ({
   turn: Turn;
   stepWaiting: Decision | undefined;
   act: (action: Action) => Promise<ActOutcome>;
+  follow: () => void;
 }) => {
   // Unset until you choose: the turn's default, which follows the model's answer when it comes.
   const [chosenSort, setChosenSort] = useState<OptionSort>();
@@ -105,16 +113,30 @@ const SelectedTurn = ({
       : undefined;
   const isAwaitingYou = awaitingDecision !== undefined;
   const isChoosing = optionsPhaseOf(turn, awaitingDecision) === 'choose';
-  const isLastTurn = round.turns.at(-1)?.turn === turn.turn;
+  const lastTurn = round.turns.at(-1)?.turn ?? turn.turn;
+  const isLastTurn = lastTurn === turn.turn;
+  const roundDecision =
+    run !== undefined ? findRoundDecision(state.pending, run.runId, round.round) : undefined;
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <TurnHeader round={round} turn={turn} isAwaitingYou={isAwaitingYou} />
         <div className="flex shrink-0 flex-col items-end gap-2">
           <TurnStatus turn={turn} />
-          {/* Reserved while you choose, so the header keeps its height as the model takes the turn. */}
-          <div className={isChoosing ? 'invisible' : undefined}>
-            <SortToggle value={sort} onChange={setChosenSort} />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {roundDecision !== undefined && canPickAgainFrom(turn.turn, roundDecision) && (
+              <PickAgainFromTurn
+                turn={turn.turn}
+                lastTurn={lastTurn}
+                decision={roundDecision}
+                act={act}
+                onPicked={follow}
+              />
+            )}
+            {/* Reserved while you choose, so the header keeps its height as the model takes the turn. */}
+            <div className={isChoosing ? 'invisible' : undefined}>
+              <SortToggle value={sort} onChange={setChosenSort} />
+            </div>
           </div>
         </div>
       </div>

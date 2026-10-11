@@ -1,7 +1,5 @@
-import { AlertDialog } from '@base-ui/react/alert-dialog';
 import { Button } from '@base-ui/react/button';
 import { Dialog } from '@base-ui/react/dialog';
-import { cn } from '@fishballapps/cn';
 import type { Action } from '@gut.run/core/inspector';
 import { XIcon } from '@phosphor-icons/react';
 import { useRef, useState } from 'react';
@@ -15,8 +13,9 @@ import {
 } from '../../lib/edit-draft.ts';
 import { useAction } from '../../lib/use-action.ts';
 import type { Decision, Round } from '../../state/inspector-state.ts';
+import { ConfirmDialog } from '../ConfirmDialog.tsx';
 import { Keycap } from '../run/Keycap.tsx';
-import { controlClass } from '../run/RunControls.tsx';
+import { actionClass } from '../run/RunControls.tsx';
 import { ContextEditor } from './ContextEditor.tsx';
 import { OpTreeEditor } from './OpTreeEditor.tsx';
 
@@ -27,9 +26,6 @@ const TITLES: Readonly<Record<EditPart, string>> = {
   ops: 'Edit the op tree',
   context: 'Edit the context',
 };
-
-const buttonClass = (isPrimary: boolean, isDisabled = false) =>
-  cn(controlClass(isPrimary, isDisabled), 'h-8 px-3 text-[13px]');
 
 /**
  * Edits one part of what the model reads in a waiting round. Save picks the round again with the
@@ -128,47 +124,27 @@ export const EditDialog = ({
                 {error}
               </p>
             )}
-            <Dialog.Close className={buttonClass(false)}>Cancel</Dialog.Close>
+            <Dialog.Close className={actionClass(false)}>Cancel</Dialog.Close>
             <Button
               type="button"
               disabled={!canSave}
               focusableWhenDisabled
               onClick={save}
-              className={buttonClass(true, !canSave)}
+              className={actionClass(true, !canSave)}
             >
               Save
               <Keycap>⌘↵</Keycap>
             </Button>
           </div>
-          <AlertDialog.Root open={isConfirming} onOpenChange={setIsConfirming}>
-            <AlertDialog.Portal>
-              <AlertDialog.Backdrop className="fixed inset-0 bg-ground/40" />
-              <AlertDialog.Popup className="fixed top-1/2 left-1/2 flex w-[min(400px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl border border-line bg-raised p-6 shadow-lg">
-                <div className="flex flex-col gap-1">
-                  <AlertDialog.Title className="text-[16px] font-semibold text-ink">
-                    Start round {round.round} again?
-                  </AlertDialog.Title>
-                  <AlertDialog.Description className="text-[13px] text-muted">
-                    Saving drops this round's answers and asks it again from turn 1, with your
-                    edits.
-                  </AlertDialog.Description>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <AlertDialog.Close className={buttonClass(false)}>Keep editing</AlertDialog.Close>
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setIsConfirming(false);
-                      void pickAgain();
-                    }}
-                    className={buttonClass(true)}
-                  >
-                    Save and start again
-                  </Button>
-                </div>
-              </AlertDialog.Popup>
-            </AlertDialog.Portal>
-          </AlertDialog.Root>
+          <ConfirmDialog
+            isOpen={isConfirming}
+            onOpenChange={setIsConfirming}
+            title={`Start round ${round.round} again?`}
+            description="Saving drops this round's answers and asks it again from turn 1, with your edits."
+            cancel="Keep editing"
+            confirm="Save and start again"
+            onConfirm={() => void pickAgain()}
+          />
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

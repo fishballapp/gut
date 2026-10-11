@@ -348,7 +348,7 @@ describe('inspector hooks via runTask', () => {
           answer: async () => {
             picks += 1;
             // Re-pick once on the first turn of round 1.
-            if (picks === 1) return { repick: true };
+            if (picks === 1) return { repickFrom: 1 };
             return { by: 'model' };
           },
         }),
@@ -608,7 +608,7 @@ describe('inspector hooks via runTask', () => {
         hooks({
           beforeInvoke: async () => {
             invokes += 1;
-            return invokes <= 3 ? 'repick' : 'invoke';
+            return invokes <= 3 ? { repickFrom: 1 } : 'invoke';
           },
         }),
     );
@@ -640,7 +640,7 @@ describe('inspector hooks via runTask', () => {
         hooks({
           beforeInvoke: async () => {
             abandons += 1;
-            return abandons <= 2 ? 'repick' : 'invoke';
+            return abandons <= 2 ? { repickFrom: 1 } : 'invoke';
           },
         }),
     );
@@ -802,7 +802,7 @@ describe('inspector hooks via runTask', () => {
         repick.hooks({
           answer: async () => {
             answered += 1;
-            return answered === 1 ? { repick: true } : { by: 'you', answers: { next: 'o1' } };
+            return answered === 1 ? { repickFrom: 1 } : { by: 'you', answers: { next: 'o1' } };
           },
         }),
     );
@@ -880,33 +880,64 @@ describe("reviewing the model's answer", () => {
     expect(ran).toEqual(['go']);
   });
 
-  it("takes your answer in place of the model's, keeping the tokens the model spent", async () => {
+  it('reopens the turn when the answer is dropped, keeping what the model spent', async () => {
     const { events, hooks } = collect();
     const ran: string[] = [];
+    const answers: TurnAnswer[] = [
+      { by: 'model', shouldReview: true },
+      { by: 'you', answers: { next: 'o2' } },
+    ];
     decide = () => ({ pick: 'Go' });
 
-    await runTask(
+    const result = await runTask(
       { decisionModel: model() },
       'test',
       async () => ({ context: { goal: 'ran' }, ops: ranOps(ran) }),
       { isGoalAchieved: () => ran.length > 0 },
       () =>
         hooks({
-          answer: async () => ({ by: 'model', shouldReview: true }),
-          review: async () => ({ by: 'you', answers: { next: 'o2' } }),
+          answer: async () => answers.shift() ?? { by: 'model' },
+          review: async () => ({ reopen: true }),
         }),
     );
 
-    expect(events.find(event => event.type === 'turn.suggested')).toMatchObject({
-      answers: { next: { choice: 'o1' } },
-    });
+    expect(turnTypes(events)).toEqual([
+      'turn.asked',
+      'turn.suggested',
+      'turn.reopened',
+      'turn.answered',
+    ]);
     expect(events.find(event => event.type === 'turn.answered')).toMatchObject({
       by: { kind: 'you' },
       answers: { next: { choice: 'o2', probabilities: { o2: 1 } } },
-      inputTokens: 100,
+      inputTokens: 0,
     });
-    expect(events.find(event => event.type === 'round.picked')).toMatchObject({ tokens: 100 });
+    expect(result.usage).toEqual({ inputTokens: 100, requests: 1 });
     expect(ran).toEqual(['other']);
+  });
+
+  it('keeps what a reopened turn spent when the turn then fails', async () => {
+    const { hooks } = collect();
+    const answers: TurnAnswer[] = [
+      { by: 'model', shouldReview: true },
+      { by: 'model', model: { ...model(), endpoint: 'not a url' } },
+    ];
+    decide = () => ({ pick: 'Go' });
+
+    const result = await runTask(
+      { decisionModel: model() },
+      'test',
+      async () => ({ context: { goal: 'ran' }, ops: ranOps([]) }),
+      { isGoalAchieved: () => false },
+      () =>
+        hooks({
+          answer: async () => answers.shift() ?? { by: 'model' },
+          review: async () => ({ reopen: true }),
+        }),
+    );
+
+    expect(result).toMatchObject({ status: 'halted', reason: 'error' });
+    expect(result.usage).toEqual({ inputTokens: 100, requests: 1 });
   });
 
   it("drops the turn on a re-pick, and the abandoned pick keeps the model's request", async () => {
@@ -925,7 +956,7 @@ describe("reviewing the model's answer", () => {
           answer: async () => ({ by: 'model', shouldReview: true }),
           review: async () => {
             reviews += 1;
-            return reviews === 1 ? { repick: true } : { by: 'model' };
+            return reviews === 1 ? { repickFrom: 1 } : { by: 'model' };
           },
         }),
     );
@@ -935,6 +966,115 @@ describe("reviewing the model's answer", () => {
       usage: { inputTokens: 100, requests: 1 },
     });
     expect(ran).toEqual(['go']);
+  });
+});
+
+describe('picking again from a turn', () => {
+  /** Two turns a pick: the op, then its letter. */
+  const letterOps = (ran: string[]) => ({
+    letter: op('Pick a letter', {
+      choices: ['a', 'b', 'c'],
+      invoke: letter => ran.push(letter),
+    }),
+    save: op('Save', () => ran.push('save')),
+  });
+
+  it('answers the turns before it as before, and asks it and the rest again', async () => {
+    const { events, hooks } = collect();
+    const ran: string[] = [];
+    const asked: number[] = [];
+    const answers: TurnAnswer[] = [
+      { by: 'you', answers: { next: 'o1' } },
+      { repickFrom: 2 },
+      { by: 'you', answers: { next: 'o3' } },
+    ];
+
+    await runTask(
+      { decisionModel: model() },
+      'test',
+      async () => ({ context: { goal: 'ran' }, ops: letterOps(ran) }),
+      { isGoalAchieved: () => ran.length > 0 },
+      () =>
+        hooks({
+          beforePick: async () => ({ maxOptions: 3 }),
+          answer: async ({ turn }) => {
+            asked.push(turn);
+            return answers.shift() ?? { by: 'model' };
+          },
+        }),
+    );
+
+    expect(asked).toEqual([1, 2, 2]);
+    expect(events.find(event => event.type === 'pick.abandoned')).toMatchObject({ fromTurn: 2 });
+    expect(ran).toEqual(['c']);
+  });
+
+  it('splits a refused question again when picking again past it', async () => {
+    const { events, hooks } = collect();
+    const ran: string[] = [];
+    const asked: number[] = [];
+    // Four options are refused, so turn 1 fails and the halves (turns 2, 3) and final (4) are asked.
+    shouldRefuse = body => {
+      const { questions } = RequestSchema.parse(JSON.parse(body));
+      return Object.keys(questions.next?.criteria ?? {}).length === 4;
+    };
+    decide = ({ criteria }) => ({ pick: Object.values(criteria)[0] ?? '' });
+    let hasPickedAgain = false;
+
+    const result = await runTask(
+      { decisionModel: model() },
+      'test',
+      async () => ({
+        context: { goal: 'ran' },
+        ops: Object.fromEntries(
+          ['A', 'B', 'C', 'D'].map(name => [name, op(name, () => ran.push(name))]),
+        ),
+      }),
+      { isGoalAchieved: () => ran.length > 0 },
+      () =>
+        hooks({
+          answer: async ({ turn }) => {
+            asked.push(turn);
+            if (turn === 4 && !hasPickedAgain) {
+              hasPickedAgain = true;
+              return { repickFrom: 3 };
+            }
+            return { by: 'model' };
+          },
+        }),
+    );
+
+    expect(result.status).toBe('achieved');
+    expect(asked).toEqual([1, 2, 3, 4, 3, 4]);
+    expect(events.find(event => event.type === 'pick.abandoned')).toMatchObject({ fromTurn: 3 });
+    expect(ran).toEqual(['A']);
+  });
+
+  it('starts from turn 1 when the next pick asks at another size', async () => {
+    const { events, hooks } = collect();
+    const ran: string[] = [];
+    const asked: number[] = [];
+    const sizes = [3, 4];
+    const answers: TurnAnswer[] = [{ by: 'you', answers: { next: 'o1' } }, { repickFrom: 2 }];
+
+    await runTask(
+      { decisionModel: model() },
+      'test',
+      async () => ({ context: { goal: 'ran' }, ops: letterOps(ran) }),
+      { isGoalAchieved: () => ran.length > 0 },
+      () =>
+        hooks({
+          beforePick: async () => ({ maxOptions: sizes.shift() ?? 4 }),
+          answer: async ({ turn }) => {
+            asked.push(turn);
+            return answers.shift() ?? { by: 'you', answers: { next: 'o3' } };
+          },
+        }),
+    );
+
+    expect(asked).toEqual([1, 2, 1]);
+    expect(events.find(event => event.type === 'pick.abandoned')).toMatchObject({ fromTurn: 1 });
+    expect(ran).toEqual(['c']);
   });
 });
 

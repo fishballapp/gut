@@ -52,7 +52,13 @@ export const App = () => {
         act={act}
       />
       <RoundRail selected={selected} select={setSelection} pending={state.pending} />
-      <TurnView state={state} selected={selected} status={status} act={act} />
+      <TurnView
+        state={state}
+        selected={selected}
+        status={status}
+        act={act}
+        follow={() => setSelectionState(FOLLOWING)}
+      />
       <RoundPanel selected={selected} decision={roundDecision} act={act} />
     </div>
   );

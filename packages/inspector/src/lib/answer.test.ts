@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  choicesOf,
   isAnswerComplete,
-  isKeepingChoices,
   keycapOf,
   keyedRows,
   listView,
@@ -116,13 +114,5 @@ describe('isAnswerComplete', () => {
   it('needs a choice for every question', () => {
     expect(isAnswerComplete(['achieved', 'next'], { achieved: 'notYet' })).toBe(false);
     expect(isAnswerComplete(['achieved', 'next'], { achieved: 'notYet', next: 'o1' })).toBe(true);
-  });
-});
-
-describe('isKeepingChoices', () => {
-  it("keeps the model's answer only while every choice is its own", () => {
-    const suggested = choicesOf({ achieved: { choice: 'notYet' }, next: { choice: 'o2' } });
-    expect(isKeepingChoices({ ...suggested }, suggested)).toBe(true);
-    expect(isKeepingChoices({ ...suggested, next: 'o1' }, suggested)).toBe(false);
   });
 });

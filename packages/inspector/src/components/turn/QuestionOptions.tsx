@@ -6,7 +6,7 @@ import { GOAL_QUESTION_KEY, keycapOf, LIST_LIMIT } from '../../lib/answer.ts';
 import { REORDER_SECONDS } from '../../lib/option-motion.ts';
 import { revealWithin } from '../../lib/reveal.ts';
 import type { OptionSort } from '../../lib/sort-options.ts';
-import { isPickingPhase, type OptionRowData, type OptionsPhase } from '../../lib/turn-display.ts';
+import type { OptionRowData, OptionsPhase } from '../../lib/turn-display.ts';
 import { OptionRow } from './OptionRow.tsx';
 
 /**
@@ -39,7 +39,7 @@ export const QuestionOptions = ({
   filterRef: Ref<HTMLInputElement>;
   onChoose: (optionKey: string) => void;
   phase: OptionsPhase;
-  /** The option you picked while choosing, or the one the turn settled on. */
+  /** The option you picked while choosing, the model's answer in review, or the one the turn settled on. */
   chosen: string | undefined;
   sort: OptionSort;
   /** Already filtered and sorted: the order the rows show in. */
@@ -51,7 +51,7 @@ export const QuestionOptions = ({
   const listRef = useRef<HTMLDivElement>(null);
   const isGoal = questionKey === GOAL_QUESTION_KEY;
   const isLong = optionCount > LIST_LIMIT;
-  const isChoosing = isPickingPhase(phase);
+  const isChoosing = phase === 'choose';
   const reduceMotion = useReducedMotion() === true;
 
   // Opening the question, or re-sorting it, brings the recorded option into view inside this list,

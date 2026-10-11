@@ -17,7 +17,16 @@ const runOf = (turns: Turn[]): Run => ({
   model: null,
   inputTokenBudget: 50_000,
   isGoalCheckedInCode: false,
-  rounds: [{ round: 1, context: { goal: 'g' }, ops: [], picks: [], turns }],
+  rounds: [
+    {
+      round: 1,
+      context: { goal: 'g' },
+      ops: [],
+      picks: [],
+      dropped: { inputTokens: 0, requests: 0 },
+      turns,
+    },
+  ],
 });
 
 describe('runBudget', () => {
@@ -53,24 +62,26 @@ describe('runBudget', () => {
     ).toEqual({ inputTokens: 1400, requests: 2, budget: 50_000 });
   });
 
-  it("counts the model's answer waiting for you or replaced by you, and abandoned picks", () => {
+  it("counts the model's answer waiting for you or kept by you, and what was dropped", () => {
     const suggestion = {
       by: { kind: 'model' as const, name: 'clef', endpoint: 'http://x' },
       answers: {},
       inputTokens: 300,
       ms: 1,
     };
-    const replaced: Turn = {
-      ...turn({ status: 'answered', by: { kind: 'you' }, answers: {}, inputTokens: 300, ms: 1 }),
+    const kept: Turn = {
+      ...turn({ status: 'answered', by: suggestion.by, answers: {}, inputTokens: 300, ms: 1 }),
       suggestion,
     };
     const waiting: Turn = { ...turn({ status: 'asked' }), turn: 2, suggestion };
-    const run = runOf([replaced, waiting]);
+    const run = runOf([kept, waiting]);
     const [round] = run.rounds;
     if (round === undefined) throw new Error('no round');
-    const abandoned = { maxOptions: 26, edits: [], abandoned: { inputTokens: 50, requests: 1 } };
-    const withAbandoned = { ...run, rounds: [{ ...round, picks: [abandoned] }] };
-    expect(runBudget(withAbandoned)).toMatchObject({ inputTokens: 650, requests: 3 });
+    const withDropped = {
+      ...run,
+      rounds: [{ ...round, dropped: { inputTokens: 50, requests: 1 } }],
+    };
+    expect(runBudget(withDropped)).toMatchObject({ inputTokens: 650, requests: 3 });
   });
 
   it('is zero before any model turn', () => {

@@ -8,9 +8,10 @@ import type { BlockLook } from '../../lib/turn-block.ts';
 const lookClass = (look: BlockLook): string => {
   switch (look.kind) {
     case 'model':
+    case 'suggested':
       return 'bg-track';
     case 'you':
-      return 'outline-[1.5px] -outline-offset-[1.5px] outline-ink';
+      return 'bg-block';
     case 'dropped':
       return 'outline outline-1 -outline-offset-px outline-dashed outline-faint';
     case 'failed':
@@ -20,10 +21,11 @@ const lookClass = (look: BlockLook): string => {
   }
 };
 
-/** The mark inside a block: a probability fill from the left, a person, or a cross. */
+/** The mark inside a block: a probability fill from the left, a person on a full fill, or a cross. */
 const lookMark = (look: BlockLook) => {
   switch (look.kind) {
     case 'model':
+    case 'suggested':
       return (
         <span
           aria-hidden
@@ -36,7 +38,7 @@ const lookMark = (look: BlockLook) => {
         <UserIcon
           aria-hidden
           size={11}
-          className="absolute top-1/2 left-1/2 -translate-1/2 text-ink"
+          className="absolute top-1/2 left-1/2 -translate-1/2 text-muted"
         />
       );
     case 'failed':

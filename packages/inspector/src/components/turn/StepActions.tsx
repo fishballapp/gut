@@ -1,5 +1,4 @@
 import { Button } from '@base-ui/react/button';
-import { cn } from '@fishballapps/cn';
 import type { Action } from '@gut.run/core/inspector';
 import { useEffect, useEffectEvent } from 'react';
 import type { ActOutcome } from '../../lib/connection.ts';
@@ -7,11 +6,11 @@ import { isPageKey } from '../../lib/key-target.ts';
 import { useAction } from '../../lib/use-action.ts';
 import type { Decision } from '../../state/inspector-state.ts';
 import { Keycap } from '../run/Keycap.tsx';
-import { controlClass } from '../run/RunControls.tsx';
+import { actionClass } from '../run/RunControls.tsx';
 
 /**
  * The picked step waiting to run, under the turn it was picked on. Confirm (↵) runs it, the same as
- * Step in the header; Pick again (R) drops the pick and asks the round's turns afresh.
+ * Step in the header; a turn of the round is picked again from its own view.
  */
 export const StepActions = ({
   round,
@@ -32,11 +31,6 @@ export const StepActions = ({
     if (event.key === 'Enter') {
       event.preventDefault();
       void send({ type: 'run', decision: decision.id });
-      return;
-    }
-    if (event.key === 'r' || event.key === 'R') {
-      event.preventDefault();
-      void send({ type: 'repick', decision: decision.id });
     }
   });
 
@@ -55,24 +49,14 @@ export const StepActions = ({
           </p>
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          onClick={() => void send({ type: 'run', decision: decision.id })}
-          className={cn(controlClass(true, false), 'h-8 px-3 text-[13px]')}
-        >
-          Confirm
-          <Keycap>↵</Keycap>
-        </Button>
-        <Button
-          type="button"
-          onClick={() => void send({ type: 'repick', decision: decision.id })}
-          className={cn(controlClass(false, false), 'h-8 px-3 text-[13px]')}
-        >
-          Pick again
-          <Keycap>R</Keycap>
-        </Button>
-      </div>
+      <Button
+        type="button"
+        onClick={() => void send({ type: 'run', decision: decision.id })}
+        className={actionClass(true)}
+      >
+        Confirm
+        <Keycap>↵</Keycap>
+      </Button>
       {error !== undefined && (
         <p role="alert" className="mt-2 text-xs text-you">
           {error}

@@ -67,9 +67,3 @@ export const choicesOf = (
   answers: Readonly<Record<string, { choice: string }>> | undefined,
 ): Record<string, string> =>
   Object.fromEntries(Object.entries(answers ?? {}).map(([key, answer]) => [key, answer.choice]));
-
-/** Whether your choices keep every one of the model's: answering with them confirms its answer. */
-export const isKeepingChoices = (
-  choices: Readonly<Record<string, string>>,
-  suggested: Readonly<Record<string, string>>,
-): boolean => Object.entries(suggested).every(([key, choice]) => choices[key] === choice);

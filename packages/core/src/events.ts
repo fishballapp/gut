@@ -286,8 +286,8 @@ export const RunEventSchema = z.discriminatedUnion('type', [
     error: z.string().optional(),
   }),
   /**
-   * The model's answer, held for the developer to keep or replace: the turn then ends answered (by
-   * the model if kept, by you if replaced, with the tokens the model spent) or dropped.
+   * The model's answer, held for the developer to keep or drop: kept, the turn ends answered by the
+   * model; dropped, the turn is reopened, or dropped with its pick.
    */
   z.object({
     type: z.literal('turn.suggested'),
@@ -298,6 +298,13 @@ export const RunEventSchema = z.discriminatedUnion('type', [
     answers: z.record(z.string(), AnswerSchema),
     inputTokens: z.number().int().nonnegative(),
     ms: z.number(),
+  }),
+  /** The developer dropped the model's answer to a turn: the turn waits for an answer again. */
+  z.object({
+    type: z.literal('turn.reopened'),
+    runId: z.string(),
+    round: z.number().int().positive(),
+    turn: z.number().int().positive(),
   }),
   z.object({
     type: z.literal('turn.answered'),
@@ -324,10 +331,16 @@ export const RunEventSchema = z.discriminatedUnion('type', [
     turn: z.number().int().positive(),
     reason: z.enum(['repick', 'budget']),
   }),
+  /**
+   * A re-pick ends the pick from `fromTurn`: its turns from there on leave the record with it, and
+   * the next pick answers the turns before it as they were answered, without asking again. `usage`
+   * is all the abandoned pick spent.
+   */
   z.object({
     type: z.literal('pick.abandoned'),
     runId: z.string(),
     round: z.number().int().positive(),
+    fromTurn: z.number().int().positive(),
     usage: UsageSchema,
   }),
   z.object({

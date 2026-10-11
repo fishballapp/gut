@@ -12,6 +12,7 @@ const round = (number: number, overrides: Partial<Round> = {}): Round => ({
   context: { goal: 'The counter is 3', count: 1 },
   ops: [],
   picks: [],
+  dropped: { inputTokens: 0, requests: 0 },
   turns: [],
   ...overrides,
 });

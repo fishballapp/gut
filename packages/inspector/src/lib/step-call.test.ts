@@ -34,6 +34,7 @@ const round = (overrides: Partial<Round> = {}): Round => ({
   context: { goal: 'g' },
   ops,
   picks: [{ maxOptions: 9, edits: [] }],
+  dropped: { inputTokens: 0, requests: 0 },
   turns: [],
   ...overrides,
 });

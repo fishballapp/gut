@@ -43,7 +43,7 @@ an option's radio keeps the letter, digit and ↵ keys.
 | S | Step: asks the model the waiting turn, keeps the answer it gave, or runs the picked step |
 | T | Restart: stops the task and runs it again in a fresh child process; the record starts afresh |
 | E | Edit the op tree the waiting pick reads (descriptions, labels, hidden moves) in a dialog; the context's Edit opens the context. Save (⌘↵) re-picks the round with the edits, asking first when it has answers to drop |
-| R | Pick again: asks the round's turns afresh, from a waiting step or from any turn after the first |
+| R | Pick again: drops the model's answer to the waiting turn, so you answer it or ask again. An earlier turn of the waiting round has its own Pick again, which asks first and clears the turns after it |
 | ↵ | Confirm the model's answer to the waiting turn, or answer it with your choices once every question has one; run the picked step |
 | G / N | While you choose: "achieved" or "not yet" on the goal question |
 | 1 to 9 | While you choose: one of the first nine options a question shows |

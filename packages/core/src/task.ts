@@ -6,7 +6,7 @@ import { type Edit, type RunEvent, toOpTree } from './events.ts';
 import type { InspectorGlobal, RunHooks } from './inspector.ts';
 import type { Ops } from './ops.ts';
 import { pick, type Step } from './pick.ts';
-import { createTurnAnswerer } from './turns.ts';
+import { type AskedTurn, createTurnAnswerer } from './turns.ts';
 
 export type Json =
   | string
@@ -188,28 +188,18 @@ export const runTask = async (
       }
 
       let usageSoFar = usage;
-
-      // A re-pick keeps what the abandoned pick spent, and asks the same ops again from turn 1.
-      const abandon = (spent: Usage) => {
-        emit({
-          type: 'pick.abandoned',
-          runId,
-          round: roundNumber,
-          usage: {
-            inputTokens: spent.inputTokens - usageSoFar.inputTokens,
-            requests: spent.requests - usageSoFar.requests,
-          },
-        });
-        usageSoFar = spent;
-      };
+      let settings = await pickSettingsFor(roundNumber);
+      /** The turns the next pick ends as before: those ahead of where a re-pick starts. */
+      let replay: readonly AskedTurn[] = [];
 
       for (;;) {
-        const { maxOptions, edits } = await pickSettingsFor(roundNumber);
+        const { maxOptions, edits } = settings;
         emit({ type: 'pick.started', runId, round: roundNumber, maxOptions, edits: [...edits] });
+        const asker = turnAnswerer.forPick(roundNumber, replay);
 
         // Edits change what the model reads; the stall rule below keys on the context as observed.
         const picked = await pick({
-          asker: turnAnswerer.forPick(roundNumber),
+          asker,
           context: editContext(context, edits),
           ops,
           usage: usageSoFar,
@@ -218,8 +208,31 @@ export const runTask = async (
           edits,
         });
 
+        /**
+         * Abandons this pick for one from `fromTurn`, keeping what it spent. Another size or other
+         * edits ask other questions, so then the next pick starts from turn 1.
+         */
+        const repickFrom = async (fromTurn: number, spent: Usage) => {
+          const next = await pickSettingsFor(roundNumber);
+          const isSame =
+            next.maxOptions === maxOptions && JSON.stringify(next.edits) === JSON.stringify(edits);
+          replay = isSame ? asker.askedBefore(fromTurn) : [];
+          emit({
+            type: 'pick.abandoned',
+            runId,
+            round: roundNumber,
+            fromTurn: replay.length + 1,
+            usage: {
+              inputTokens: spent.inputTokens - usageSoFar.inputTokens,
+              requests: spent.requests - usageSoFar.requests,
+            },
+          });
+          usageSoFar = spent;
+          settings = next;
+        };
+
         if (picked.status === 'repick') {
-          abandon(picked.usage);
+          await repickFrom(picked.fromTurn, picked.usage);
           continue;
         }
 
@@ -244,8 +257,8 @@ export const runTask = async (
 
         if (hooks !== undefined) {
           const action = await hooks.beforeInvoke({ round: roundNumber, step });
-          if (action === 'repick') {
-            abandon(picked.usage);
+          if (action !== 'invoke') {
+            await repickFrom(action.repickFrom, picked.usage);
             continue;
           }
         }

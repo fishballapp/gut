@@ -117,42 +117,116 @@ describe('reduce', () => {
     expect(run?.rounds[2]?.goalChecked).toMatchObject({ achieved: true });
   });
 
-  it("drops the turns of a pick a re-pick abandons, and keeps the pick's spend", async () => {
+  it('drops the turns of a pick a re-pick abandons, and starts again at turn 1', async () => {
     let hasRepicked = false;
     const events = await record(() => {
       if (hasRepicked) return { by: 'model' };
       hasRepicked = true;
-      return { repick: true };
+      return { repickFrom: 1 };
     });
     const firstRound = events.reduce(reduce, initialState).runs[0]?.rounds[0];
     expect(firstRound?.picks).toEqual([
-      { maxOptions: 26, edits: [], abandoned: { inputTokens: 0, requests: 0 } },
+      { maxOptions: 26, edits: [] },
       { maxOptions: 26, edits: [] },
     ]);
-    // The pick after a re-pick starts again at turn 1.
     expect(firstRound?.turns.map(turn => [turn.turn, turn.outcome.status])).toEqual([
       [1, 'answered'],
     ]);
   });
 
-  it('moves a picked step to its pick when Pick again abandons it', async () => {
+  it('drops the step a re-pick abandons, and what the model spent on it counts as dropped', async () => {
     let isFirst = true;
     const events = await record(
       () => ({ by: 'model' }),
       async () => {
-        const action = isFirst ? 'repick' : 'invoke';
+        const action = isFirst ? { repickFrom: 1 } : 'invoke';
         isFirst = false;
         return action;
       },
     );
-    const firstRound = events.reduce(reduce, initialState).runs[0]?.rounds[0];
-    expect(firstRound?.picks[0]).toMatchObject({
-      abandoned: { inputTokens: 100, requests: 1 },
-      picked: { step: 'add', address: { keys: ['add'] } },
+    const abandonedAt = events.findIndex(event => event.type === 'pick.abandoned');
+    const afterAbandon = events.slice(0, abandonedAt + 1).reduce(reduce, initialState);
+    const round = afterAbandon.runs[0]?.rounds[0];
+    expect(round?.picked).toBeUndefined();
+    expect(round?.turns).toEqual([]);
+    expect(round?.dropped).toEqual({ inputTokens: 100, requests: 1 });
+  });
+
+  it('keeps the turns before where a re-pick starts', () => {
+    const by = { kind: 'model', name: 'fake', endpoint: 'http://x' } as const;
+    const answers = { next: { choice: 'o1', probabilities: { o1: 0.8 } } };
+    const request = { state: { goal: 'g' }, questions: {} };
+    const asked = (turn: number): InspectorEvent => ({
+      type: 'turn.asked',
+      runId: 'r1',
+      round: 1,
+      turn,
+      request,
+      optionInfo: {},
     });
-    expect(firstRound?.picks[1]?.picked).toBeUndefined();
-    expect(firstRound?.picked).toMatchObject({ step: 'add' });
-    expect(firstRound?.turns.map(turn => turn.turn)).toEqual([1]);
+    const state = (
+      [
+        {
+          type: 'run.started',
+          runId: 'r1',
+          name: 'n',
+          model: null,
+          inputTokenBudget: 1000,
+          isGoalCheckedInCode: false,
+        },
+        { type: 'round.observed', runId: 'r1', round: 1, context: { goal: 'g' }, ops: [] },
+        { type: 'pick.started', runId: 'r1', round: 1, maxOptions: 26, edits: [] },
+        asked(1),
+        {
+          type: 'turn.answered',
+          runId: 'r1',
+          round: 1,
+          turn: 1,
+          by,
+          answers,
+          inputTokens: 100,
+          ms: 1,
+        },
+        asked(2),
+        {
+          type: 'turn.answered',
+          runId: 'r1',
+          round: 1,
+          turn: 2,
+          by,
+          answers,
+          inputTokens: 100,
+          ms: 1,
+        },
+        asked(3),
+        {
+          type: 'turn.suggested',
+          runId: 'r1',
+          round: 1,
+          turn: 3,
+          by,
+          answers,
+          inputTokens: 100,
+          ms: 1,
+        },
+        { type: 'turn.dropped', runId: 'r1', round: 1, turn: 3, reason: 'repick' },
+        {
+          type: 'pick.abandoned',
+          runId: 'r1',
+          round: 1,
+          fromTurn: 2,
+          usage: { inputTokens: 300, requests: 3 },
+        },
+        { type: 'pick.started', runId: 'r1', round: 1, maxOptions: 26, edits: [] },
+        asked(2),
+      ] satisfies InspectorEvent[]
+    ).reduce(reduce, initialState);
+    const round = state.runs[0]?.rounds[0];
+    expect(round?.turns.map(turn => [turn.turn, turn.outcome.status])).toEqual([
+      [1, 'answered'],
+      [2, 'asked'],
+    ]);
+    expect(round?.dropped).toEqual({ inputTokens: 200, requests: 2 });
   });
 
   it('keeps the edits a pick was made with, and marks the turns asked under them', () => {
@@ -262,11 +336,17 @@ describe('reduce', () => {
     });
   });
 
-  it("keeps the model's answer on the turn while it waits for review, and once you replace it", async () => {
+  it("keeps the model's answer on the turn while it waits for review, and drops it on reopen", async () => {
+    let asks = 0;
     const events = await record(
-      () => ({ by: 'model', shouldReview: true }),
+      () => {
+        asks += 1;
+        return asks === 1
+          ? { by: 'model', shouldReview: true }
+          : { by: 'you', answers: { next: 'o2' } };
+      },
       undefined,
-      async ({ choices }) => ({ by: 'you', answers: choices }),
+      async () => ({ reopen: true }),
     );
     const suggestedAt = events.findIndex(event => event.type === 'turn.suggested');
     const waiting = events.slice(0, suggestedAt + 1).reduce(reduce, initialState);
@@ -277,13 +357,18 @@ describe('reduce', () => {
       inputTokens: 100,
     });
 
+    const reopenedAt = events.findIndex(event => event.type === 'turn.reopened');
+    const reopened = events.slice(0, reopenedAt + 1).reduce(reduce, initialState);
+    const round = reopened.runs[0]?.rounds[0];
+    expect(round?.turns[0]?.suggestion).toBeUndefined();
+    expect(round?.dropped).toEqual({ inputTokens: 100, requests: 1 });
+
     const turn = events.reduce(reduce, initialState).runs[0]?.rounds[0]?.turns[0];
     expect(turn?.outcome).toMatchObject({
       status: 'answered',
       by: { kind: 'you' },
-      inputTokens: 100,
+      inputTokens: 0,
     });
-    expect(turn?.suggestion?.answers.next?.choice).toBe('o1');
   });
 
   it('tracks the session: mode, page model and what waits', () => {
