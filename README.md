@@ -443,6 +443,7 @@ browser page) has moved on; run again instead.
 | `@gut.run/core` | `initGut`, `op`, `group`, the decision-model client |
 | `@gut.run/playwright` | `observe` over a Playwright page or locator; `playwright` is yours to install |
 | `@gut.run/cli` (bin `gut`) | `gut run task.gut.ts`; planned: `gut browser '<goal>' …` |
+| `@gut.run/inspector` | The page `gut run --inspect` serves; the CLI installs it |
 
 The API is plain TypeScript.
 

@@ -1,7 +1,6 @@
 {
   "name": "@gut.run/inspector",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.4.0",
   "type": "module",
   "description": "The page `gut run --inspect` serves: every round and turn of a gut run, live, and a way to answer them yourself.",
   "license": "MIT",
@@ -12,10 +11,14 @@
     "directory": "packages/inspector"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "exports": {
     "./index.html": "./dist/index.html"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "dev": "vite",
