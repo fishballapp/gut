@@ -222,7 +222,10 @@ const nextQuestion = (
   criteria: Object.fromEntries(options.map((option, i) => [`o${i + 1}`, option.description])),
 });
 
-/** Who answers each turn of a pick: the model, a person, a re-pick, or the budget. */
+/**
+ * Who answers each turn of a pick: the model, a person, a re-pick, or the budget. A re-pick may come
+ * after the model answered, so it says what the turn spent too.
+ */
 export type TurnReply =
   | {
       kind: 'answered';
@@ -230,7 +233,7 @@ export type TurnReply =
       inputTokens: number;
       isModel: boolean;
     }
-  | { kind: 'repick' }
+  | { kind: 'repick'; inputTokens: number; isModel: boolean }
   | { kind: 'budget' };
 
 /** What every request in a run shares. */
@@ -318,12 +321,12 @@ const createPickSession = ({
       },
     };
     const reply = await asker.answer(request, usage, optionInfo);
-    if (reply.kind === 'repick') throw new PickEnded({ status: 'repick' });
     if (reply.kind === 'budget') throw new PickEnded({ status: 'halted', reason: 'budget' });
     usage = {
       inputTokens: usage.inputTokens + reply.inputTokens,
       requests: usage.requests + (reply.isModel ? 1 : 0),
     };
+    if (reply.kind === 'repick') throw new PickEnded({ status: 'repick' });
     if (isGoalPending) settleGoal(reply.answers.achieved);
     return reply.answers;
   };

@@ -1,4 +1,4 @@
-// What a turn's block in the round strip shows: a pure function of the turn, and of the state it is in
+// What a turn's block in the rounds rail shows: a pure function of the turn, and of the state it is in
 // when it is the run's current turn.
 import type { Decision, Round, Turn } from '../state/inspector-state.ts';
 import type { CurrentState } from './current-turn.ts';
@@ -82,3 +82,25 @@ export const adjacentRound = (
 /** Whether anything waits on you in this round: a turn to answer, or a picked step to run. */
 export const isRoundWaiting = (runId: string, round: number, pending: readonly Decision[]) =>
   pending.some(decision => decision.runId === runId && decision.round === round);
+
+/** Where ←/→ stop in the rail: each turn in order, and a round with no turn as itself. */
+export type RailStop = { round: number; turn?: number };
+
+export const railStops = (rounds: readonly Round[]): RailStop[] =>
+  rounds.flatMap(round =>
+    round.turns.length === 0
+      ? [{ round: round.round }]
+      : round.turns.map(turn => ({ round: round.round, turn: turn.turn })),
+  );
+
+/** The stop `step` places from `at` (−1 back, +1 forward), across rounds; undefined past either end. */
+export const adjacentStop = (
+  rounds: readonly Round[],
+  at: RailStop,
+  step: -1 | 1,
+): RailStop | undefined => {
+  const stops = railStops(rounds);
+  const index = stops.findIndex(stop => stop.round === at.round && stop.turn === at.turn);
+  if (index === -1) return undefined;
+  return stops[index + step];
+};

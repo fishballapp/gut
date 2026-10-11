@@ -4,6 +4,7 @@ import {
   type Edit,
   type InspectorEvent,
   type OpTreeNode,
+  PROTOCOL,
   type RunEvent,
 } from '@gut.run/core/inspector';
 import { describe, expect, it } from 'vitest';
@@ -84,7 +85,7 @@ describe('createSession', () => {
     const { events } = setup();
     expect(events[0]).toEqual({
       type: 'session.started',
-      protocol: 1,
+      protocol: PROTOCOL,
       task: 'task.gut.ts',
       mode: 'step',
     });
@@ -194,7 +195,7 @@ describe('createSession', () => {
     await session.act({ type: 'setModel', model: { endpoint: jev.endpoint, name: 'other' } });
     const answer = hooks.answer({ round: 1, turn: 1, request });
     await session.act({ type: 'askModel', decision: pendingId() });
-    await expect(answer).resolves.toEqual({ by: 'model' });
+    await expect(answer).resolves.toEqual({ by: 'model', shouldReview: true });
   });
 
   it('plays without waiting once there is a model, and Play resolves what waits', async () => {
@@ -203,7 +204,7 @@ describe('createSession', () => {
     const waiting = hooks.answer({ round: 1, turn: 1, request });
     const step = hooks.beforeInvoke({ round: 1, step: 'a' });
     expect(await session.act({ type: 'play' })).toEqual({ status: 204 });
-    await expect(waiting).resolves.toEqual({ by: 'model' });
+    await expect(waiting).resolves.toEqual({ by: 'model', shouldReview: false });
     await expect(step).resolves.toBe('invoke');
     await expect(hooks.answer({ round: 2, turn: 1, request })).resolves.toEqual({ by: 'model' });
     expect(events.filter(event => event.type === 'session.mode')).toEqual([
@@ -217,6 +218,87 @@ describe('createSession', () => {
     await session.act({ type: 'play' });
     void hooks.answer({ round: 1, turn: 1, request });
     expect(events.at(-1)).toMatchObject({ type: 'decision.pending' });
+  });
+
+  it("holds the model's answer for review in Step; Confirm keeps it and its step runs", async () => {
+    const { events, session, hooks, pendingId } = setup();
+    hooks.onEvent(started(jev));
+    const answer = hooks.answer({ round: 1, turn: 1, request });
+    await session.act({ type: 'askModel', decision: pendingId() });
+    await expect(answer).resolves.toEqual({ by: 'model', shouldReview: true });
+
+    const review = hooks.review({ round: 1, turn: 1, request, choices: { next: 'o1' } });
+    expect(events.at(-1)).toMatchObject({
+      type: 'decision.pending',
+      on: { kind: 'turn', turn: 1, isReview: true },
+    });
+    expect(await session.act({ type: 'askModel', decision: pendingId() })).toMatchObject({
+      status: 400,
+    });
+    expect(await session.act({ type: 'confirm', decision: pendingId() })).toEqual({ status: 204 });
+    await expect(review).resolves.toEqual({ by: 'model' });
+    // The developer settled the pick's last turn, so its step runs without another stop.
+    await expect(hooks.beforeInvoke({ round: 1, step: 'a' })).resolves.toBe('invoke');
+  });
+
+  it("replaces the model's answer with yours, checked like any answer", async () => {
+    const { session, hooks, pendingId } = setup();
+    hooks.onEvent(started(jev));
+    const review = hooks.review({ round: 1, turn: 1, request, choices: { next: 'o1' } });
+    const bad = { achieved: 'notYet', next: 'o9' };
+    expect(
+      await session.act({ type: 'answer', decision: pendingId(), answers: bad }),
+    ).toMatchObject({ status: 400 });
+    const answers = { achieved: 'notYet', next: 'o2' };
+    await session.act({ type: 'answer', decision: pendingId(), answers });
+    await expect(review).resolves.toEqual({ by: 'you', answers });
+  });
+
+  it('confirms only a turn under review', async () => {
+    const { session, hooks, pendingId } = setup();
+    hooks.onEvent(started(jev));
+    void hooks.answer({ round: 1, turn: 1, request });
+    expect(await session.act({ type: 'confirm', decision: pendingId() })).toMatchObject({
+      status: 400,
+    });
+  });
+
+  it('keeps an answer under review once Play starts, and in Play reviews nothing', async () => {
+    const { session, hooks } = setup();
+    hooks.onEvent(started(jev));
+    const review = hooks.review({ round: 1, turn: 1, request, choices: { next: 'o1' } });
+    await session.act({ type: 'play' });
+    await expect(review).resolves.toEqual({ by: 'model' });
+    await expect(
+      hooks.review({ round: 2, turn: 1, request, choices: { next: 'o1' } }),
+    ).resolves.toEqual({ by: 'model' });
+  });
+
+  it('stops before the step after Play kept an answer under review and Pause came before the step', async () => {
+    const { events, session, hooks } = setup();
+    hooks.onEvent(started(jev));
+    const review = hooks.review({ round: 1, turn: 1, request, choices: { next: 'o1' } });
+    await session.act({ type: 'play' });
+    await expect(review).resolves.toEqual({ by: 'model' });
+    await session.act({ type: 'pause' });
+    void hooks.beforeInvoke({ round: 1, step: 'a' });
+    expect(events.at(-1)).toMatchObject({ type: 'decision.pending', on: { kind: 'step' } });
+  });
+
+  it('stops before a step whose last turn nobody settled in the page', async () => {
+    const { events, session, hooks, pendingId } = setup();
+    hooks.onEvent(started(jev));
+    const answer = hooks.answer({ round: 1, turn: 1, request });
+    await session.act({
+      type: 'answer',
+      decision: pendingId(),
+      answers: { achieved: 'notYet', next: 'o1' },
+    });
+    await answer;
+    // A new pick forgets that its turns were settled: a lone option still waits.
+    await hooks.beforePick({ round: 2 });
+    void hooks.beforeInvoke({ round: 2, step: 'b' });
+    expect(events.at(-1)).toMatchObject({ type: 'decision.pending', on: { kind: 'step' } });
   });
 
   it('waits before a step: Run invokes it, Pick again re-picks', async () => {
@@ -337,7 +419,7 @@ describe('createSession', () => {
     await session.act({ type: 'setMaxOptions', maxOptions: 12 });
     await session.act({ type: 'restart' });
     expect(events).toEqual([
-      { type: 'session.started', protocol: 1, task: 'task.gut.ts', mode: 'step' },
+      { type: 'session.started', protocol: PROTOCOL, task: 'task.gut.ts', mode: 'step' },
       { type: 'session.maxOptions', maxOptions: 12 },
     ]);
   });
@@ -404,7 +486,7 @@ describe('createSession', () => {
     expect(links).toHaveLength(2);
     // The record starts afresh with the same mode, and the page's model again.
     expect(events).toEqual([
-      { type: 'session.started', protocol: 1, task: 'task.gut.ts', mode: 'step' },
+      { type: 'session.started', protocol: PROTOCOL, task: 'task.gut.ts', mode: 'step' },
       { type: 'session.model', model: { name: 'jev', endpoint: jev.endpoint, maxOptions: 255 } },
     ]);
     expect(await session.act({ type: 'answer', decision: waiting, answers: {} })).toMatchObject({
@@ -418,7 +500,7 @@ describe('createSession', () => {
     await session.act({ type: 'restart' });
     expect(events[0]).toEqual({
       type: 'session.started',
-      protocol: 1,
+      protocol: PROTOCOL,
       task: 'task.gut.ts',
       mode: 'play',
     });

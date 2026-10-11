@@ -33,24 +33,24 @@ message.
 child process forked from the same CLI, so a restart loads the task's code afresh. The CLI keeps the
 run's record until you restart or stop it.
 
-Page keys do not fire while focus is on a button, a link, a text field or another control. Two
-exceptions: the rounds list and the round strip keep their own arrows while focus is in them, and
-while you choose, an option's radio keeps the letter, digit and ↵ keys.
+Page keys do not fire while focus is on a button, a link, a text field or another control, or inside a
+dialog. Two exceptions: the rounds keep their own arrows while focus is in them, and while you choose,
+an option's radio keeps the letter, digit and ↵ keys.
 
 | Key | What it does |
 | --- | --- |
 | Space | Play, or Pause: the model answers every turn until you pause |
-| S | Step: asks the model the waiting turn, or runs the picked step |
+| S | Step: asks the model the waiting turn, keeps the answer it gave, or runs the picked step |
 | T | Restart: stops the task and runs it again in a fresh child process; the record starts afresh |
-| E | Edit what the model reads on the waiting pick: descriptions, labels, hidden moves, the context. Pick again (R) then re-picks with the edits |
-| R | Pick again: re-picks a step that is waiting to run; with edits open, re-picks with them |
-| ↵ | Answer the waiting turn once every question has a choice; run the picked step |
+| E | Edit the op tree the waiting pick reads (descriptions, labels, hidden moves) in a dialog; the context's Edit opens the context. Save (⌘↵) re-picks the round with the edits, asking first when it has answers to drop |
+| R | Pick again: asks the round's turns afresh, from a waiting step or from any turn after the first |
+| ↵ | Confirm the model's answer to the waiting turn, or answer it with your choices once every question has one; run the picked step |
 | G / N | While you choose: "achieved" or "not yet" on the goal question |
 | 1 to 9 | While you choose: one of the first nine options a question shows |
 | / | Focus the filter of a long question, while you choose on a waiting turn. The filter field shows on every long question, answered or not |
 | L | Follow the live run again, after selecting a round or turn |
-| ← / → | Previous or next round |
-| ↑ / ↓ | Previous or next row in the rounds list |
+| ↑ / ↓ | Previous or next round |
+| ← / → | Previous or next turn, across rounds |
 
 The options slider in the run header sets how many options a question offers. Its own keys (← / →,
 Home / End, Page Up / Page Down) move it, and a move re-picks the waiting question when you let go.

@@ -1,6 +1,9 @@
-/** Elements that own Space / letter / arrow keys; the page shortcuts must not steal from them. */
+/**
+ * Elements that own Space / letter / arrow keys; the page shortcuts must not steal from them. A
+ * dialog owns every key inside it, so nothing behind it acts.
+ */
 const INTERACTIVE =
-  'button, a, input, textarea, select, summary, [contenteditable], [role="button"], [role="checkbox"], [role="radio"], [role="switch"], [role="tab"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]';
+  'button, a, input, textarea, select, summary, [contenteditable], [role="button"], [role="checkbox"], [role="radio"], [role="switch"], [role="tab"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="dialog"], [role="alertdialog"]';
 
 /** True when a keydown should stay with the focused control (or a text field). */
 export const isShortcutBlockedTarget = (target: EventTarget | null): boolean => {

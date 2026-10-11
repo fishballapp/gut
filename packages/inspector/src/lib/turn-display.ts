@@ -1,5 +1,5 @@
 import type { OptionInfo } from '@gut.run/core/inspector';
-import type { Round, Turn } from '../state/inspector-state.ts';
+import type { Decision, Round, Turn } from '../state/inspector-state.ts';
 import { formatDuration, formatTokens } from './format.ts';
 import type { OptionSort } from './sort-options.ts';
 
@@ -36,17 +36,22 @@ export const isPickedByYou = (round: Round): boolean =>
 
 /** Right-side status of the turn header. */
 export const turnStatusLabel = (turn: Turn): string => {
-  const { outcome } = turn;
+  const { outcome, suggestion } = turn;
   switch (outcome.status) {
     case 'asked':
-      return 'waiting';
+      if (suggestion === undefined) return 'waiting';
+      return `suggested by ${suggestion.by.name} · ${formatTokens(suggestion.inputTokens)} tokens · ${formatDuration(suggestion.ms)}`;
     case 'failed':
       return 'failed';
     case 'dropped':
       return 'dropped: the budget ran out';
     case 'answered': {
       const duration = formatDuration(outcome.ms);
-      if (outcome.by.kind === 'you') return `answered by you · ${duration}`;
+      if (outcome.by.kind === 'you') {
+        return outcome.inputTokens > 0
+          ? `answered by you · ${formatTokens(outcome.inputTokens)} tokens · ${duration}`
+          : `answered by you · ${duration}`;
+      }
       return `answered by ${outcome.by.name} · ${formatTokens(outcome.inputTokens)} tokens · ${duration}`;
     }
   }
@@ -63,9 +68,19 @@ export const isAnsweredByYou = (turn: Turn): boolean =>
 export const defaultSortFor = (turn: Turn | undefined): OptionSort =>
   turn !== undefined && showsProbabilities(turn) ? 'by-probability' : 'as-sent';
 
-/** Whether probabilities and bars should render for this turn. */
-export const showsProbabilities = (turn: Turn): boolean =>
-  turn.outcome.status === 'answered' && turn.outcome.by.kind === 'model';
+/**
+ * The model's answers a turn shows: the model's own answer, else the one it suggested, which waits
+ * for you or which you replaced.
+ */
+export const modelAnswersOf = (turn: Turn) => {
+  if (turn.outcome.status === 'answered' && turn.outcome.by.kind === 'model') {
+    return turn.outcome.answers;
+  }
+  return turn.suggestion?.answers;
+};
+
+/** Whether probabilities and bars should render for this turn: only when the model answered it. */
+export const showsProbabilities = (turn: Turn): boolean => modelAnswersOf(turn) !== undefined;
 
 /** The chosen criterion key for a question, when the turn has an answer. */
 export const chosenKey = (turn: Turn, questionKey: string): string | undefined => {
@@ -79,24 +94,33 @@ export const optionProbability = (
   questionKey: string,
   criterionKey: string,
 ): number => {
-  if (turn.outcome.status === 'answered' && turn.outcome.by.kind === 'you') {
+  const modelAnswers = modelAnswersOf(turn);
+  if (modelAnswers !== undefined) {
+    return modelAnswers[questionKey]?.probabilities[criterionKey] ?? 0;
+  }
+  if (turn.outcome.status === 'answered') {
     return turn.outcome.answers[questionKey]?.choice === criterionKey ? 1 : 0;
   }
-  if (turn.outcome.status !== 'answered') return 0;
-  return turn.outcome.answers[questionKey]?.probabilities[criterionKey] ?? 0;
+  return 0;
 };
 
 /**
- * Where a turn's options stand: you choose them (a decision waits), the model is answering them, or
- * they are read back as the turn settled.
+ * Where a turn's options stand: you choose them (a decision waits), you keep or replace the model's
+ * answer to them, the model is answering them, or they are read back as the turn settled.
  */
-export type OptionsPhase = 'choose' | 'asking' | 'read';
+export type OptionsPhase = 'choose' | 'review' | 'asking' | 'read';
 
-export const optionsPhaseOf = (turn: Turn, isAwaitingYou: boolean): OptionsPhase => {
-  if (isAwaitingYou) return 'choose';
+export const optionsPhaseOf = (turn: Turn, decision: Decision | undefined): OptionsPhase => {
+  if (decision !== undefined) {
+    return decision.on.kind === 'turn' && decision.on.isReview ? 'review' : 'choose';
+  }
   if (turn.outcome.status === 'asked') return 'asking';
   return 'read';
 };
+
+/** Whether you pick this turn's options now: answering it, or keeping or replacing the model's answer. */
+export const isPickingPhase = (phase: OptionsPhase): boolean =>
+  phase === 'choose' || phase === 'review';
 
 /** One option of a question as the turn sent it, with what its row shows. */
 export type OptionRowData = {

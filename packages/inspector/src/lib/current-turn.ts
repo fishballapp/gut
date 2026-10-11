@@ -1,5 +1,5 @@
-// The turn a run stands on now, read from the round's turns and the decisions the runs wait on. The
-// strip and the sidebar mark it the same way.
+// The turn a run stands on now, read from the round's turns and the decisions the runs wait on; the
+// rounds rail marks it.
 import type { Decision, Round } from '../state/inspector-state.ts';
 import { findAwaitingTurn, findWaitingStep } from './round-rows.ts';
 
@@ -49,12 +49,3 @@ export const roundCurrentState = (
     round.turns.length === 0 && findWaitingStep(pending, runId, round.round) !== undefined;
   return isLoneStepWaiting ? 'waiting-to-run' : undefined;
 };
-
-/**
- * The state the sidebar's round row shows. While a round is open its turns carry the marker, so its
- * row carries it only when it has no turn to mark.
- */
-export const rowCurrentState = (
-  roundState: CurrentState | undefined,
-  { isSelected, turnCount }: { isSelected: boolean; turnCount: number },
-): CurrentState | undefined => (isSelected && turnCount > 0 ? undefined : roundState);

@@ -20,15 +20,19 @@ import {
 import { z } from 'zod';
 import { editProblem } from './edits.ts';
 
+/** How a decision ends; on a turn under review, `model` keeps the model's answer. */
 type Resolution =
   | { by: 'you'; answers: Readonly<Record<string, string>> }
   | { by: 'model' }
   | { by: 'run' }
   | { by: 'repick' };
 
-/** A turn keeps its request, to check a person's answers before core sees them. */
+/**
+ * A turn keeps its request, to check a person's answers before core sees them, and whether it is
+ * under review: the model has answered it, and the developer keeps or replaces that answer.
+ */
 type Pending = { runId: string; round: number; resolve: (resolution: Resolution) => void } & (
-  | { on: 'turn'; request: DecisionRequest }
+  | { on: 'turn'; request: DecisionRequest; isReview: boolean }
   | { on: 'step' }
 );
 
@@ -88,6 +92,11 @@ export const createSession = ({
   let chosenMaxOptions: number | null = null;
   /** Runs whose pick in flight starts over at its next turn or step, after a size change in Step. */
   const heldRepicks = new Set<string>();
+  /**
+   * Runs whose pick's latest turn the developer answered or confirmed in the page: that settled the
+   * step, so it runs without another stop.
+   */
+  const decided = new Set<string>();
   const pending = new Map<string, Pending>();
   let nextDecision = 1;
   /**
@@ -140,7 +149,9 @@ export const createSession = ({
   const waitFor = (
     runId: string,
     round: number,
-    on: { kind: 'turn'; turn: number; request: DecisionRequest } | { kind: 'step'; step: string },
+    on:
+      | { kind: 'turn'; turn: number; request: DecisionRequest; isReview: boolean }
+      | { kind: 'step'; step: string },
   ) =>
     new Promise<Resolution>(resolve => {
       const id = `d${nextDecision++}`;
@@ -152,7 +163,14 @@ export const createSession = ({
       pending.set(
         id,
         on.kind === 'turn'
-          ? { runId, round, on: 'turn', request: on.request, resolve: settle }
+          ? {
+              runId,
+              round,
+              on: 'turn',
+              request: on.request,
+              isReview: on.isReview,
+              resolve: settle,
+            }
           : { runId, round, on: 'step', resolve: settle },
       );
       emit({
@@ -160,7 +178,7 @@ export const createSession = ({
         id,
         runId,
         round,
-        on: on.kind === 'turn' ? { kind: 'turn', turn: on.turn } : on,
+        on: on.kind === 'turn' ? { kind: 'turn', turn: on.turn, isReview: on.isReview } : on,
       });
     });
 
@@ -178,24 +196,54 @@ export const createSession = ({
       },
       answer: async ({ round, turn, request }) => {
         if (!isLatest()) return stalled();
+        decided.delete(runId);
         if (mode === 'play' && hasModel(runId)) return modelAnswer(runId);
         if (heldRepicks.delete(runId)) return { repick: true };
-        const resolution = await waitFor(runId, round, { kind: 'turn', turn, request });
+        const resolution = await waitFor(runId, round, {
+          kind: 'turn',
+          turn,
+          request,
+          isReview: false,
+        });
         if (!isLatest()) return stalled();
-        if (resolution.by === 'you') return { by: 'you', answers: resolution.answers };
+        if (resolution.by === 'you') {
+          decided.add(runId);
+          return { by: 'you', answers: resolution.answers };
+        }
         if (resolution.by === 'repick') return { repick: true };
-        return modelAnswer(runId);
+        // Asked in Step, the model's answer waits for the developer; Play takes it as it comes.
+        return { ...modelAnswer(runId), shouldReview: mode === 'step' };
+      },
+      review: async ({ round, turn, request }) => {
+        if (!isLatest()) return stalled();
+        if (mode === 'play') return { by: 'model' };
+        if (heldRepicks.delete(runId)) return { repick: true };
+        const resolution = await waitFor(runId, round, {
+          kind: 'turn',
+          turn,
+          request,
+          isReview: true,
+        });
+        if (!isLatest()) return stalled();
+        if (resolution.by === 'repick') return { repick: true };
+        // Settled by the developer, not by Play taking every answer as it comes: a Pause before the
+        // step still stops there.
+        if (mode === 'step') decided.add(runId);
+        if (resolution.by === 'you') return { by: 'you', answers: resolution.answers };
+        return { by: 'model' };
       },
       beforePick: async ({ round }) => {
         if (!isLatest()) return stalled();
         // A pick starting now takes the size as it is, so a re-pick held for the last one is moot.
         heldRepicks.delete(runId);
+        decided.delete(runId);
         return { maxOptions: maxOptionsFor(runId), edits: editsOf(runId, round) };
       },
       beforeInvoke: async ({ round, step }) => {
         if (!isLatest()) return stalled();
         if (mode === 'play' && hasModel(runId)) return 'invoke';
         if (heldRepicks.delete(runId)) return 'repick';
+        if (decided.has(runId)) return 'invoke';
         const resolution = await waitFor(runId, round, { kind: 'step', step });
         if (!isLatest()) return stalled();
         return resolution.by === 'repick' ? 'repick' : 'invoke';
@@ -233,6 +281,7 @@ export const createSession = ({
     observed.clear();
     held.clear();
     heldRepicks.clear();
+    decided.clear();
     return generation;
   };
 
@@ -311,6 +360,9 @@ export const createSession = ({
         const decision = decisionFor(action.decision);
         if ('error' in decision) return decision;
         if (decision.on !== 'turn') return notA(action.decision, 'turn');
+        if (decision.isReview) {
+          return { status: 400, error: `the model has answered ${action.decision}: confirm it` };
+        }
         if (!hasModel(decision.runId)) return { status: 400, error: 'no model: add one first' };
         // A question asked at a larger size than the model takes is asked again at the model's
         // size (`beforePick` follows the model), rather than failing the run.
@@ -318,6 +370,15 @@ export const createSession = ({
           question => Object.keys(question.criteria).length > maxOptionsFor(decision.runId),
         );
         decision.resolve(isTooBig ? { by: 'repick' } : { by: 'model' });
+        return { status: 204 };
+      }
+      case 'confirm': {
+        const decision = decisionFor(action.decision);
+        if ('error' in decision) return decision;
+        if (decision.on !== 'turn' || !decision.isReview) {
+          return { status: 400, error: `${action.decision} is not a model's answer to confirm` };
+        }
+        decision.resolve({ by: 'model' });
         return { status: 204 };
       }
       case 'run': {

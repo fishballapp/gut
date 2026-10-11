@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { AppBar } from './components/AppBar.tsx';
 import { GutBackground } from './components/GutBackground.tsx';
-import { RoundList } from './components/RoundList.tsx';
 import { RoundPanel } from './components/RoundPanel.tsx';
+import { RoundRail } from './components/RoundRail.tsx';
 import { RunHeader } from './components/RunHeader.tsx';
 import { TurnView } from './components/TurnView.tsx';
 import { act, useInspector } from './lib/connection.ts';
+import { findRoundDecision } from './lib/round-rows.ts';
 import {
   FOLLOWING,
   type HeldSelection,
@@ -15,11 +16,10 @@ import {
   selectChoice,
   selectionIn,
 } from './lib/selection.ts';
-import { useEditDraft } from './lib/use-edit-draft.ts';
 
 /**
- * The page, by level: gut's bar; the run (its goal, controls and the strip of its rounds); then
- * the rounds, the selected turn, and the selected round. Each region is its own component.
+ * The page, by level: gut's bar; the run (its goal and controls); then the rounds, the selected
+ * turn, and the selected round. Each region is its own component.
  */
 export const App = () => {
   const { state, status } = useInspector();
@@ -33,10 +33,13 @@ export const App = () => {
   const setSelectionState = (next: Selection) =>
     setHeld({ session: state.sessionNumber, selection: next });
   const selected = resolveSelection(state, selection);
-  const edit = useEditDraft(selected, state.pending);
+  const roundDecision =
+    selected.run === undefined || selected.round === undefined
+      ? undefined
+      : findRoundDecision(state.pending, selected.run.runId, selected.round.round);
   const setSelection: Select = choice => setSelectionState(selectChoice(state, choice));
   return (
-    <div className="relative isolate grid min-h-full grid-cols-1 lg:h-full lg:grid-cols-[220px_1fr_340px] xl:grid-cols-[264px_1fr_400px] lg:grid-rows-[auto_auto_1fr]">
+    <div className="relative isolate grid min-h-full grid-cols-1 lg:h-full lg:grid-cols-[200px_1fr_340px] xl:grid-cols-[232px_1fr_400px] lg:grid-rows-[auto_auto_1fr]">
       <GutBackground />
       <AppBar runModel={selected.run?.model ?? null} pageModel={state.pageModel} act={act} />
       <RunHeader
@@ -48,15 +51,9 @@ export const App = () => {
         status={status}
         act={act}
       />
-      <RoundList selected={selected} select={setSelection} pending={state.pending} />
-      <TurnView
-        state={state}
-        selected={selected}
-        status={status}
-        isEditing={edit.draft !== undefined}
-        act={act}
-      />
-      <RoundPanel selected={selected} edit={edit} act={act} />
+      <RoundRail selected={selected} select={setSelection} pending={state.pending} />
+      <TurnView state={state} selected={selected} status={status} act={act} />
+      <RoundPanel selected={selected} decision={roundDecision} act={act} />
     </div>
   );
 };

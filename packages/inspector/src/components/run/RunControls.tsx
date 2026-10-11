@@ -17,7 +17,7 @@ const oldestPending = (pending: Decision[], runId: string | undefined): Decision
 
 export const controlClass = (isPrimary: boolean, isDisabled: boolean) =>
   cn(
-    'inline-flex h-7 items-center rounded-md border px-2.5 text-[12px] font-medium',
+    'inline-flex h-7 items-center rounded-md border px-2.5 text-[12px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
     isDisabled && 'cursor-not-allowed border-line text-muted opacity-60',
     !isDisabled && isPrimary && 'border-ink bg-ink text-ground hover:opacity-90',
     !isDisabled && !isPrimary && 'border-line bg-raised text-ink hover:border-ink/40',
@@ -95,7 +95,9 @@ export const RunControls = ({
   const stepDisabledReason = (() => {
     if (hasEnded) return 'The task has ended';
     if (pending === undefined) return 'Nothing is waiting';
-    if (pending.on.kind === 'turn' && !hasModel) return 'Step needs a model: add one';
+    if (pending.on.kind === 'turn' && !pending.on.isReview && !hasModel) {
+      return 'Step needs a model: add one';
+    }
     return undefined;
   })();
 
@@ -115,11 +117,13 @@ export const RunControls = ({
 
   const step = () => {
     if (pending === undefined || stepDisabledReason !== undefined) return;
-    void send(
-      pending.on.kind === 'turn'
-        ? { type: 'askModel', decision: pending.id }
-        : { type: 'run', decision: pending.id },
-    );
+    // The next single thing: ask the model a turn, keep its answer, or run the picked step.
+    const action: Action = (() => {
+      if (pending.on.kind === 'step') return { type: 'run', decision: pending.id };
+      if (pending.on.isReview) return { type: 'confirm', decision: pending.id };
+      return { type: 'askModel', decision: pending.id };
+    })();
+    void send(action);
   };
 
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {

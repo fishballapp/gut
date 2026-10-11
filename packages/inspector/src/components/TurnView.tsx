@@ -6,7 +6,7 @@ import { findAwaitingTurn, findWaitingStep } from '../lib/round-rows.ts';
 import type { Selected } from '../lib/selection.ts';
 import type { OptionSort } from '../lib/sort-options.ts';
 import { stepCall } from '../lib/step-call.ts';
-import { defaultSortFor, formatRetry } from '../lib/turn-display.ts';
+import { defaultSortFor, formatRetry, optionsPhaseOf } from '../lib/turn-display.ts';
 import type { Decision, InspectorState, Round, Run, Turn } from '../state/inspector-state.ts';
 import { TurnEndings } from './endings/TurnEndings.tsx';
 import { SortToggle } from './turn/SortToggle.tsx';
@@ -22,13 +22,11 @@ export const TurnView = ({
   state,
   selected,
   status,
-  isEditing,
   act,
 }: {
   state: InspectorState;
   selected: Selected;
   status: ConnectionStatus;
-  isEditing: boolean;
   act: (action: Action) => Promise<ActOutcome>;
 }) => {
   const { run, round, turn } = selected;
@@ -60,7 +58,6 @@ export const TurnView = ({
               round={round}
               turn={turn}
               stepWaiting={stepWaiting}
-              isEditing={isEditing}
               act={act}
             />
           ) : (
@@ -70,7 +67,6 @@ export const TurnView = ({
                 round={round.round}
                 decision={stepWaiting}
                 pickedCall={stepCall(round, round.picked)}
-                isEditing={isEditing}
                 act={act}
               />
             )
@@ -91,7 +87,6 @@ const SelectedTurn = ({
   round,
   turn,
   stepWaiting,
-  isEditing,
   act,
 }: {
   state: InspectorState;
@@ -99,7 +94,6 @@ const SelectedTurn = ({
   round: Round;
   turn: Turn;
   stepWaiting: Decision | undefined;
-  isEditing: boolean;
   act: (action: Action) => Promise<ActOutcome>;
 }) => {
   // Unset until you choose: the turn's default, which follows the model's answer when it comes.
@@ -110,15 +104,16 @@ const SelectedTurn = ({
       ? findAwaitingTurn(state.pending, run.runId, round.round, turn.turn)
       : undefined;
   const isAwaitingYou = awaitingDecision !== undefined;
+  const isChoosing = optionsPhaseOf(turn, awaitingDecision) === 'choose';
   const isLastTurn = round.turns.at(-1)?.turn === turn.turn;
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <TurnHeader round={round} turn={turn} isAwaitingYou={isAwaitingYou} />
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <TurnStatus turn={turn} isAwaitingYou={isAwaitingYou} />
+          <TurnStatus turn={turn} />
           {/* Reserved while you choose, so the header keeps its height as the model takes the turn. */}
-          <div className={isAwaitingYou ? 'invisible' : undefined}>
+          <div className={isChoosing ? 'invisible' : undefined}>
             <SortToggle value={sort} onChange={setChosenSort} />
           </div>
         </div>
@@ -160,7 +155,7 @@ const SelectedTurn = ({
       />
 
       {stepWaiting !== undefined && isLastTurn && (
-        <StepActions round={round.round} decision={stepWaiting} isEditing={isEditing} act={act} />
+        <StepActions round={round.round} decision={stepWaiting} act={act} />
       )}
     </>
   );

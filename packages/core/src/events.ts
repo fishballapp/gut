@@ -7,7 +7,7 @@ import type { Json } from './task.ts';
  * Protocol version for the inspector event schema. Bump this whenever a change would break older
  * readers (the CLI or the page), so they fail early naming both versions.
  */
-export const PROTOCOL = 1;
+export const PROTOCOL = 2;
 
 export const OpAddressSchema = z.object({
   keys: z.array(z.string()),
@@ -94,6 +94,13 @@ const QuestionSchema = z.object({
 const AnswerSchema = z.object({
   choice: z.string(),
   probabilities: z.record(z.string(), z.number()),
+});
+
+/** The model that answered a turn, as people see it: never its key. */
+const ModelBySchema = z.object({
+  kind: z.literal('model'),
+  name: z.string(),
+  endpoint: z.string(),
 });
 
 const DecisionRequestSchema = z.object({
@@ -278,19 +285,26 @@ export const RunEventSchema = z.discriminatedUnion('type', [
     status: z.number().optional(),
     error: z.string().optional(),
   }),
+  /**
+   * The model's answer, held for the developer to keep or replace: the turn then ends answered (by
+   * the model if kept, by you if replaced, with the tokens the model spent) or dropped.
+   */
+  z.object({
+    type: z.literal('turn.suggested'),
+    runId: z.string(),
+    round: z.number().int().positive(),
+    turn: z.number().int().positive(),
+    by: ModelBySchema,
+    answers: z.record(z.string(), AnswerSchema),
+    inputTokens: z.number().int().nonnegative(),
+    ms: z.number(),
+  }),
   z.object({
     type: z.literal('turn.answered'),
     runId: z.string(),
     round: z.number().int().positive(),
     turn: z.number().int().positive(),
-    by: z.discriminatedUnion('kind', [
-      z.object({ kind: z.literal('you') }),
-      z.object({
-        kind: z.literal('model'),
-        name: z.string(),
-        endpoint: z.string(),
-      }),
-    ]),
+    by: z.discriminatedUnion('kind', [z.object({ kind: z.literal('you') }), ModelBySchema]),
     answers: z.record(z.string(), AnswerSchema),
     inputTokens: z.number().int().nonnegative(),
     ms: z.number(),

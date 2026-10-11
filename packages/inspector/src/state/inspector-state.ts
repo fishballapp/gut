@@ -29,6 +29,8 @@ export type Turn = {
   /** By question key, then criterion key: what each option is. */
   optionInfo: Record<string, Record<string, OptionInfo>>;
   retries: Omit<EventOf<'turn.retrying'>, 'type' | 'runId' | 'round' | 'turn'>[];
+  /** The model's answer, held for you to keep or replace; kept once you have replaced it. */
+  suggestion?: Omit<EventOf<'turn.suggested'>, 'type' | 'runId' | 'round' | 'turn'>;
   outcome:
     | { status: 'asked' }
     | ({ status: 'answered' } & Omit<EventOf<'turn.answered'>, 'type' | 'runId' | 'round' | 'turn'>)
@@ -237,6 +239,20 @@ const reduceRun = (state: InspectorState, event: RunEvent): InspectorState => {
         ),
       );
     }
+    case 'turn.suggested':
+      return updateRun(state, event.runId, run =>
+        updateRound(run, event.round, round =>
+          updateTurn(round, event.turn, turn => ({
+            ...turn,
+            suggestion: {
+              by: event.by,
+              answers: event.answers,
+              inputTokens: event.inputTokens,
+              ms: event.ms,
+            },
+          })),
+        ),
+      );
     case 'turn.answered':
       return updateRun(state, event.runId, run =>
         updateRound(run, event.round, round =>

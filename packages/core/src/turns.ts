@@ -33,6 +33,9 @@ export const answersFromYou = (
   return answers;
 };
 
+/** What a turn costs when the model was not asked. */
+const NOTHING_SPENT = { inputTokens: 0, isModel: false };
+
 /** The first question with more options than the model takes, said as an error. */
 const tooManyOptions = (request: DecisionRequest, maxOptions: number) => {
   for (const [key, question] of Object.entries(request.questions)) {
@@ -93,13 +96,18 @@ export const createTurnAnswerer = ({
         throw new Error(message);
       };
 
-      if ('repick' in turnAnswer) {
+      /** Records a re-pick: the turn is dropped, with what the model spent on it if it was asked. */
+      const repick = (spent: { inputTokens: number; isModel: boolean }): TurnReply => {
         emit({ type: 'turn.dropped', runId, round, turn: turnNumber, reason: 'repick' });
-        return { kind: 'repick' };
-      }
+        return { kind: 'repick', ...spent };
+      };
 
-      if (turnAnswer.by === 'you') {
-        const answers = answersFromYou(request, turnAnswer.answers);
+      /** Records your answers, with what the model spent if it answered first. */
+      const answerAsYou = (
+        chosen: Readonly<Record<string, string>>,
+        spent: { inputTokens: number; isModel: boolean },
+      ): TurnReply => {
+        const answers = answersFromYou(request, chosen);
         if (typeof answers === 'string') return fail(answers);
         emit({
           type: 'turn.answered',
@@ -108,11 +116,14 @@ export const createTurnAnswerer = ({
           turn: turnNumber,
           by: { kind: 'you' },
           answers,
-          inputTokens: 0,
+          inputTokens: spent.inputTokens,
           ms: performance.now() - started,
         });
-        return { kind: 'answered', answers, inputTokens: 0, isModel: false };
-      }
+        return { kind: 'answered', answers, ...spent };
+      };
+
+      if ('repick' in turnAnswer) return repick(NOTHING_SPENT);
+      if (turnAnswer.by === 'you') return answerAsYou(turnAnswer.answers, NOTHING_SPENT);
 
       // The model to ask: one the inspector supplies, checked like a config's, else the run's own.
       const resolved = (() => {
@@ -132,33 +143,58 @@ export const createTurnAnswerer = ({
         return { kind: 'budget' };
       }
 
-      try {
-        const { answers, inputTokens } = await requestAnswers(resolved, request, info => {
-          emit({ type: 'turn.retrying', runId, round, turn: turnNumber, ...info });
-        });
+      const { answers, inputTokens } = await (async () => {
+        try {
+          return await requestAnswers(resolved, request, info => {
+            emit({ type: 'turn.retrying', runId, round, turn: turnNumber, ...info });
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          emit({
+            type: 'turn.failed',
+            runId,
+            round,
+            turn: turnNumber,
+            error: message,
+            isTooLarge: error instanceof RequestTooLargeError,
+          });
+          throw error;
+        }
+      })();
+      const by = { kind: 'model', name: resolved.name, endpoint: resolved.endpoint } as const;
+      const spent = { inputTokens, isModel: true };
+      const answerAsModel = (): TurnReply => {
         emit({
           type: 'turn.answered',
           runId,
           round,
           turn: turnNumber,
-          by: { kind: 'model', name: resolved.name, endpoint: resolved.endpoint },
+          by,
           answers,
           inputTokens,
           ms: performance.now() - started,
         });
-        return { kind: 'answered', answers, inputTokens, isModel: true };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        emit({
-          type: 'turn.failed',
-          runId,
-          round,
-          turn: turnNumber,
-          error: message,
-          isTooLarge: error instanceof RequestTooLargeError,
-        });
-        throw error;
-      }
+        return { kind: 'answered', answers, ...spent };
+      };
+
+      if (turnAnswer.shouldReview !== true || hooks === undefined) return answerAsModel();
+      emit({
+        type: 'turn.suggested',
+        runId,
+        round,
+        turn: turnNumber,
+        by,
+        answers,
+        inputTokens,
+        ms: performance.now() - started,
+      });
+      const choices = Object.fromEntries(
+        Object.entries(answers).map(([key, answer]) => [key, answer.choice]),
+      );
+      const review = await hooks.review({ round, turn: turnNumber, request, choices });
+      if ('repick' in review) return repick(spent);
+      if (review.by === 'you') return answerAsYou(review.answers, spent);
+      return answerAsModel();
     };
 
     return { answer };

@@ -4,7 +4,6 @@ import { runBudget } from '../lib/run-budget.ts';
 import { runStatus } from '../lib/run-status.ts';
 import type { Select, Selected } from '../lib/selection.ts';
 import type { InspectorState } from '../state/inspector-state.ts';
-import { RoundStrip } from './RoundStrip.tsx';
 import { BudgetMeter } from './run/BudgetMeter.tsx';
 import { FollowToggle } from './run/FollowToggle.tsx';
 import { MaxOptionsSlider } from './run/MaxOptionsSlider.tsx';
@@ -12,7 +11,7 @@ import { RunControls } from './run/RunControls.tsx';
 import { RunSwitcher } from './run/RunSwitcher.tsx';
 import { StatusPill } from './run/StatusPill.tsx';
 
-/** The run: its task and name, its goal as the title, its controls, and the strip of its rounds. */
+/** The run: its task and name, its goal as the title, and its controls. */
 export const RunHeader = ({
   state,
   selected,
@@ -35,7 +34,7 @@ export const RunHeader = ({
   const pill = runStatus(state, run, status);
   const isLive = state.ended === undefined;
   return (
-    <section aria-label="Run" className="border-b border-line px-5 pt-[18px] lg:col-span-3">
+    <section aria-label="Run" className="border-b border-line px-5 pt-[18px] pb-4 lg:col-span-3">
       <p className="font-mono text-xs text-muted [overflow-wrap:anywhere]">
         {state.task}
         {state.task !== undefined && run !== undefined && ' · '}
@@ -61,7 +60,6 @@ export const RunHeader = ({
           <RunControls state={state} run={run} act={act} status={status} />
         </div>
       </div>
-      <RoundStrip selected={selected} select={select} pending={state.pending} />
     </section>
   );
 };

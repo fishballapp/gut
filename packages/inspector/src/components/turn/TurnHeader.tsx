@@ -2,22 +2,18 @@ import { cn } from '@fishballapps/cn';
 import { turnStatusLabel } from '../../lib/turn-display.ts';
 import type { Round, Turn } from '../../state/inspector-state.ts';
 
-/** Who answered and what it cost, for the top-right of the turn. A turn waiting for you has no tokens yet. */
-export const TurnStatus = ({ turn, isAwaitingYou }: { turn: Turn; isAwaitingYou: boolean }) => {
-  if (isAwaitingYou) {
-    return <p className="font-mono text-xs tabular-nums text-muted">no tokens yet</p>;
-  }
-  const status = turnStatusLabel(turn);
-  const isWaiting = turn.outcome.status === 'asked';
-  const isFailed = turn.outcome.status === 'failed';
+/** Who answered and what it cost, for the top-right of the turn; nothing while it waits for you. */
+export const TurnStatus = ({ turn }: { turn: Turn }) => {
+  const isWaiting = turn.outcome.status === 'asked' && turn.suggestion === undefined;
+  if (isWaiting) return null;
   return (
     <p
       className={cn(
         'font-mono text-xs tabular-nums',
-        isWaiting || isFailed ? 'text-you' : 'text-muted',
+        turn.outcome.status === 'failed' ? 'text-you' : 'text-muted',
       )}
     >
-      {status}
+      {turnStatusLabel(turn)}
     </p>
   );
 };

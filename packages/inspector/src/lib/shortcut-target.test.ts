@@ -42,6 +42,14 @@ describe('isShortcutBlockedTarget', () => {
     expect(isShortcutBlockedTarget(el('<div role="menuitemcheckbox">Count</div>'))).toBe(true);
   });
 
+  it('blocks every key inside a dialog, so nothing behind it acts', () => {
+    const dialog = el('<div role="dialog"><p>Edit the op tree</p></div>');
+    const text = dialog.querySelector('p');
+    if (text === null) throw new Error('no p');
+    expect(isShortcutBlockedTarget(text)).toBe(true);
+    expect(isShortcutBlockedTarget(el('<div role="alertdialog"></div>'))).toBe(true);
+  });
+
   it('blocks a nested target inside an interactive ancestor', () => {
     const button = el('<button type="button"><kbd>Space</kbd></button>');
     const kbd = button.querySelector('kbd');

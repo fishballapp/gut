@@ -64,6 +64,7 @@ const collect = () => {
       events.push(event);
     },
     answer: async () => ({ by: 'model' }),
+    review: async () => ({ by: 'model' }),
     beforePick: async () => ({ maxOptions: 26 }),
     beforeInvoke: async () => 'invoke',
     ...overrides,
@@ -838,6 +839,102 @@ describe('inspector hooks via runTask', () => {
     );
     expect(invalidResult).toMatchObject({ status: 'halted', reason: 'error' });
     expect(endings(invalid.events)).toEqual([['turn.failed']]);
+  });
+});
+
+describe("reviewing the model's answer", () => {
+  const ranOps = (ran: string[]) => ({
+    go: op('Go', () => ran.push('go')),
+    other: op('Other', () => ran.push('other')),
+  });
+  const turnTypes = (events: readonly RunEvent[]) =>
+    events.flatMap(event => ('turn' in event ? [event.type] : []));
+
+  it("holds the answer until it is kept, then counts it as the model's", async () => {
+    const { events, hooks } = collect();
+    const ran: string[] = [];
+    const reviewed: Readonly<Record<string, string>>[] = [];
+    decide = () => ({ pick: 'Go' });
+
+    await runTask(
+      { decisionModel: model() },
+      'test',
+      async () => ({ context: { goal: 'ran' }, ops: ranOps(ran) }),
+      { isGoalAchieved: () => ran.length > 0 },
+      () =>
+        hooks({
+          answer: async () => ({ by: 'model', shouldReview: true }),
+          review: async ({ choices }) => {
+            reviewed.push(choices);
+            return { by: 'model' };
+          },
+        }),
+    );
+
+    expect(reviewed).toEqual([{ next: 'o1' }]);
+    expect(turnTypes(events)).toEqual(['turn.asked', 'turn.suggested', 'turn.answered']);
+    expect(events.find(event => event.type === 'turn.answered')).toMatchObject({
+      by: { kind: 'model', name: 'fake' },
+      inputTokens: 100,
+    });
+    expect(ran).toEqual(['go']);
+  });
+
+  it("takes your answer in place of the model's, keeping the tokens the model spent", async () => {
+    const { events, hooks } = collect();
+    const ran: string[] = [];
+    decide = () => ({ pick: 'Go' });
+
+    await runTask(
+      { decisionModel: model() },
+      'test',
+      async () => ({ context: { goal: 'ran' }, ops: ranOps(ran) }),
+      { isGoalAchieved: () => ran.length > 0 },
+      () =>
+        hooks({
+          answer: async () => ({ by: 'model', shouldReview: true }),
+          review: async () => ({ by: 'you', answers: { next: 'o2' } }),
+        }),
+    );
+
+    expect(events.find(event => event.type === 'turn.suggested')).toMatchObject({
+      answers: { next: { choice: 'o1' } },
+    });
+    expect(events.find(event => event.type === 'turn.answered')).toMatchObject({
+      by: { kind: 'you' },
+      answers: { next: { choice: 'o2', probabilities: { o2: 1 } } },
+      inputTokens: 100,
+    });
+    expect(events.find(event => event.type === 'round.picked')).toMatchObject({ tokens: 100 });
+    expect(ran).toEqual(['other']);
+  });
+
+  it("drops the turn on a re-pick, and the abandoned pick keeps the model's request", async () => {
+    const { events, hooks } = collect();
+    const ran: string[] = [];
+    let reviews = 0;
+    decide = () => ({ pick: 'Go' });
+
+    await runTask(
+      { decisionModel: model() },
+      'test',
+      async () => ({ context: { goal: 'ran' }, ops: ranOps(ran) }),
+      { isGoalAchieved: () => ran.length > 0 },
+      () =>
+        hooks({
+          answer: async () => ({ by: 'model', shouldReview: true }),
+          review: async () => {
+            reviews += 1;
+            return reviews === 1 ? { repick: true } : { by: 'model' };
+          },
+        }),
+    );
+
+    expect(turnTypes(events).slice(0, 3)).toEqual(['turn.asked', 'turn.suggested', 'turn.dropped']);
+    expect(events.find(event => event.type === 'pick.abandoned')).toMatchObject({
+      usage: { inputTokens: 100, requests: 1 },
+    });
+    expect(ran).toEqual(['go']);
   });
 });
 

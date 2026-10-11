@@ -135,5 +135,16 @@ export const editsOf = (ops: readonly OpTreeNode[], context: Context, draft: Edi
   return [...nodeEdits, ...contextEdits];
 };
 
+/** Whether a draft's edits are the ones the round was last picked with: saving them would change nothing. */
+export const isSameEdits = (edits: readonly Edit[], round: Round): boolean =>
+  JSON.stringify(edits) === JSON.stringify(roundEdits(round));
+
+/**
+ * Whether the round's pick has answers to lose: a turn answered, or the model's answer waiting for
+ * you. Picking again with edits starts the round over from turn 1.
+ */
+export const hasAnswersSoFar = (round: Round): boolean =>
+  round.turns.some(turn => turn.outcome.status === 'answered' || turn.suggestion !== undefined);
+
 /** The draft a round's current edits start: the same edits, read back the way `editsOf` writes them. */
 export const startDraft = (round: Round): EditDraft => draftOf(roundEdits(round), round.context);

@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { Decision, Round, Turn } from '../state/inspector-state.ts';
 import {
   adjacentRound,
+  adjacentStop,
   blockLook,
   blockName,
   chosenProbability,
   isRoundWaiting,
-} from './strip-block.ts';
+} from './turn-block.ts';
 
 const turn = (number: number, outcome: Turn['outcome']): Turn => ({
   turn: number,
@@ -116,7 +117,7 @@ describe('blockName', () => {
 
 describe('isRoundWaiting', () => {
   const pending: Decision[] = [
-    { id: 'd', runId: 'r', round: 3, on: { kind: 'turn', turn: 2 } },
+    { id: 'd', runId: 'r', round: 3, on: { kind: 'turn', turn: 2, isReview: false } },
     { id: 's', runId: 'r', round: 4, on: { kind: 'step', step: 'openLink' } },
   ];
 
@@ -148,5 +149,32 @@ describe('adjacentRound', () => {
 
   it('is undefined for a round the run does not have', () => {
     expect(adjacentRound(rounds, 9, 1)).toBeUndefined();
+  });
+});
+
+describe('adjacentStop', () => {
+  const answered = turn(1, { status: 'asked' });
+  const rounds: Round[] = [
+    {
+      round: 1,
+      context: { goal: 'g' },
+      ops: [],
+      picks: [],
+      turns: [answered, { ...answered, turn: 2 }],
+    },
+    { round: 2, context: { goal: 'g' }, ops: [], picks: [], turns: [] },
+    { round: 3, context: { goal: 'g' }, ops: [], picks: [], turns: [answered] },
+  ];
+
+  it('steps through the turns in order, across rounds', () => {
+    expect(adjacentStop(rounds, { round: 1, turn: 1 }, 1)).toEqual({ round: 1, turn: 2 });
+    expect(adjacentStop(rounds, { round: 3, turn: 1 }, -1)).toEqual({ round: 2 });
+    expect(adjacentStop(rounds, { round: 2 }, -1)).toEqual({ round: 1, turn: 2 });
+  });
+
+  it('is undefined past either end, or from a stop the run does not have', () => {
+    expect(adjacentStop(rounds, { round: 1, turn: 1 }, -1)).toBeUndefined();
+    expect(adjacentStop(rounds, { round: 3, turn: 1 }, 1)).toBeUndefined();
+    expect(adjacentStop(rounds, { round: 9 }, 1)).toBeUndefined();
   });
 });

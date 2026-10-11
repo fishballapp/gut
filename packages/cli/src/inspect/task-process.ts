@@ -21,6 +21,8 @@ const runHook = (hooks: RunHooks, call: CallMessage): Promise<HookResults[CallHo
   switch (call.hook) {
     case 'answer':
       return hooks.answer(call.arg);
+    case 'review':
+      return hooks.review(call.arg);
     case 'beforePick':
       return hooks.beforePick(call.arg);
     case 'beforeInvoke':

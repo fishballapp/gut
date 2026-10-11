@@ -7,6 +7,7 @@ import {
   withHidden,
   withText,
 } from '../../lib/edit-draft.ts';
+import { nodeTag } from '../../lib/round-panel.ts';
 
 type OnDraft = (draft: EditDraft) => void;
 
@@ -20,20 +21,19 @@ const HideToggle = ({
   onDraft: OnDraft;
 }) => {
   const isHidden = draft.hidden[addressKey(address)] === true;
-  const path = pathOf(address);
   return (
     <button
       type="button"
-      aria-label={`${isHidden ? 'Show' : 'Hide'} ${path}`}
+      aria-label={`${isHidden ? 'Show' : 'Hide'} ${pathOf(address)}`}
       onClick={() => onDraft(withHidden(draft, address, !isHidden))}
-      className="shrink-0 rounded-md border border-line px-1.5 py-0.5 font-sans text-xs text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-ink"
+      className="w-10 shrink-0 rounded-md py-0.5 font-sans text-xs text-muted hover:bg-ground hover:text-ink focus-visible:outline-2 focus-visible:outline-ink"
     >
       {isHidden ? 'Show' : 'Hide'}
     </button>
   );
 };
 
-/** One op, group or choice: its hide toggle, its key and its text, then what it holds. */
+/** One op, group or choice: its hide toggle, its kind, and its text, then what it holds. */
 const EditNode = ({
   node,
   draft,
@@ -46,12 +46,14 @@ const EditNode = ({
   const isChoice = node.kind === 'choice';
   const isHidden = draft.hidden[addressKey(node.address)] === true;
   const text = draft.texts[addressKey(node.address)] ?? observedTextOf(node);
-  const shownKey = isChoice ? `[${node.address.choice ?? ''}]` : (node.address.keys.at(-1) ?? '');
+  const tag = nodeTag(node);
   return (
     <li className="min-w-0 py-0.5">
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2" title={pathOf(node.address)}>
         <HideToggle address={node.address} draft={draft} onDraft={onDraft} />
-        <span className="shrink-0 text-muted">{shownKey}</span>
+        {tag !== undefined && (
+          <span className="w-[2.25rem] shrink-0 font-sans text-[11px] text-muted">{tag}</span>
+        )}
         <input
           type="text"
           aria-label={`${isChoice ? 'Label' : 'Description'} of ${pathOf(node.address)}`}
@@ -59,7 +61,7 @@ const EditNode = ({
           disabled={isHidden}
           spellCheck={false}
           onChange={event => onDraft(withText(draft, node.address, event.target.value))}
-          className="min-w-0 flex-1 rounded-md border border-line bg-raised px-2 py-0.5 text-ink focus-visible:outline-2 focus-visible:outline-ink disabled:text-muted"
+          className="min-w-0 flex-1 rounded-md border border-line bg-ground px-2 py-1 text-ink focus-visible:outline-2 focus-visible:outline-ink disabled:text-muted disabled:line-through"
         />
       </div>
       {(node.kind === 'group' || node.kind === 'choices') && (
@@ -73,12 +75,14 @@ const EditNodeList = ({
   nodes,
   draft,
   onDraft,
+  isRoot = false,
 }: {
   nodes: OpTreeNode[];
   draft: EditDraft;
   onDraft: OnDraft;
+  isRoot?: boolean;
 }) => (
-  <ul className="ms-3 border-l border-line ps-3">
+  <ul className={isRoot ? undefined : 'ms-[1.375rem] border-l border-line ps-3'}>
     {nodes.map(node => (
       <EditNode key={addressKey(node.address)} node={node} draft={draft} onDraft={onDraft} />
     ))}
@@ -95,8 +99,7 @@ export const OpTreeEditor = ({
   draft: EditDraft;
   onDraft: OnDraft;
 }) => (
-  <section aria-label="Op tree" className="min-w-0">
-    <h3 className="pb-2 text-xs font-semibold text-muted">Op tree</h3>
-    <EditNodeList nodes={ops} draft={draft} onDraft={onDraft} />
-  </section>
+  <div className="font-mono text-[12px]">
+    <EditNodeList nodes={ops} draft={draft} onDraft={onDraft} isRoot />
+  </div>
 );

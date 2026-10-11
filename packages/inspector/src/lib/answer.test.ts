@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  answerHint,
+  choicesOf,
   isAnswerComplete,
+  isKeepingChoices,
   keycapOf,
   keyedRows,
   listView,
@@ -118,16 +119,10 @@ describe('isAnswerComplete', () => {
   });
 });
 
-describe('answerHint', () => {
-  it('names the model that can answer', () => {
-    expect(answerHint({ name: 'Jev' })).toBe(
-      'Choose one option per question, or let Jev answer this turn.',
-    );
-  });
-
-  it('says why the model cannot answer when there is none', () => {
-    expect(answerHint(null)).toBe(
-      'Choose one option per question. Ask model needs a model: add one.',
-    );
+describe('isKeepingChoices', () => {
+  it("keeps the model's answer only while every choice is its own", () => {
+    const suggested = choicesOf({ achieved: { choice: 'notYet' }, next: { choice: 'o2' } });
+    expect(isKeepingChoices({ ...suggested }, suggested)).toBe(true);
+    expect(isKeepingChoices({ ...suggested, next: 'o1' }, suggested)).toBe(false);
   });
 });

@@ -42,6 +42,7 @@ afterEach(() => {
 const record = async (
   answerFor: (turn: number, round: number) => TurnAnswer,
   beforeInvoke: RunHooks['beforeInvoke'] = async () => 'invoke',
+  review: RunHooks['review'] = async () => ({ by: 'model' }),
 ) => {
   const events: InspectorEvent[] = [];
   const inspector: InspectorGlobal = {
@@ -49,6 +50,7 @@ const record = async (
     attach: (): RunHooks => ({
       onEvent: event => events.push(event),
       answer: async ({ round, turn }) => answerFor(turn, round),
+      review,
       beforePick: async () => ({ maxOptions: 26, edits: [] }),
       beforeInvoke,
     }),
@@ -260,6 +262,30 @@ describe('reduce', () => {
     });
   });
 
+  it("keeps the model's answer on the turn while it waits for review, and once you replace it", async () => {
+    const events = await record(
+      () => ({ by: 'model', shouldReview: true }),
+      undefined,
+      async ({ choices }) => ({ by: 'you', answers: choices }),
+    );
+    const suggestedAt = events.findIndex(event => event.type === 'turn.suggested');
+    const waiting = events.slice(0, suggestedAt + 1).reduce(reduce, initialState);
+    const held = waiting.runs[0]?.rounds[0]?.turns[0];
+    expect(held?.outcome.status).toBe('asked');
+    expect(held?.suggestion).toMatchObject({
+      by: { kind: 'model', name: 'fake' },
+      inputTokens: 100,
+    });
+
+    const turn = events.reduce(reduce, initialState).runs[0]?.rounds[0]?.turns[0];
+    expect(turn?.outcome).toMatchObject({
+      status: 'answered',
+      by: { kind: 'you' },
+      inputTokens: 100,
+    });
+    expect(turn?.suggestion?.answers.next?.choice).toBe('o1');
+  });
+
   it('tracks the session: mode, page model and what waits', () => {
     const events: InspectorEvent[] = [
       { type: 'session.started', protocol: PROTOCOL, task: 'task.gut.ts', mode: 'step' },
@@ -268,7 +294,7 @@ describe('reduce', () => {
         id: 'd1',
         runId: 'r1',
         round: 1,
-        on: { kind: 'turn', turn: 1 },
+        on: { kind: 'turn', turn: 1, isReview: false },
       },
       {
         type: 'session.model',
@@ -280,7 +306,7 @@ describe('reduce', () => {
     ];
     const states = events.map((_, i) => events.slice(0, i + 1).reduce(reduce, initialState));
     expect(states[1]?.pending).toEqual([
-      { id: 'd1', runId: 'r1', round: 1, on: { kind: 'turn', turn: 1 } },
+      { id: 'd1', runId: 'r1', round: 1, on: { kind: 'turn', turn: 1, isReview: false } },
     ]);
     expect(states.at(-1)).toEqual({
       sessionNumber: 1,

@@ -5,34 +5,79 @@ import { CaretRightIcon } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import { isOnPath } from '../../lib/op-path.ts';
 import { revealWithin } from '../../lib/reveal.ts';
-import { closedCountLabel } from '../../lib/round-panel.ts';
+import { countLabel, nodeTag } from '../../lib/round-panel.ts';
 
-const nodeKey = (node: OpTreeNode): string => node.address.keys.at(-1) ?? '';
+const nodeKey = (node: OpTreeNode): string =>
+  [...node.address.keys, node.address.choice].filter(part => part !== undefined).join('.');
 
-const pathClass = (isPicked: boolean) => (isPicked ? 'font-semibold text-chosen' : 'text-muted');
+/** What a node reads as: a choice's label, else its description. */
+const textOf = (node: OpTreeNode): string =>
+  node.kind === 'choice' ? node.label : node.description;
 
-const PickedMark = ({ isPicked }: { isPicked: boolean }) =>
-  isPicked ? <span className="sr-only">picked</span> : null;
+/** On hover: the whole text, and where the node sits in the task's code. */
+const titleOf = (node: OpTreeNode): string => {
+  const { keys, choice } = node.address;
+  return `${textOf(node)}\n${keys.join('.')}${choice === undefined ? '' : `[${choice}]`}`;
+};
 
-const LeafRow = ({
-  label,
-  description,
-  isPicked,
+type Place = 'picked' | 'path' | 'off';
+
+const placeOf = (node: OpTreeNode, pickedAddress: OpAddress | null): Place => {
+  if (pickedAddress === null || !isOnPath(node.address, pickedAddress)) return 'off';
+  return node.kind === 'op' || node.kind === 'choice' ? 'picked' : 'path';
+};
+
+/**
+ * One node's line: a caret when it folds, its kind, its text, and what it holds. The picked move is
+ * marked like a chosen option, and the groups above it read in ink.
+ */
+const NodeLine = ({
+  node,
+  place,
+  isOpen,
 }: {
-  label: string;
-  description?: string;
-  isPicked: boolean;
-}) => (
-  <span className={cn('flex min-w-0 items-baseline gap-2', pathClass(isPicked))}>
-    <PickedMark isPicked={isPicked} />
-    <span className="shrink-0">{label}</span>
-    {description !== undefined && description.length > 0 && (
-      <span className="truncate font-normal text-muted">{description}</span>
-    )}
-  </span>
-);
+  node: OpTreeNode;
+  place: Place;
+  isOpen?: boolean;
+}) => {
+  const tag = nodeTag(node);
+  return (
+    <span className="flex min-w-0 items-baseline gap-1.5">
+      {isOpen === undefined ? (
+        <span aria-hidden className="w-3 shrink-0" />
+      ) : (
+        <CaretRightIcon
+          size={12}
+          weight="bold"
+          aria-hidden
+          className={cn(
+            'relative top-px shrink-0 text-faint transition-transform motion-reduce:transition-none',
+            isOpen && 'rotate-90',
+          )}
+        />
+      )}
+      {tag !== undefined && (
+        <span className="w-[2.25rem] shrink-0 font-sans text-[11px] text-muted">{tag}</span>
+      )}
+      <span
+        className={cn(
+          'min-w-0 truncate',
+          place === 'off' && 'text-muted',
+          place === 'path' && 'font-semibold text-ink',
+          place === 'picked' && 'bg-highlight px-0.5 font-semibold text-chosen',
+        )}
+      >
+        {textOf(node)}
+      </span>
+      {place === 'picked' && <span className="sr-only">picked</span>}
+      {(node.kind === 'group' || node.kind === 'choices') && (
+        <span className="shrink-0 text-muted">{countLabel(node)}</span>
+      )}
+    </span>
+  );
+};
 
-/** Every choice of a list, in a scrolling container; the picked one is brought into view when the pick changes. */
+/** Every choice of an op, in a scrolling container; the picked one is brought into view. */
 const ChoiceList = ({
   choices,
   pickedAddress,
@@ -41,23 +86,29 @@ const ChoiceList = ({
   pickedAddress: OpAddress | null;
 }) => {
   const listRef = useRef<HTMLUListElement>(null);
-  const pickedKey = pickedAddress === null ? '' : JSON.stringify(pickedAddress);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: re-runs when pickedKey changes; the body reads the DOM.
   useEffect(() => {
     const list = listRef.current;
     const row = list?.querySelector<HTMLElement>('[data-picked]');
     if (list !== null && list !== undefined && row !== null && row !== undefined) {
       revealWithin(list, row);
     }
-  }, [pickedKey]);
+  }, []);
 
   return (
-    <ul ref={listRef} className="relative ms-3 max-h-72 overflow-y-auto border-l border-line ps-3">
+    <ul
+      ref={listRef}
+      className="relative ms-[5px] max-h-72 overflow-y-auto border-l border-line ps-2"
+    >
       {choices.map(choice => {
-        const isPicked = pickedAddress !== null && isOnPath(choice.address, pickedAddress);
+        const place = placeOf(choice, pickedAddress);
         return (
-          <li key={choice.address.choice} data-picked={isPicked || undefined} className="py-0.5">
-            <LeafRow label={choice.label} isPicked={isPicked} />
+          <li
+            key={nodeKey(choice)}
+            title={titleOf(choice)}
+            data-picked={place === 'picked' || undefined}
+            className="py-px"
+          >
+            <NodeLine node={choice} place={place} />
           </li>
         );
       })}
@@ -65,7 +116,7 @@ const ChoiceList = ({
   );
 };
 
-/** A group or choices list: open at first, so every move shows; a person may still collapse it. */
+/** A group, or an op with choices: folded unless the picked move is inside it. */
 const FoldableNode = ({
   node,
   pickedAddress,
@@ -73,32 +124,15 @@ const FoldableNode = ({
   node: Extract<OpTreeNode, { kind: 'group' | 'choices' }>;
   pickedAddress: OpAddress | null;
 }) => {
-  const isPicked = pickedAddress !== null && isOnPath(node.address, pickedAddress);
-  const [isOpen, setIsOpen] = useState(true);
-  const key = nodeKey(node);
-  const count = closedCountLabel(node);
-
+  const place = placeOf(node, pickedAddress);
+  const [isOpen, setIsOpen] = useState(place !== 'off');
   return (
     <Collapsible.Root open={isOpen} onOpenChange={setIsOpen} className="min-w-0">
       <Collapsible.Trigger
-        className={cn(
-          'group flex w-full min-w-0 items-baseline gap-1.5 py-0.5 text-left',
-          pathClass(isPicked),
-        )}
+        title={titleOf(node)}
+        className="flex w-full min-w-0 rounded-sm py-px text-left focus-visible:outline-2 focus-visible:outline-ink"
       >
-        <PickedMark isPicked={isPicked} />
-        <CaretRightIcon
-          size={12}
-          weight="bold"
-          className={cn(
-            'relative top-px shrink-0 text-faint transition-transform motion-reduce:transition-none',
-            isOpen && 'rotate-90',
-          )}
-          aria-hidden
-        />
-        <span className="shrink-0">{key}</span>
-        <span className="min-w-0 truncate font-normal text-muted">{node.description}</span>
-        {!isOpen && <span className="shrink-0 font-normal text-muted">{count}</span>}
+        <NodeLine node={node} place={place} isOpen={isOpen} />
       </Collapsible.Trigger>
       <Collapsible.Panel>
         {node.kind === 'group' ? (
@@ -111,50 +145,34 @@ const FoldableNode = ({
   );
 };
 
-const OpNode = ({ node, pickedAddress }: { node: OpTreeNode; pickedAddress: OpAddress | null }) => {
-  if (node.kind === 'group' || node.kind === 'choices') {
-    return (
-      <li className="min-w-0">
-        <FoldableNode node={node} pickedAddress={pickedAddress} />
-      </li>
-    );
-  }
-  if (node.kind === 'choice') {
-    const isPicked = pickedAddress !== null && isOnPath(node.address, pickedAddress);
-    return (
-      <li className="py-0.5">
-        <LeafRow label={node.label} isPicked={isPicked} />
-      </li>
-    );
-  }
-  const isPicked = pickedAddress !== null && isOnPath(node.address, pickedAddress);
-  return (
-    <li className="py-0.5">
-      <LeafRow label={nodeKey(node)} description={node.description} isPicked={isPicked} />
-    </li>
-  );
-};
-
 const OpNodeList = ({
   nodes,
   pickedAddress,
+  isRoot = false,
 }: {
   nodes: OpTreeNode[];
   pickedAddress: OpAddress | null;
+  isRoot?: boolean;
 }) => (
-  <ul className="ms-3 border-l border-line ps-3">
+  <ul className={cn(!isRoot && 'ms-[5px] border-l border-line ps-2')}>
     {nodes.map(node => (
-      <OpNode
-        key={[...node.address.keys, node.address.choice]
-          .filter(part => part !== undefined)
-          .join('.')}
-        node={node}
-        pickedAddress={pickedAddress}
-      />
+      <li key={nodeKey(node)} className="min-w-0">
+        {node.kind === 'group' || node.kind === 'choices' ? (
+          <FoldableNode node={node} pickedAddress={pickedAddress} />
+        ) : (
+          <div title={titleOf(node)} className="py-px">
+            <NodeLine node={node} place={placeOf(node, pickedAddress)} />
+          </div>
+        )}
+      </li>
     ))}
   </ul>
 );
 
+/**
+ * The round's op tree, folded down to its top level and the way to the picked move, which is marked.
+ * The caller keys it by the pick, so the folds follow a new pick.
+ */
 export const OpTree = ({
   ops,
   pickedAddress,
@@ -162,18 +180,7 @@ export const OpTree = ({
   ops: OpTreeNode[];
   pickedAddress: OpAddress | null | undefined;
 }) => (
-  <section aria-label="Op tree" className="min-w-0">
-    <h3 className="pb-2 text-xs font-semibold text-muted">Op tree</h3>
-    <ul className="font-mono text-[12px] leading-relaxed">
-      {ops.map(node => (
-        <OpNode
-          key={[...node.address.keys, node.address.choice]
-            .filter(part => part !== undefined)
-            .join('.')}
-          node={node}
-          pickedAddress={pickedAddress ?? null}
-        />
-      ))}
-    </ul>
-  </section>
+  <div className="font-mono text-[12px] leading-relaxed">
+    <OpNodeList nodes={ops} pickedAddress={pickedAddress ?? null} isRoot />
+  </div>
 );

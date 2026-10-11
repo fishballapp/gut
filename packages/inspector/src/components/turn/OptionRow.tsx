@@ -3,7 +3,7 @@ import { cn } from '@fishballapps/cn';
 import { motion, useReducedMotion } from 'motion/react';
 import { formatProbability } from '../../lib/format.ts';
 import { REORDER_SECONDS, staggerSeconds } from '../../lib/option-motion.ts';
-import type { OptionsPhase } from '../../lib/turn-display.ts';
+import { isPickingPhase, type OptionsPhase } from '../../lib/turn-display.ts';
 import { Keycap } from '../run/Keycap.tsx';
 
 /** Split so only the first line of a chosen option gets the highlight mark. */
@@ -47,7 +47,7 @@ export const OptionRow = ({
   const reduceMotion = useReducedMotion() === true;
   const { first, rest } = splitFirstLine(text);
   const isRecorded = phase === 'read' && isChosen;
-  const isChoosing = phase === 'choose';
+  const isChoosing = isPickingPhase(phase);
   const barScale = showsProbability ? Math.min(probability, 1) : 0;
   const barTransition = reduceMotion
     ? { duration: 0 }

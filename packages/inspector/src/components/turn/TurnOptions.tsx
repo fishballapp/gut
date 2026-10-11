@@ -3,8 +3,9 @@ import { cn } from '@fishballapps/cn';
 import type { Action, ModelInfo } from '@gut.run/core/inspector';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import {
-  answerHint,
+  choicesOf,
   isAnswerComplete,
+  isKeepingChoices,
   keyedRows,
   listView,
   type Option,
@@ -15,6 +16,7 @@ import { type OptionSort, sortOptions } from '../../lib/sort-options.ts';
 import {
   chosenKey,
   isAnsweredByYou,
+  isPickingPhase,
   optionRowsOf,
   optionsPhaseOf,
   showsProbabilities,
@@ -25,10 +27,14 @@ import { Keycap } from '../run/Keycap.tsx';
 import { controlClass } from '../run/RunControls.tsx';
 import { QuestionOptions } from './QuestionOptions.tsx';
 
+/** Your choices, with the decision they answer: a new decision (the model's answer to review) starts afresh. */
+type Picked = { decision: string | undefined; choices: Readonly<Record<string, string>> };
+
 /**
  * The options of the selected turn, in the phase it is in. While you choose, the answer buttons sit
- * under the questions; while the model answers, a spinner sits where they were. The parent keys it
- * by the decision you answer, so a choice never carries over to the next turn.
+ * under the questions; while the model answers, a spinner sits where they were. Once it has
+ * answered, its choices start selected: ↵ confirms them, or you choose others and ↵ answers with
+ * yours. The parent keys it by the pick, so a choice never carries over to another pick.
  */
 export const TurnOptions = ({
   turn,
@@ -43,20 +49,27 @@ export const TurnOptions = ({
   sort: OptionSort;
   act: (action: Action) => Promise<ActOutcome>;
 }) => {
-  const phase = optionsPhaseOf(turn, decision !== undefined);
-  const isChoosing = phase === 'choose';
+  const phase = optionsPhaseOf(turn, decision);
+  const isPicking = isPickingPhase(phase);
   const { send, error } = useAction(act);
-  const [choices, setChoices] = useState<Readonly<Record<string, string>>>({});
+  const [picked, setPicked] = useState<Picked>({ decision: undefined, choices: {} });
   const [queries, setQueries] = useState<Readonly<Record<string, string>>>({});
   const filterRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLDivElement | null>(null);
+
+  const suggested = phase === 'review' ? choicesOf(turn.suggestion?.answers) : {};
+  // Your choices stay on their options while the model answers, and give way to its answer.
+  const ownChoices =
+    decision === undefined || picked.decision === decision.id ? picked.choices : {};
+  const choices = { ...suggested, ...ownChoices };
+  const isConfirming = phase === 'review' && isKeepingChoices(choices, suggested);
+  const canPickAgain = isPicking && turn.turn > 1;
 
   const questions = Object.entries(turn.request.questions).map(([questionKey, question]) => {
     const options: Option[] = Object.entries(question.criteria).map(([key, text]) => ({
       key,
       text,
     }));
-    // Your pick stays on its option while the model answers; the turn's answer replaces it once read.
     const chosen = phase === 'read' ? chosenKey(turn, questionKey) : choices[questionKey];
     const view = listView(options, queries[questionKey] ?? '', chosen);
     const shownKeys = new Set(view.shown.map(option => option.key));
@@ -81,11 +94,16 @@ export const TurnOptions = ({
   );
 
   const choose = (questionKey: string, optionKey: string) =>
-    setChoices(previous => ({ ...previous, [questionKey]: optionKey }));
+    setPicked({ decision: decision?.id, choices: { ...ownChoices, [questionKey]: optionKey } });
 
+  /** ↵: keeps the model's answer while your choices are its own, else answers with yours. */
   const answer = () => {
     if (decision === undefined || !isComplete) return;
-    void send({ type: 'answer', decision: decision.id, answers: choices });
+    void send(
+      isConfirming
+        ? { type: 'confirm', decision: decision.id }
+        : { type: 'answer', decision: decision.id, answers: choices },
+    );
   };
 
   const askModel = () => {
@@ -93,11 +111,21 @@ export const TurnOptions = ({
     void send({ type: 'askModel', decision: decision.id });
   };
 
+  const pickAgain = () => {
+    if (decision === undefined || !canPickAgain) return;
+    void send({ type: 'repick', decision: decision.id });
+  };
+
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (!isChoosing || !isPageKey(event)) return;
+    if (!isPicking || !isPageKey(event)) return;
     if (event.key === 'Enter') {
       event.preventDefault();
       answer();
+      return;
+    }
+    if ((event.key === 'r' || event.key === 'R') && canPickAgain) {
+      event.preventDefault();
+      pickAgain();
       return;
     }
     if (event.key === '/') {
@@ -118,10 +146,10 @@ export const TurnOptions = ({
 
   // An option focused while you choose would keep the page's keys once disabled, so it lets go.
   useEffect(() => {
-    if (isChoosing) return;
+    if (isPicking) return;
     const focused = document.activeElement;
     if (focused instanceof HTMLElement && formRef.current?.contains(focused)) focused.blur();
-  }, [isChoosing]);
+  }, [isPicking]);
 
   useEffect(() => {
     window.addEventListener('keydown', onKeyDown);
@@ -131,7 +159,7 @@ export const TurnOptions = ({
   const modelName = model?.name ?? 'The model';
 
   return (
-    <div ref={formRef} data-answer-form={isChoosing ? '' : undefined}>
+    <div ref={formRef} data-answer-form={isPicking ? '' : undefined}>
       {questions.map(question => (
         <QuestionOptions
           key={question.key}
@@ -152,27 +180,37 @@ export const TurnOptions = ({
         />
       ))}
 
-      {isChoosing && (
-        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+      {isPicking && (
+        <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-2">
           <Button
             type="button"
             disabled={!isComplete}
             onClick={answer}
             className={cn(controlClass(true, !isComplete), 'h-8 px-3 text-[13px]')}
           >
-            Answer
+            {isConfirming ? 'Confirm' : 'Answer'}
             <Keycap>↵</Keycap>
           </Button>
-          <Button
-            type="button"
-            disabled={model === null}
-            onClick={askModel}
-            className={cn(controlClass(false, model === null), 'h-8 px-3 text-[13px]')}
-          >
-            Ask model
-            <Keycap>S</Keycap>
-          </Button>
-          <p className="text-xs text-muted">{answerHint(model)}</p>
+          {phase === 'choose' && model !== null && (
+            <Button
+              type="button"
+              onClick={askModel}
+              className={cn(controlClass(false, false), 'h-8 px-3 text-[13px]')}
+            >
+              Ask model
+              <Keycap>S</Keycap>
+            </Button>
+          )}
+          {canPickAgain && (
+            <Button
+              type="button"
+              onClick={pickAgain}
+              className={cn(controlClass(false, false), 'h-8 px-3 text-[13px]')}
+            >
+              Pick again
+              <Keycap>R</Keycap>
+            </Button>
+          )}
         </div>
       )}
 

@@ -1,11 +1,14 @@
 import type { Edit, OpTreeNode } from '@gut.run/core/inspector';
 import { describe, expect, it } from 'vitest';
+import type { Round, Turn } from '../state/inspector-state.ts';
 import {
   type Context,
   contextOf,
   contextProblemOf,
   draftOf,
   editsOf,
+  hasAnswersSoFar,
+  isSameEdits,
   withContext,
   withHidden,
   withText,
@@ -100,5 +103,50 @@ describe('contextOf', () => {
 
   it('is no problem for a context object', () => {
     expect(contextProblemOf(clean)).toBeUndefined();
+  });
+});
+
+describe('saving edits', () => {
+  const edits: Edit[] = [{ kind: 'description', keys: ['add'], description: 'Add one more' }];
+  const round = (overrides: Partial<Round> = {}): Round => ({
+    round: 1,
+    context,
+    ops,
+    picks: [{ maxOptions: 26, edits }],
+    turns: [],
+    ...overrides,
+  });
+  const turn = (overrides: Partial<Turn> = {}): Turn => ({
+    turn: 1,
+    request: { state: context, questions: {} },
+    edits,
+    optionInfo: {},
+    retries: [],
+    outcome: { status: 'asked' },
+    ...overrides,
+  });
+
+  it('changes nothing when the edits are the ones the round was picked with', () => {
+    expect(isSameEdits(edits, round())).toBe(true);
+    expect(isSameEdits([], round())).toBe(false);
+  });
+
+  it("has answers to lose once a turn is answered or the model's answer waits", () => {
+    expect(hasAnswersSoFar(round({ turns: [turn()] }))).toBe(false);
+    const suggestion = {
+      by: { kind: 'model' as const, name: 'jev', endpoint: 'e' },
+      answers: {},
+      inputTokens: 1,
+      ms: 1,
+    };
+    expect(hasAnswersSoFar(round({ turns: [turn({ suggestion })] }))).toBe(true);
+    const answered: Turn['outcome'] = {
+      status: 'answered',
+      by: { kind: 'you' },
+      answers: {},
+      inputTokens: 0,
+      ms: 1,
+    };
+    expect(hasAnswersSoFar(round({ turns: [turn({ outcome: answered })] }))).toBe(true);
   });
 });

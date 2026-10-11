@@ -848,6 +848,96 @@ exports[`RunEventSchema > toJSONSchema snapshot — bump PROTOCOL if older reade
           "type": "object",
         },
         "by": {
+          "additionalProperties": false,
+          "properties": {
+            "endpoint": {
+              "type": "string",
+            },
+            "kind": {
+              "const": "model",
+              "type": "string",
+            },
+            "name": {
+              "type": "string",
+            },
+          },
+          "required": [
+            "kind",
+            "name",
+            "endpoint",
+          ],
+          "type": "object",
+        },
+        "inputTokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "ms": {
+          "type": "number",
+        },
+        "round": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "runId": {
+          "type": "string",
+        },
+        "turn": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "type": {
+          "const": "turn.suggested",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "runId",
+        "round",
+        "turn",
+        "by",
+        "answers",
+        "inputTokens",
+        "ms",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "answers": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "choice": {
+                "type": "string",
+              },
+              "probabilities": {
+                "additionalProperties": {
+                  "type": "number",
+                },
+                "propertyNames": {
+                  "type": "string",
+                },
+                "type": "object",
+              },
+            },
+            "required": [
+              "choice",
+              "probabilities",
+            ],
+            "type": "object",
+          },
+          "propertyNames": {
+            "type": "string",
+          },
+          "type": "object",
+        },
+        "by": {
           "oneOf": [
             {
               "additionalProperties": false,

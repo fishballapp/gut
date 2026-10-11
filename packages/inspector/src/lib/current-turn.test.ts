@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Decision, Round, Turn } from '../state/inspector-state.ts';
-import {
-  currentTurnOf,
-  isAwaitingYou,
-  roundCurrentState,
-  rowCurrentState,
-} from './current-turn.ts';
+import { currentTurnOf, isAwaitingYou, roundCurrentState } from './current-turn.ts';
 
 const turn = (number: number, outcome: Turn['outcome']): Turn => ({
   turn: number,
@@ -36,7 +31,7 @@ const turnDecision = (turnNumber: number): Decision => ({
   id: `t${turnNumber}`,
   runId: 'r',
   round: 3,
-  on: { kind: 'turn', turn: turnNumber },
+  on: { kind: 'turn', turn: turnNumber, isReview: false },
 });
 
 const stepDecision: Decision = {
@@ -95,26 +90,6 @@ describe('roundCurrentState', () => {
   it('is undefined for a round the run is not on', () => {
     expect(roundCurrentState(round([turn(1, answered)]), 'r', [])).toBeUndefined();
     expect(roundCurrentState(round(), 'r', [])).toBeUndefined();
-  });
-});
-
-describe('rowCurrentState', () => {
-  it('marks a collapsed round row while the run is on the round', () => {
-    expect(rowCurrentState('in-flight', { isSelected: false, turnCount: 2 })).toBe('in-flight');
-  });
-
-  it('moves the marker off an open round row onto its turns', () => {
-    expect(rowCurrentState('waiting-for-you', { isSelected: true, turnCount: 2 })).toBeUndefined();
-  });
-
-  it('keeps the marker on an open round row with no turn to mark', () => {
-    expect(rowCurrentState('waiting-to-run', { isSelected: true, turnCount: 0 })).toBe(
-      'waiting-to-run',
-    );
-  });
-
-  it('is undefined for a round the run is not on', () => {
-    expect(rowCurrentState(undefined, { isSelected: false, turnCount: 0 })).toBeUndefined();
   });
 });
 

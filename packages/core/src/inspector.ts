@@ -61,7 +61,14 @@ export const effectiveMaxOptions = ({
  * keyed by question → criterion, or a re-pick of this round.
  */
 export type TurnAnswer =
-  | { by: 'model'; model?: DecisionModel }
+  /** With `shouldReview`, the model's answer waits on `review` before it counts. */
+  | { by: 'model'; model?: DecisionModel; shouldReview?: boolean }
+  | { by: 'you'; answers: Readonly<Record<string, string>> }
+  | { repick: true };
+
+/** What the developer makes of the model's answer: keep it, answer the turn otherwise, or re-pick. */
+export type TurnReview =
+  | { by: 'model' }
   | { by: 'you'; answers: Readonly<Record<string, string>> }
   | { repick: true };
 
@@ -70,6 +77,13 @@ export type RunHooks = {
   /** Synchronous, never awaited. */
   onEvent: (event: RunEvent) => void;
   answer: (turn: { round: number; turn: number; request: DecisionRequest }) => Promise<TurnAnswer>;
+  /** Called after a model's answer that `answer` asked to review, with the choice per question. */
+  review: (turn: {
+    round: number;
+    turn: number;
+    request: DecisionRequest;
+    choices: Readonly<Record<string, string>>;
+  }) => Promise<TurnReview>;
   /** This pick's question size, and what the developer changed of what the model reads (none if absent). */
   beforePick: (round: {
     round: number;
@@ -122,9 +136,16 @@ export const SessionEventSchema = z.discriminatedUnion('type', [
     id: z.string(),
     runId: z.string(),
     round: z.number().int().positive(),
-    /** A turn waiting for answers, or a picked step waiting to run. */
+    /**
+     * A turn waiting for answers (`isReview`: the model has answered it, and waits for you to keep
+     * or replace that answer), or a picked step waiting to run.
+     */
     on: z.discriminatedUnion('kind', [
-      z.object({ kind: z.literal('turn'), turn: z.number().int().positive() }),
+      z.object({
+        kind: z.literal('turn'),
+        turn: z.number().int().positive(),
+        isReview: z.boolean(),
+      }),
       z.object({ kind: z.literal('step'), step: z.string() }),
     ]),
   }),
@@ -161,13 +182,15 @@ export const ActionSchema = z.discriminatedUnion('type', [
    * and the model set in the page stay.
    */
   z.object({ type: z.literal('restart') }),
-  /** Answer a waiting turn yourself: question key → criterion key. */
+  /** Answer a waiting turn yourself, or replace the model's answer to it: question key → criterion key. */
   z.object({
     type: z.literal('answer'),
     decision: z.string(),
     answers: z.record(z.string(), z.string()),
   }),
   z.object({ type: z.literal('askModel'), decision: z.string() }),
+  /** Keep the model's answer to a turn waiting on your review. */
+  z.object({ type: z.literal('confirm'), decision: z.string() }),
   z.object({ type: z.literal('run'), decision: z.string() }),
   /**
    * Drop this round's pick and ask its turns afresh. With `edits`, the round's picks read them from

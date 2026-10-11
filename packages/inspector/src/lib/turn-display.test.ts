@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Turn } from '../state/inspector-state.ts';
+import type { Decision, Turn } from '../state/inspector-state.ts';
 import {
   defaultSortFor,
   formatRetry,
@@ -140,24 +140,68 @@ describe('defaultSortFor', () => {
 });
 
 describe('optionsPhaseOf', () => {
-  it('chooses while a decision waits for you, whatever the outcome', () => {
-    expect(optionsPhaseOf(baseTurn(), true)).toBe('choose');
+  const waiting = (isReview: boolean): Decision => ({
+    id: 'd1',
+    runId: 'r1',
+    round: 1,
+    on: { kind: 'turn', turn: 1, isReview },
+  });
+
+  it('chooses while a turn waits for your answer, whatever the outcome', () => {
+    expect(optionsPhaseOf(baseTurn(), waiting(false))).toBe('choose');
+  });
+
+  it("reviews while the model's answer waits for you", () => {
+    expect(optionsPhaseOf(baseTurn(), waiting(true))).toBe('review');
   });
 
   it('asks while the model answers an asked turn nobody is waiting on', () => {
-    expect(optionsPhaseOf(baseTurn(), false)).toBe('asking');
+    expect(optionsPhaseOf(baseTurn(), undefined)).toBe('asking');
   });
 
   it('reads back every settled turn', () => {
     expect(
-      optionsPhaseOf(baseTurn({ outcome: { status: 'dropped', reason: 'budget' } }), false),
+      optionsPhaseOf(baseTurn({ outcome: { status: 'dropped', reason: 'budget' } }), undefined),
     ).toBe('read');
     expect(
       optionsPhaseOf(
         baseTurn({ outcome: { status: 'failed', error: 'x', isTooLarge: false } }),
-        false,
+        undefined,
       ),
     ).toBe('read');
+  });
+});
+
+describe("the model's suggestion", () => {
+  const suggestion = {
+    by: { kind: 'model' as const, name: 'jev', endpoint: 'https://e.invalid' },
+    answers: { next: { choice: 'a', probabilities: { a: 0.7, b: 0.3 } } },
+    inputTokens: 1200,
+    ms: 900,
+  };
+
+  it('shows its probabilities while it waits, and once you replaced it', () => {
+    const held = baseTurn({ suggestion });
+    expect(optionProbability(held, 'next', 'b')).toBe(0.3);
+    const replaced = baseTurn({
+      suggestion,
+      outcome: {
+        status: 'answered',
+        by: { kind: 'you' },
+        answers: { next: { choice: 'b', probabilities: { b: 1 } } },
+        inputTokens: 1200,
+        ms: 4000,
+      },
+    });
+    expect(optionProbability(replaced, 'next', 'a')).toBe(0.7);
+    expect(defaultSortFor(replaced)).toBe('by-probability');
+    expect(turnStatusLabel(replaced)).toBe('answered by you · 1,200 tokens · 4.0s');
+  });
+
+  it('says who suggested it while it waits', () => {
+    expect(turnStatusLabel(baseTurn({ suggestion }))).toBe(
+      'suggested by jev · 1,200 tokens · 900ms',
+    );
   });
 });
 

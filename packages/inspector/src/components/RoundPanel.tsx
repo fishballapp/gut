@@ -1,50 +1,52 @@
-import { Button } from '@base-ui/react/button';
-import { cn } from '@fishballapps/cn';
 import type { Action } from '@gut.run/core/inspector';
-import { useEffect, useEffectEvent, useMemo } from 'react';
+import { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import type { ActOutcome } from '../lib/connection.ts';
 import { copyBackOf } from '../lib/edit-copy.ts';
-import { contextProblemOf, editsOf, roundEdits } from '../lib/edit-draft.ts';
+import { roundEdits } from '../lib/edit-draft.ts';
 import { isPageKey } from '../lib/key-target.ts';
+import { roundNote } from '../lib/round-panel.ts';
 import type { Selected } from '../lib/selection.ts';
-import type { RoundEdit } from '../lib/use-edit-draft.ts';
-import { ContextEditor } from './round/ContextEditor.tsx';
+import type { Decision } from '../state/inspector-state.ts';
 import { ContextTree } from './round/ContextTree.tsx';
 import { CopyBackPanel } from './round/CopyBackPanel.tsx';
-import { EditBar } from './round/EditBar.tsx';
+import { EditDialog, type EditPart } from './round/EditDialog.tsx';
 import { OpTree } from './round/OpTree.tsx';
-import { OpTreeEditor } from './round/OpTreeEditor.tsx';
-import { RoundSummary } from './round/RoundSummary.tsx';
+import { CopyButton, Section, sectionButtonClass } from './round/Section.tsx';
 import { Keycap } from './run/Keycap.tsx';
-import { controlClass } from './run/RunControls.tsx';
 
 /**
- * The selected round: what it picked, its op tree, and the context the task returned. While a
- * decision waits for it, E edits what the model reads; the edits are picked again with, or discarded.
+ * The selected round: the context the task returned, then its op tree with the picked move. While a
+ * decision waits for it, each can be edited in a dialog (E opens the op tree's), and saving picks the
+ * round again with the edits.
  */
 export const RoundPanel = ({
   selected,
-  edit,
+  decision,
   act,
 }: {
   selected: Selected;
-  edit: RoundEdit;
+  /** The decision waiting for the selected round: editing is open only while there is one. */
+  decision: Decision | undefined;
   act: (action: Action) => Promise<ActOutcome>;
 }) => {
   const { run, round } = selected;
-  const { decision, draft } = edit;
+  // An edit belongs to the decision it opened on: once that decision ends (answered here or in
+  // another tab, or re-picked), the dialog closes rather than save its draft to the next one.
+  const [editing, setEditing] = useState<{ part: EditPart; decision: string }>();
+  const isEditOpen = editing !== undefined && editing.decision === decision?.id;
   const copy = useMemo(() => {
     if (round === undefined || roundEdits(round).length === 0) return undefined;
     return copyBackOf(round.ops, round.context, roundEdits(round));
   }, [round]);
+  const note = round === undefined ? undefined : roundNote(round, run);
+  const pickedKey = JSON.stringify(round?.picked?.address ?? null);
 
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (!isPageKey(event)) return;
     if (event.key !== 'e' && event.key !== 'E') return;
-    // Once editing, the edit bar owns the draft: it is picked again with, or discarded, never closed silently.
-    if (decision === undefined || draft !== undefined) return;
+    if (decision === undefined || isEditOpen) return;
     event.preventDefault();
-    edit.start();
+    setEditing({ part: 'ops', decision: decision.id });
   });
 
   useEffect(() => {
@@ -52,47 +54,63 @@ export const RoundPanel = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  const editButton = (part: EditPart) =>
+    decision !== undefined && (
+      <button
+        type="button"
+        onClick={() => setEditing({ part, decision: decision.id })}
+        className={sectionButtonClass}
+      >
+        Edit
+        {part === 'ops' && <Keycap>E</Keycap>}
+      </button>
+    );
+
   return (
     <aside
       aria-label="Round"
       className="overflow-auto border-t border-line p-5 lg:border-t-0 lg:border-l"
     >
       {round !== undefined && (
-        <div key={round.round} className="flex min-w-0 flex-col gap-6">
-          <RoundSummary round={round} run={run} />
-          {decision !== undefined && draft !== undefined ? (
-            <>
-              <EditBar
-                decision={decision}
-                edits={editsOf(round.ops, round.context, draft)}
-                problem={contextProblemOf(draft)}
-                act={act}
-                onDiscard={edit.stop}
-                onSent={edit.stop}
-              />
-              <OpTreeEditor ops={round.ops} draft={draft} onDraft={edit.change} />
-              <ContextEditor draft={draft} onDraft={edit.change} />
-            </>
-          ) : (
-            <>
-              {decision !== undefined && (
-                <div>
-                  <Button
-                    type="button"
-                    onClick={edit.start}
-                    className={cn(controlClass(false, false), 'h-8 px-3 text-[13px]')}
-                  >
-                    Edit
-                    <Keycap>E</Keycap>
-                  </Button>
-                </div>
-              )}
-              {copy !== undefined && <CopyBackPanel copy={copy} />}
-              <OpTree ops={round.ops} pickedAddress={round.picked?.address} />
-              <ContextTree context={round.context} />
-            </>
-          )}
+        <div key={round.round} className="flex min-w-0 flex-col gap-7">
+          <header className="space-y-1">
+            <h2 className="text-[15px] font-semibold">Round {round.round}</h2>
+            {note !== undefined && (
+              <p
+                className={
+                  note.kind === 'error' ? 'text-[13px] text-you' : 'text-[13px] text-muted'
+                }
+              >
+                {note.text}
+              </p>
+            )}
+          </header>
+          {copy !== undefined && <CopyBackPanel copy={copy} />}
+          <Section
+            title="Context"
+            actions={
+              <>
+                <CopyButton text={() => JSON.stringify(round.context, null, 2)} />
+                {editButton('context')}
+              </>
+            }
+          >
+            <ContextTree context={round.context} />
+          </Section>
+          <Section title="Op tree" actions={editButton('ops')}>
+            <OpTree key={pickedKey} ops={round.ops} pickedAddress={round.picked?.address} />
+          </Section>
         </div>
+      )}
+      {round !== undefined && decision !== undefined && isEditOpen && (
+        <EditDialog
+          key={editing.decision}
+          part={editing.part}
+          round={round}
+          decision={decision}
+          act={act}
+          onClose={() => setEditing(undefined)}
+        />
       )}
     </aside>
   );

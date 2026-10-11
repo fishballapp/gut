@@ -10,18 +10,16 @@ export const ContextEditor = ({
 }) => {
   const problem = contextProblemOf(draft);
   return (
-    <section aria-label="Context" className="min-w-0">
-      <h3 className="pb-2 text-xs font-semibold text-muted">Context</h3>
+    <div className="flex min-h-0 flex-1 flex-col gap-1.5">
       <textarea
         aria-label="Context JSON"
         aria-invalid={problem !== undefined}
         value={draft.context}
-        rows={10}
         spellCheck={false}
         onChange={event => onDraft(withContext(draft, event.target.value))}
-        className="w-full resize-y rounded-md border border-line bg-raised p-2 font-mono text-[12px] leading-relaxed text-ink focus-visible:outline-2 focus-visible:outline-ink aria-invalid:border-you"
+        className="min-h-[18rem] w-full flex-1 resize-none rounded-md border border-line bg-ground p-3 font-mono text-[12px] leading-relaxed text-ink focus-visible:outline-2 focus-visible:outline-ink aria-invalid:border-you"
       />
-      {problem !== undefined && <p className="pt-1 font-mono text-xs text-you">{problem}</p>}
-    </section>
+      {problem !== undefined && <p className="font-mono text-xs text-you">{problem}</p>}
+    </div>
   );
 };

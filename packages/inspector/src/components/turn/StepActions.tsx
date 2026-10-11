@@ -17,15 +17,12 @@ export const StepActions = ({
   round,
   decision,
   pickedCall,
-  isEditing,
   act,
 }: {
   round: number;
   decision: Decision;
   /** Names the step when the round asked no turn to show it, a lone option needing no question. */
   pickedCall?: string;
-  /** While edits are open, the edit bar picks again, so a plain re-pick here would drop them. */
-  isEditing: boolean;
   act: (action: Action) => Promise<ActOutcome>;
 }) => {
   const { send, error } = useAction(act);
@@ -37,7 +34,7 @@ export const StepActions = ({
       void send({ type: 'run', decision: decision.id });
       return;
     }
-    if ((event.key === 'r' || event.key === 'R') && !isEditing) {
+    if (event.key === 'r' || event.key === 'R') {
       event.preventDefault();
       void send({ type: 'repick', decision: decision.id });
     }
@@ -58,7 +55,7 @@ export const StepActions = ({
           </p>
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
           onClick={() => void send({ type: 'run', decision: decision.id })}
@@ -67,21 +64,14 @@ export const StepActions = ({
           Confirm
           <Keycap>↵</Keycap>
         </Button>
-        {!isEditing && (
-          <Button
-            type="button"
-            onClick={() => void send({ type: 'repick', decision: decision.id })}
-            className={cn(controlClass(false, false), 'h-8 px-3 text-[13px]')}
-          >
-            Pick again
-            <Keycap>R</Keycap>
-          </Button>
-        )}
-        <p className="text-xs text-muted">
-          {isEditing
-            ? 'Confirm runs this pick. Pick again with edits is in the edit bar.'
-            : `Confirm runs this pick. Pick again drops it and asks round ${round}'s turns afresh.`}
-        </p>
+        <Button
+          type="button"
+          onClick={() => void send({ type: 'repick', decision: decision.id })}
+          className={cn(controlClass(false, false), 'h-8 px-3 text-[13px]')}
+        >
+          Pick again
+          <Keycap>R</Keycap>
+        </Button>
       </div>
       {error !== undefined && (
         <p role="alert" className="mt-2 text-xs text-you">

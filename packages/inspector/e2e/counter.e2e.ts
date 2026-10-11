@@ -77,36 +77,28 @@ test('plays the counter to its end in Step, by mouse and by keyboard', async ({ 
     await expect(page.getByRole('radiogroup', { name: 'What should happen next?' })).toBeVisible();
   });
 
-  await test.step('round 1: answer by keyboard, a digit then ↵', async () => {
+  await test.step('round 1: answer by keyboard, a digit then ↵, and the move runs', async () => {
     await page.keyboard.press('1');
     await page.keyboard.press('Enter');
-    await expect(
-      page.getByRole('status').filter({ hasText: 'Before the step · round 1' }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: /^Confirm/ }).click();
+    await expect(page.getByRole('button', { name: 'round 2', exact: true })).toBeVisible();
   });
 
-  await test.step('round 2: answer by mouse, then Confirm the pick', async () => {
-    await expect(page.getByRole('button', { name: 'round 2', exact: true })).toBeVisible();
+  await test.step('round 2: answer by mouse', async () => {
+    await expect(page.getByRole('status').filter({ hasText: 'Your turn · round 2' })).toBeVisible();
     await page
       .getByRole('radiogroup', { name: 'What should happen next?' })
       .getByRole('radio', { name: 'Add one' })
       .click();
     await page.getByRole('button', { name: /^Answer/ }).click();
-    await expect(
-      page.getByRole('status').filter({ hasText: 'Before the step · round 2' }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: /^Confirm/ }).click();
   });
 
   await test.step('round 3: the last move, then the run ends', async () => {
-    await expect(page.getByRole('button', { name: 'round 3', exact: true })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Your turn · round 3' })).toBeVisible();
     await page
       .getByRole('radiogroup', { name: 'What should happen next?' })
       .getByRole('radio', { name: 'Add one' })
       .click();
     await page.getByRole('button', { name: /^Answer/ }).click();
-    await page.getByRole('button', { name: /^Confirm/ }).click();
     await expect(page.getByText(/^Achieved in \d+ rounds?$/)).toBeVisible();
   });
 });
@@ -131,7 +123,7 @@ test('moving the options slider in Step re-picks the waiting question at the new
   await expect(question.getByRole('radio')).toHaveCount(2);
 });
 
-test('edits what the model reads in Step: the edited text is asked again, and the round reads as edited', async ({
+test('edits what the model reads in Step: the edited text is asked again, and the round offers it to copy', async ({
   page,
 }) => {
   if (inspectorUrl === undefined) throw new Error('the inspector did not start');
@@ -152,48 +144,26 @@ test('edits what the model reads in Step: the edited text is asked again, and th
   await page.goto(inspectorUrl);
   await expect(question.getByRole('radio')).toHaveCount(14);
 
-  await test.step('E opens the edits on the waiting pick, and a changed text is counted', async () => {
+  await test.step('E opens the op tree in a dialog, and a changed text is counted', async () => {
     await page.keyboard.press('e');
-    await page.getByRole('textbox', { name: 'Description of add' }).fill('Add one more');
-    await expect(page.getByText('1 change', { exact: true })).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: 'Edit the op tree' });
+    await dialog.getByRole('textbox', { name: 'Description of add' }).fill('Add one more');
+    await expect(dialog.getByText('1 change from the task')).toBeVisible();
   });
 
-  await test.step('Pick again with edits asks the question again with the edited text', async () => {
-    await page.getByRole('button', { name: /^Pick again with edits/ }).click();
+  await test.step('Save asks the question again with the edited text', async () => {
+    await page.getByRole('button', { name: /^Save/ }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(question.getByRole('radio', { name: /Add one more/ })).toBeVisible();
     await expect(page.getByText(/with edits/)).toBeVisible();
   });
 
-  await test.step('answer it and Confirm, then the round reads as edited, with its copy-back', async () => {
+  await test.step('answer it, and the round offers its edits to copy into the task', async () => {
     await question.getByRole('radio', { name: /Add one more/ }).click();
     await page.getByRole('button', { name: /^Answer/ }).click();
-    await page.getByRole('button', { name: /^Confirm/ }).click();
     await page.getByRole('button', { name: 'round 1', exact: true }).click();
-    await expect(
-      page.getByRole('navigation', { name: 'Rounds' }).getByText('edited'),
-    ).toBeVisible();
     await expect(page.getByRole('region', { name: 'Copy into your task' })).toContainText(
       'add: "Add one" → "Add one more"',
     );
   });
-});
-
-test('a slider move re-picks the question, and keeps the edits being made', async ({ page }) => {
-  if (inspectorUrl === undefined) throw new Error('the inspector did not start');
-  await page.goto(inspectorUrl);
-  const question = page.getByRole('radiogroup', { name: 'What should happen next?' });
-  const slider = page.getByRole('slider', { name: 'Options' });
-  const description = page.getByRole('textbox', { name: /^Description of add$/ });
-  await expect(question).toBeVisible();
-
-  await page.keyboard.press('e');
-  await description.fill('Add a lot');
-  await expect(page.getByText('1 change', { exact: true })).toBeVisible();
-
-  await slider.focus();
-  await page.keyboard.press('Home');
-  await expect(slider).toHaveAttribute('aria-valuenow', '2');
-  await expect(question.getByRole('radio')).toHaveCount(2);
-  await expect(description).toHaveValue('Add a lot');
-  await expect(page.getByText('1 change', { exact: true })).toBeVisible();
 });

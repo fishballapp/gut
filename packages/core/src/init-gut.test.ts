@@ -40,6 +40,7 @@ const configFor = (name: string) => ({
 const hooks = (overrides: Partial<RunHooks> = {}): RunHooks => ({
   onEvent: () => {},
   answer: async () => ({ by: 'model' }),
+  review: async () => ({ by: 'model' }),
   beforePick: async () => ({ maxOptions: 26 }),
   beforeInvoke: async () => 'invoke',
   ...overrides,

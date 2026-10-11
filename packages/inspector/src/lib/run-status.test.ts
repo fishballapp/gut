@@ -41,7 +41,9 @@ describe('runStatus', () => {
     expect(
       runStatus(
         stateOf({
-          pending: [{ id: 'd1', runId: 'r1', round: 3, on: { kind: 'turn', turn: 1 } }],
+          pending: [
+            { id: 'd1', runId: 'r1', round: 3, on: { kind: 'turn', turn: 1, isReview: false } },
+          ],
         }),
         baseRun(),
         'open',
@@ -66,7 +68,9 @@ describe('runStatus', () => {
       runStatus(
         stateOf({
           mode: 'step',
-          pending: [{ id: 'd1', runId: 'other', round: 1, on: { kind: 'turn', turn: 1 } }],
+          pending: [
+            { id: 'd1', runId: 'other', round: 1, on: { kind: 'turn', turn: 1, isReview: false } },
+          ],
         }),
         baseRun(),
         'open',

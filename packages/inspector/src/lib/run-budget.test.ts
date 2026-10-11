@@ -21,7 +21,7 @@ const runOf = (turns: Turn[]): Run => ({
 });
 
 describe('runBudget', () => {
-  it('sums only turns the model answered', () => {
+  it('sums the turns the model answered, not yours', () => {
     expect(
       runBudget(
         runOf([
@@ -51,6 +51,26 @@ describe('runBudget', () => {
         ]),
       ),
     ).toEqual({ inputTokens: 1400, requests: 2, budget: 50_000 });
+  });
+
+  it("counts the model's answer waiting for you or replaced by you, and abandoned picks", () => {
+    const suggestion = {
+      by: { kind: 'model' as const, name: 'clef', endpoint: 'http://x' },
+      answers: {},
+      inputTokens: 300,
+      ms: 1,
+    };
+    const replaced: Turn = {
+      ...turn({ status: 'answered', by: { kind: 'you' }, answers: {}, inputTokens: 300, ms: 1 }),
+      suggestion,
+    };
+    const waiting: Turn = { ...turn({ status: 'asked' }), turn: 2, suggestion };
+    const run = runOf([replaced, waiting]);
+    const [round] = run.rounds;
+    if (round === undefined) throw new Error('no round');
+    const abandoned = { maxOptions: 26, edits: [], abandoned: { inputTokens: 50, requests: 1 } };
+    const withAbandoned = { ...run, rounds: [{ ...round, picks: [abandoned] }] };
+    expect(runBudget(withAbandoned)).toMatchObject({ inputTokens: 650, requests: 3 });
   });
 
   it('is zero before any model turn', () => {

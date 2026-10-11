@@ -1,23 +1,30 @@
 // The messages between the CLI and the process that runs its task (`task-process.ts` forks it,
 // `child.ts` is its side). The task's core calls each inspector hook as a request, and the CLI's
 // session answers it under the same id; a run's events are sent and forgotten.
-import { RunEventSchema, type RunHooks, type TurnAnswer } from '@gut.run/core/inspector';
+import {
+  RunEventSchema,
+  type RunHooks,
+  type TurnAnswer,
+  type TurnReview,
+} from '@gut.run/core/inspector';
 import { z } from 'zod';
 
 /** Set to 1 in the task's process, so `gut run` there reports to the CLI that forked it. */
 export const CHILD_ENV = 'GUT_INSPECT_CHILD';
 
 /** The hooks a task's core waits on for an answer. */
-export type CallHook = 'answer' | 'beforePick' | 'beforeInvoke';
+export type CallHook = 'answer' | 'review' | 'beforePick' | 'beforeInvoke';
 
 export type HookArgs = {
   answer: Parameters<RunHooks['answer']>[0];
+  review: Parameters<RunHooks['review']>[0];
   beforePick: Parameters<RunHooks['beforePick']>[0];
   beforeInvoke: Parameters<RunHooks['beforeInvoke']>[0];
 };
 
 export type HookResults = {
   answer: TurnAnswer;
+  review: TurnReview;
   beforePick: Awaited<ReturnType<RunHooks['beforePick']>>;
   beforeInvoke: Awaited<ReturnType<RunHooks['beforeInvoke']>>;
 };
@@ -37,7 +44,12 @@ const callOf = <Hook extends CallHook>(hook: Hook) =>
 export const TaskMessageSchema = z.union([
   z.object({ kind: z.literal('attach'), runId: z.string() }),
   z.object({ kind: z.literal('event'), event: RunEventSchema }),
-  z.discriminatedUnion('hook', [callOf('answer'), callOf('beforePick'), callOf('beforeInvoke')]),
+  z.discriminatedUnion('hook', [
+    callOf('answer'),
+    callOf('review'),
+    callOf('beforePick'),
+    callOf('beforeInvoke'),
+  ]),
   /** The task's top-level code finished, or threw with `error`. */
   z.object({ kind: z.literal('end'), error: z.string().optional() }),
 ]);

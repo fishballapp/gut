@@ -6,12 +6,12 @@ import { GOAL_QUESTION_KEY, keycapOf, LIST_LIMIT } from '../../lib/answer.ts';
 import { REORDER_SECONDS } from '../../lib/option-motion.ts';
 import { revealWithin } from '../../lib/reveal.ts';
 import type { OptionSort } from '../../lib/sort-options.ts';
-import type { OptionRowData, OptionsPhase } from '../../lib/turn-display.ts';
+import { isPickingPhase, type OptionRowData, type OptionsPhase } from '../../lib/turn-display.ts';
 import { OptionRow } from './OptionRow.tsx';
 
 /**
  * One question of a turn: its instructions, a filter when the list is long, then its options as
- * they are shown in this phase. The same list serves all three phases, so its rows stay mounted
+ * they are shown in this phase. The same list serves every phase, so its rows stay mounted
  * and move when the order changes.
  */
 export const QuestionOptions = ({
@@ -51,7 +51,7 @@ export const QuestionOptions = ({
   const listRef = useRef<HTMLDivElement>(null);
   const isGoal = questionKey === GOAL_QUESTION_KEY;
   const isLong = optionCount > LIST_LIMIT;
-  const isChoosing = phase === 'choose';
+  const isChoosing = isPickingPhase(phase);
   const reduceMotion = useReducedMotion() === true;
 
   // Opening the question, or re-sorting it, brings the recorded option into view inside this list,

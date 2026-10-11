@@ -397,9 +397,9 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
 ends. Every round and every turn is there, with the text the model read and the probability it gave
 each option. Use it to answer "why did it pick that?", or to be the decider yourself. The options slider in
 the run header sets how many options a question offers: in Step, moving it re-picks the waiting question
-at the new size, capped by the model's limit. In Step, E edits what the model reads for the waiting
-pick (descriptions, labels, hidden moves, the context), and Pick again re-picks with the edits; the
-round is marked edited, and its panel copies the changes into your task.
+at the new size, capped by the model's limit. In Step, the round panel's Edit opens what the model reads
+for the waiting pick (descriptions, labels, hidden moves, the context) in a dialog, and Save re-picks the
+round with your edits; the round then lists the changes to copy into your task.
 
 ```sh
 gut run /path/to/task.gut.ts --inspect
@@ -408,19 +408,21 @@ gut run /path/to/task.gut.ts --inspect --port 4321 --no-open
 
 ![A turn the model answered, sorted by probability, in dark mode](docs/images/inspector-turn-dark.png)
 
-- **Round strip** (top): one block per turn, filled to the chosen option's probability. A person icon
-  marks a turn you answered.
-- **Rounds** (left): each round, with its turns under it.
+- **Rounds** (left): each round's turns as bars, one under another, filled to the chosen option's probability.
+  A person icon marks a turn you answered. Hover a round for what it ran, a turn for each question and
+  its answer.
 - **Turn** (middle): the question as sent, each option with its probability. "By probability" sorts
   the options; "As sent" shows them as the model saw them.
-- **Round** (right): the step picked, the op tree with its path lit, and the round's context.
+- **Round** (right): the round's context, then its op tree, folded down to the way to the picked move.
 
 ![The same turn in light mode](docs/images/inspector-turn-light.png)
 
 **Play** (Space) lets the model answer every turn until you pause. **Step** (S) does one thing: it asks
-the model the waiting turn, or runs the picked step. You can also answer a turn yourself: choose its
-options (number keys, or G and N on the goal), then ↵. When a step is picked, ↵ runs it and R picks
-again. **Restart** (T) runs the task again from the top.
+the model the waiting turn, keeps the answer it gave, or runs a picked step. In Step the model's answer
+waits for you, with its probabilities: ↵ confirms it, or choose other options (number keys, or G and N on
+the goal) and ↵ answers with yours. You can also answer a turn yourself without asking the model. Your
+answer to a pick's last turn runs its move; R picks the round again from its first turn. **Restart** (T)
+runs the task again from the top.
 
 The model comes from the task's gut config, or from the model chip in the bar, which opens a dialog for
 a gut config file (the default paths, or one by its path), your own key (TypeSafe, OpenRouter,

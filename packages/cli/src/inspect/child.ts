@@ -47,6 +47,8 @@ export const runInspectChild = async (taskUrl: string) => {
     onEvent: event => send({ kind: 'event', event }),
     answer: arg =>
       ask<HookResults['answer']>(id => ({ kind: 'call', id, runId, hook: 'answer', arg })),
+    review: arg =>
+      ask<HookResults['review']>(id => ({ kind: 'call', id, runId, hook: 'review', arg })),
     beforePick: arg =>
       ask<HookResults['beforePick']>(id => ({ kind: 'call', id, runId, hook: 'beforePick', arg })),
     beforeInvoke: arg =>

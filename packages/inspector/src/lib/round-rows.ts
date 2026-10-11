@@ -1,34 +1,4 @@
-import type { Decision, Round } from '../state/inspector-state.ts';
-
-/** A row of the rounds sidebar: a round, or one of the selected round's turns. */
-export type RoundRowKey = { round: number; turn?: number };
-
-/** Top to bottom: each round, and the selected round's turns under it. */
-export const visibleRows = (
-  rounds: readonly Round[],
-  selectedRound: number | undefined,
-): RoundRowKey[] =>
-  rounds.flatMap(round => {
-    const roundRow = { round: round.round };
-    if (round.round !== selectedRound) return [roundRow];
-    return [roundRow, ...round.turns.map(turn => ({ round: round.round, turn: turn.turn }))];
-  });
-
-export const isSameRow = (a: RoundRowKey, b: RoundRowKey): boolean =>
-  a.round === b.round && a.turn === b.turn;
-
-/**
- * The rows ↑/↓ stop on. A selected round with turns is stopped on through its selected turn, not
- * its own row: selecting that row again resolves to the same turn, so the cursor could not leave.
- */
-export const stopRows = (
-  rows: readonly RoundRowKey[],
-  selected: RoundRowKey | undefined,
-): RoundRowKey[] =>
-  rows.filter(
-    row =>
-      !(selected?.turn !== undefined && row.turn === undefined && row.round === selected.round),
-  );
+import type { Decision } from '../state/inspector-state.ts';
 
 /** The decision a turn of this run waits on for the developer to answer, if any. */
 export const findAwaitingTurn = (
@@ -54,3 +24,11 @@ export const findWaitingStep = (
   pending.find(
     decision => decision.runId === runId && decision.round === round && decision.on.kind === 'step',
   );
+
+/** The decision waiting for a round: a turn to answer, or a step to run. */
+export const findRoundDecision = (
+  pending: readonly Decision[],
+  runId: string,
+  round: number,
+): Decision | undefined =>
+  pending.find(decision => decision.runId === runId && decision.round === round);

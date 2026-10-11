@@ -62,8 +62,14 @@ export const isAnswerComplete = (
   choices: Readonly<Record<string, string>>,
 ): boolean => questionKeys.every(questionKey => choices[questionKey] !== undefined);
 
-/** The muted line under the answer buttons: who else can answer, or why nobody can. */
-export const answerHint = (model: { name: string } | null): string => {
-  if (model === null) return 'Choose one option per question. Ask model needs a model: add one.';
-  return `Choose one option per question, or let ${model.name} answer this turn.`;
-};
+/** The choice per question of a set of answers: what a review starts from. */
+export const choicesOf = (
+  answers: Readonly<Record<string, { choice: string }>> | undefined,
+): Record<string, string> =>
+  Object.fromEntries(Object.entries(answers ?? {}).map(([key, answer]) => [key, answer.choice]));
+
+/** Whether your choices keep every one of the model's: answering with them confirms its answer. */
+export const isKeepingChoices = (
+  choices: Readonly<Record<string, string>>,
+  suggested: Readonly<Record<string, string>>,
+): boolean => Object.entries(suggested).every(([key, choice]) => choices[key] === choice);
