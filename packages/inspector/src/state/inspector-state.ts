@@ -81,6 +81,8 @@ export type InspectorState = {
   mode: Mode;
   /** The model set in the page, for runs without their own. */
   pageModel: ModelInfo | null;
+  /** The question size the developer chose; null until they choose one. */
+  maxOptions: number | null;
   runs: Run[];
   /** Decisions the runs wait on, oldest first. */
   pending: Decision[];
@@ -94,6 +96,7 @@ export const initialState: InspectorState = {
   sessionNumber: 0,
   mode: 'step',
   pageModel: null,
+  maxOptions: null,
   runs: [],
   pending: [],
 };
@@ -132,6 +135,8 @@ const reduceSession = (state: InspectorState, event: SessionEvent): InspectorSta
       return { ...state, mode: event.mode };
     case 'session.model':
       return { ...state, pageModel: event.model };
+    case 'session.maxOptions':
+      return { ...state, maxOptions: event.maxOptions };
     case 'decision.pending':
       return {
         ...state,

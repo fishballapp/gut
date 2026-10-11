@@ -110,3 +110,23 @@ test('plays the counter to its end in Step, by mouse and by keyboard', async ({ 
     await expect(page.getByText(/^Achieved in \d+ rounds?$/)).toBeVisible();
   });
 });
+
+test('moving the options slider in Step re-picks the waiting question at the new size', async ({
+  page,
+}) => {
+  if (inspectorUrl === undefined) throw new Error('the inspector did not start');
+  await page.goto(inspectorUrl);
+  await page.getByRole('button', { name: 'Restart' }).click();
+
+  const question = page.getByRole('radiogroup', { name: 'What should happen next?' });
+  await expect(question).toBeVisible();
+  const sizeBefore = await question.getByRole('radio').count();
+  expect(sizeBefore).toBeGreaterThan(2);
+
+  // The keyboard commits on release, so the question is asked again once Home is let go.
+  const slider = page.getByRole('slider', { name: 'Options' });
+  await slider.focus();
+  await page.keyboard.press('Home');
+  await expect(slider).toHaveAttribute('aria-valuenow', '2');
+  await expect(question.getByRole('radio')).toHaveCount(2);
+});

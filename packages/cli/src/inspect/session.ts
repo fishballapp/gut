@@ -7,6 +7,7 @@ import {
   type DecisionModel,
   DecisionModelSchema,
   type DecisionRequest,
+  effectiveMaxOptions,
   type InspectorEvent,
   type Mode,
   type ModelInfo,
@@ -15,9 +16,6 @@ import {
   type TurnAnswer,
 } from '@gut.run/core/inspector';
 import { z } from 'zod';
-
-/** A question size a person can read, for a run with no model to size it by. */
-const PERSON_MAX_OPTIONS = 26;
 
 type Resolution =
   | { by: 'you'; answers: Readonly<Record<string, string>> }
@@ -79,6 +77,10 @@ export const createSession = ({
   let pageModel: DecisionModel | null = null;
   /** Each run's own model, from its `run.started`. */
   const runModels = new Map<string, ModelInfo | null>();
+  /** The question size the developer chose; null until they choose one. */
+  let chosenMaxOptions: number | null = null;
+  /** Runs whose pick in flight starts over at its next turn or step, after a size change in Step. */
+  const heldRepicks = new Set<string>();
   const pending = new Map<string, Pending>();
   let nextDecision = 1;
   /**
@@ -94,15 +96,20 @@ export const createSession = ({
   const announce = () => {
     emit({ type: 'session.started', protocol: PROTOCOL, task, mode });
     if (pageModel !== null) emit({ type: 'session.model', model: infoOf(pageModel) });
+    if (chosenMaxOptions !== null) {
+      emit({ type: 'session.maxOptions', maxOptions: chosenMaxOptions });
+    }
   };
 
   const hasModel = (runId: string) => (runModels.get(runId) ?? pageModel) !== null;
 
-  /** A question size the run's model takes, else the page's, else one a person can read. */
+  /** The limit of the model a run answers with: its own, else the page's; null with neither. */
+  const modelMaxOptionsFor = (runId: string) =>
+    runModels.get(runId)?.maxOptions ?? pageModel?.capabilities.choiceQuestions.maxOptions ?? null;
+
+  /** The question size a pick at this run asks now. */
   const maxOptionsFor = (runId: string) =>
-    runModels.get(runId)?.maxOptions ??
-    pageModel?.capabilities.choiceQuestions.maxOptions ??
-    PERSON_MAX_OPTIONS;
+    effectiveMaxOptions({ chosen: chosenMaxOptions, modelMax: modelMaxOptionsFor(runId) });
 
   /** The run's own model when it has one, else the page's. */
   const modelAnswer = (runId: string): TurnAnswer =>
@@ -150,16 +157,23 @@ export const createSession = ({
       answer: async ({ round, turn, request }) => {
         if (!isLatest()) return stalled();
         if (mode === 'play' && hasModel(runId)) return modelAnswer(runId);
+        if (heldRepicks.delete(runId)) return { repick: true };
         const resolution = await waitFor(runId, round, { kind: 'turn', turn, request });
         if (!isLatest()) return stalled();
         if (resolution.by === 'you') return { by: 'you', answers: resolution.answers };
         if (resolution.by === 'repick') return { repick: true };
         return modelAnswer(runId);
       },
-      beforePick: async () => (isLatest() ? { maxOptions: maxOptionsFor(runId) } : stalled()),
+      beforePick: async () => {
+        if (!isLatest()) return stalled();
+        // A pick starting now takes the size as it is, so a re-pick held for the last one is moot.
+        heldRepicks.delete(runId);
+        return { maxOptions: maxOptionsFor(runId) };
+      },
       beforeInvoke: async ({ round, step }) => {
         if (!isLatest()) return stalled();
         if (mode === 'play' && hasModel(runId)) return 'invoke';
+        if (heldRepicks.delete(runId)) return 'repick';
         const resolution = await waitFor(runId, round, { kind: 'step', step });
         if (!isLatest()) return stalled();
         return resolution.by === 'repick' ? 'repick' : 'invoke';
@@ -194,6 +208,7 @@ export const createSession = ({
     generation += 1;
     pending.clear();
     runModels.clear();
+    heldRepicks.clear();
     return generation;
   };
 
@@ -232,11 +247,22 @@ export const createSession = ({
       case 'play': {
         mode = 'play';
         emit({ type: 'session.mode', mode });
+        // Play applies a size from the next pick, so a re-pick held in Step is dropped.
+        heldRepicks.clear();
         // What waits now goes on as Play would have: the model answers, the step runs.
         for (const decision of [...pending.values()]) {
           if (!hasModel(decision.runId)) continue;
           decision.resolve(decision.on === 'step' ? { by: 'run' } : { by: 'model' });
         }
+        return { status: 204 };
+      }
+      case 'setMaxOptions': {
+        chosenMaxOptions = action.maxOptions;
+        emit({ type: 'session.maxOptions', maxOptions: action.maxOptions });
+        if (mode === 'play') return { status: 204 };
+        // In Step a pick waiting on a person starts over now; one in flight starts over at its next turn or step.
+        for (const runId of runModels.keys()) heldRepicks.add(runId);
+        for (const decision of [...pending.values()]) decision.resolve({ by: 'repick' });
         return { status: 204 };
       }
       case 'pause': {

@@ -197,9 +197,24 @@ describe('reduce', () => {
       task: 'task.gut.ts',
       mode: 'play',
       pageModel: null,
+      maxOptions: null,
       runs: [],
       pending: [],
     });
+  });
+
+  it('keeps the latest chosen size, and a restart begins without one until the CLI repeats it', () => {
+    const started: InspectorEvent = {
+      type: 'session.started',
+      protocol: PROTOCOL,
+      task: 'task.gut.ts',
+      mode: 'step',
+    };
+    const chosen: InspectorEvent = { type: 'session.maxOptions', maxOptions: 9 };
+    const earlier: InspectorEvent = { type: 'session.maxOptions', maxOptions: 12 };
+    expect([started, earlier, chosen].reduce(reduce, initialState).maxOptions).toBe(9);
+    expect([started, chosen, started].reduce(reduce, initialState).maxOptions).toBe(null);
+    expect([started, chosen, started, chosen].reduce(reduce, initialState).maxOptions).toBe(9);
   });
 
   it('records a turn a person answered', async () => {
@@ -239,6 +254,7 @@ describe('reduce', () => {
       task: 'task.gut.ts',
       mode: 'play',
       pageModel: { name: 'jev', endpoint: 'https://x.invalid', maxOptions: 255 },
+      maxOptions: null,
       runs: [],
       pending: [],
       ended: {},

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { z } from 'zod';
 import type { DecisionModel } from './decision-model.ts';
 import type { RunEvent } from './events.ts';
-import type { RunHooks, TurnAnswer } from './inspector.ts';
+import { effectiveMaxOptions, type RunHooks, type TurnAnswer } from './inspector.ts';
 import { ListStrategy } from './list-strategy.ts';
 import { group, op } from './ops.ts';
 import { runTask } from './task.ts';
@@ -838,5 +838,18 @@ describe('inspector hooks via runTask', () => {
     );
     expect(invalidResult).toMatchObject({ status: 'halted', reason: 'error' });
     expect(endings(invalid.events)).toEqual([['turn.failed']]);
+  });
+});
+
+describe('effectiveMaxOptions', () => {
+  it("is the developer's choice, never above the model's limit", () => {
+    expect(effectiveMaxOptions({ chosen: 12, modelMax: 26 })).toBe(12);
+    expect(effectiveMaxOptions({ chosen: 40, modelMax: 26 })).toBe(26);
+  });
+
+  it("is the model's limit until a choice is made, and a person's size with no model", () => {
+    expect(effectiveMaxOptions({ chosen: null, modelMax: 255 })).toBe(255);
+    expect(effectiveMaxOptions({ chosen: null, modelMax: null })).toBe(26);
+    expect(effectiveMaxOptions({ chosen: 40, modelMax: null })).toBe(40);
   });
 });

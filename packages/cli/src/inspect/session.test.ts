@@ -242,6 +242,104 @@ describe('createSession', () => {
     await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 255 });
   });
 
+  it("sizes picks by the developer's choice, never above the model's limit", async () => {
+    const { events, session, hooks } = setup();
+    hooks.onEvent(started(null));
+    expect(await session.act({ type: 'setMaxOptions', maxOptions: 40 })).toEqual({ status: 204 });
+    expect(events.at(-1)).toEqual({ type: 'session.maxOptions', maxOptions: 40 });
+    await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 40 });
+
+    await session.act({
+      type: 'setModel',
+      model: { endpoint: jev.endpoint, name: 'clef', maxOptions: 30 },
+    });
+    await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 30 });
+    await session.act({ type: 'clearModel' });
+    await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 40 });
+  });
+
+  it("follows a model's limit until the developer chooses a size", async () => {
+    const { session, hooks } = setup();
+    await session.act({
+      type: 'setModel',
+      model: { endpoint: jev.endpoint, name: 'clef', maxOptions: 30 },
+    });
+    await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 30 });
+    await session.act({ type: 'setMaxOptions', maxOptions: 12 });
+    await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 12 });
+  });
+
+  it('in Step, a size change re-picks the pick waiting on the developer', async () => {
+    const { session, hooks, pendingId } = setup();
+    hooks.onEvent(started(null));
+    const answer = hooks.answer({ round: 1, turn: 1, request });
+    await session.act({ type: 'setMaxOptions', maxOptions: 2 });
+    await expect(answer).resolves.toEqual({ repick: true });
+    await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 2 });
+
+    const step = hooks.beforeInvoke({ round: 1, step: 'a' });
+    expect(await session.act({ type: 'setMaxOptions', maxOptions: 5 })).toEqual({ status: 204 });
+    expect(await session.act({ type: 'run', decision: pendingId() })).toMatchObject({
+      status: 409,
+    });
+    await expect(step).resolves.toBe('repick');
+  });
+
+  it('in Step, a size change while a pick is in flight re-picks it at its next turn', async () => {
+    const { events, session, hooks } = setup();
+    hooks.onEvent(started(null));
+    await hooks.beforePick({ round: 1 });
+    await session.act({ type: 'setMaxOptions', maxOptions: 9 });
+    expect(events.some(event => event.type === 'decision.pending')).toBe(false);
+    await expect(hooks.answer({ round: 1, turn: 2, request })).resolves.toEqual({ repick: true });
+  });
+
+  it('in Step, a size change while a pick is in flight re-picks it at its next step', async () => {
+    const { session, hooks } = setup();
+    hooks.onEvent(started(null));
+    await hooks.beforePick({ round: 1 });
+    await session.act({ type: 'setMaxOptions', maxOptions: 9 });
+    await expect(hooks.beforeInvoke({ round: 1, step: 'a' })).resolves.toBe('repick');
+  });
+
+  it('a held re-pick is moot once the next pick starts, which takes the size as it is', async () => {
+    const { events, session, hooks } = setup();
+    hooks.onEvent(started(null));
+    await hooks.beforePick({ round: 1 });
+    await session.act({ type: 'setMaxOptions', maxOptions: 12 });
+    await expect(hooks.beforePick({ round: 2 })).resolves.toEqual({ maxOptions: 12 });
+    void hooks.answer({ round: 2, turn: 1, request });
+    expect(events.at(-1)).toMatchObject({ type: 'decision.pending', round: 2 });
+  });
+
+  it('in Play, a size applies from the next pick and never re-picks', async () => {
+    const { events, session, hooks } = setup();
+    hooks.onEvent(started(jev));
+    await session.act({ type: 'play' });
+    await session.act({ type: 'setMaxOptions', maxOptions: 10 });
+    expect(events.some(event => event.type === 'decision.pending')).toBe(false);
+    await expect(hooks.beforePick({ round: 1 })).resolves.toEqual({ maxOptions: 10 });
+  });
+
+  it('Play drops a re-pick held in Step', async () => {
+    const { session, hooks } = setup();
+    hooks.onEvent(started(jev));
+    await hooks.beforePick({ round: 1 });
+    await session.act({ type: 'setMaxOptions', maxOptions: 9 });
+    await session.act({ type: 'play' });
+    await expect(hooks.answer({ round: 1, turn: 2, request })).resolves.toEqual({ by: 'model' });
+  });
+
+  it('keeps the size through a restart', async () => {
+    const { events, session } = setup();
+    await session.act({ type: 'setMaxOptions', maxOptions: 12 });
+    await session.act({ type: 'restart' });
+    expect(events).toEqual([
+      { type: 'session.started', protocol: 1, task: 'task.gut.ts', mode: 'step' },
+      { type: 'session.maxOptions', maxOptions: 12 },
+    ]);
+  });
+
   it("loads a gut config's model, keeps its key, and clears it again", async () => {
     const { events, session } = setup();
     expect(await session.act({ type: 'loadConfig', path: '~/gut.config.json' })).toEqual({

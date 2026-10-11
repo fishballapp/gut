@@ -51,5 +51,8 @@ while you choose, an option's radio keeps the letter, digit and ↵ keys.
 | ← / → | Previous or next round |
 | ↑ / ↓ | Previous or next row in the rounds list |
 
+The options slider in the run header sets how many options a question offers. Its own keys (← / →,
+Home / End, Page Up / Page Down) move it, and a move re-picks the waiting question when you let go.
+
 Ctrl-C (or SIGTERM) stops the task, then the server, and exits: 130 for Ctrl-C, 143 for SIGTERM. The
 task gets SIGTERM and, if it is still running after a second, SIGKILL.

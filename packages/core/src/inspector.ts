@@ -1,7 +1,12 @@
 // Hooks an inspector attaches to a run: who answers each turn, and the event stream. Also the
 // protocol between the CLI and the inspector page: session events and the page's actions.
 import { z } from 'zod';
-import { type DecisionModel, DecisionModelSchema, type DecisionRequest } from './decision-model.ts';
+import {
+  DEFAULT_MAX_OPTIONS,
+  type DecisionModel,
+  DecisionModelSchema,
+  type DecisionRequest,
+} from './decision-model.ts';
 import {
   type OpAddress,
   type OpChoiceNode,
@@ -26,6 +31,27 @@ export { DecisionModelSchema, PROTOCOL, RunEventSchema };
 
 /** Symbol the CLI sets on `globalThis` before importing a task; `initGut` reads it once. */
 export const INSPECTOR_KEY = Symbol.for('gut.run.inspector');
+
+/** The question size a person is shown with no model to size it by: what a person reads. */
+export const PERSON_MAX_OPTIONS = 26;
+
+/** The largest question an inspector offers with no model: the most a default model takes. */
+export const NO_MODEL_MAX_OPTIONS = DEFAULT_MAX_OPTIONS;
+
+/**
+ * The question size a pick asks: the developer's choice (`null` until they make one), never above
+ * the model's limit. With no choice it is the model's limit, or a person's size with no model.
+ */
+export const effectiveMaxOptions = ({
+  chosen,
+  modelMax,
+}: {
+  chosen: number | null;
+  modelMax: number | null;
+}): number => {
+  if (modelMax === null) return chosen ?? PERSON_MAX_OPTIONS;
+  return Math.min(chosen ?? modelMax, modelMax);
+};
 
 /**
  * Who answers one turn: the model (the run's, or one supplied here), the developer with answers
@@ -83,6 +109,8 @@ export const SessionEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('session.mode'), mode: ModeSchema }),
   /** The model set in the page, used by every run that has none of its own. */
   z.object({ type: z.literal('session.model'), model: ModelInfoSchema.nullable() }),
+  /** The question size the developer chose; there is none until they choose one. */
+  z.object({ type: z.literal('session.maxOptions'), maxOptions: z.number().int().min(2) }),
   z.object({
     type: z.literal('decision.pending'),
     id: z.string(),
@@ -117,6 +145,11 @@ export type InspectorEvent = z.infer<typeof InspectorEventSchema>;
 export const ActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('play') }),
   z.object({ type: z.literal('pause') }),
+  /**
+   * The question size picks ask. In Step, a pick waiting on the developer starts over at it, and one
+   * in flight starts over at its next turn; in Play it applies from the next pick.
+   */
+  z.object({ type: z.literal('setMaxOptions'), maxOptions: z.number().int().min(2) }),
   /**
    * Stop the task's process and run the task again from its top: the record starts afresh, the mode
    * and the model set in the page stay.

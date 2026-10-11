@@ -395,7 +395,9 @@ races), "Goal achieved" scored 0.99–1.00 at the target and at most 0.05 elsewh
 
 `gut run <task.gut.ts> --inspect` serves the run as a page on 127.0.0.1, while it goes and after it
 ends. Every round and every turn is there, with the text the model read and the probability it gave
-each option. Use it to answer "why did it pick that?", or to be the decider yourself.
+each option. Use it to answer "why did it pick that?", or to be the decider yourself. The options slider in
+the run header sets how many options a question offers: in Step, moving it re-picks the waiting question
+at the new size, capped by the model's limit.
 
 ```sh
 gut run /path/to/task.gut.ts --inspect

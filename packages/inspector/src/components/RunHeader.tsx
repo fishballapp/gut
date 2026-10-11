@@ -7,6 +7,7 @@ import type { InspectorState } from '../state/inspector-state.ts';
 import { RoundStrip } from './RoundStrip.tsx';
 import { BudgetMeter } from './run/BudgetMeter.tsx';
 import { FollowToggle } from './run/FollowToggle.tsx';
+import { MaxOptionsSlider } from './run/MaxOptionsSlider.tsx';
 import { RunControls } from './run/RunControls.tsx';
 import { RunSwitcher } from './run/RunSwitcher.tsx';
 import { StatusPill } from './run/StatusPill.tsx';
@@ -55,6 +56,7 @@ export const RunHeader = ({
         <div className="flex shrink-0 flex-wrap items-center justify-start gap-3 pt-1 lg:justify-end">
           <StatusPill status={pill} />
           {run !== undefined && <BudgetMeter budget={runBudget(run)} />}
+          {run !== undefined && <MaxOptionsSlider state={state} run={run} act={act} />}
           {isLive && <FollowToggle isFollowing={isFollowing} onFollow={follow} />}
           <RunControls state={state} run={run} act={act} status={status} />
         </div>
