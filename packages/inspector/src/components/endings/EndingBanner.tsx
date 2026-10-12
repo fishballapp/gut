@@ -1,5 +1,6 @@
 import { cn } from '@fishballapps/cn';
 import type { ReactNode } from 'react';
+import { isReplay } from '../../lib/connection.ts';
 import type { Ending } from '../../lib/endings.ts';
 import { formatTokens } from '../../lib/format.ts';
 
@@ -143,7 +144,9 @@ export const EndingBanner = ({ ending }: { ending: Ending }) => {
     case 'ended':
       return (
         <p className="px-1 text-sm text-muted">
-          The task ended; the record stays until you stop gut (Ctrl-C).
+          {isReplay
+            ? 'The recording ends here. Pick any round or turn in the rail to read it.'
+            : 'The task ended; the record stays until you stop gut (Ctrl-C).'}
         </p>
       );
   }

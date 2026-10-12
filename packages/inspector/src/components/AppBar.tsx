@@ -1,10 +1,13 @@
 import type { Action, ModelInfo } from '@gut.run/core/inspector';
 import { ArrowUpRightIcon } from '@phosphor-icons/react';
-import type { ActOutcome } from '../lib/connection.ts';
+import { type ActOutcome, isReplay } from '../lib/connection.ts';
 import { ModelChip } from './model/ModelChip.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
 
-/** gut's own bar: nothing in it belongs to one run, except the model the selected run uses. */
+/**
+ * gut's own bar: nothing in it belongs to one run, except the model the selected run uses. A replay
+ * is framed in a page that owns the theme, so it has no toggle of its own.
+ */
 export const AppBar = ({
   runModel,
   pageModel,
@@ -29,6 +32,6 @@ export const AppBar = ({
     >
       Docs <ArrowUpRightIcon size={12} />
     </a>
-    <ThemeToggle />
+    {!isReplay && <ThemeToggle />}
   </header>
 );

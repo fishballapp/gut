@@ -3,3 +3,4 @@ node_modules
 dist
 test-results
 gut.config.json
+dist-replay

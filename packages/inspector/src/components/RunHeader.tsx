@@ -1,5 +1,5 @@
 import type { Action } from '@gut.run/core/inspector';
-import type { ActOutcome, ConnectionStatus } from '../lib/connection.ts';
+import { type ActOutcome, type ConnectionStatus, isReplay } from '../lib/connection.ts';
 import { runBudget } from '../lib/run-budget.ts';
 import { runStatus } from '../lib/run-status.ts';
 import type { Select, Selected } from '../lib/selection.ts';
@@ -11,7 +11,7 @@ import { RunControls } from './run/RunControls.tsx';
 import { RunSwitcher } from './run/RunSwitcher.tsx';
 import { StatusPill } from './run/StatusPill.tsx';
 
-/** The run: its task and name, its goal as the title, and its controls. */
+/** The run: its task and name, its goal as the title, and its controls, none of which a replay has. */
 export const RunHeader = ({
   state,
   selected,
@@ -55,9 +55,9 @@ export const RunHeader = ({
         <div className="flex shrink-0 flex-wrap items-center justify-start gap-3 pt-1 lg:justify-end">
           <StatusPill status={pill} />
           {run !== undefined && <BudgetMeter budget={runBudget(run)} />}
-          {run !== undefined && <MaxOptionsSlider state={state} run={run} act={act} />}
+          {!isReplay && run !== undefined && <MaxOptionsSlider state={state} run={run} act={act} />}
           {isLive && <FollowToggle isFollowing={isFollowing} onFollow={follow} />}
-          <RunControls state={state} run={run} act={act} status={status} />
+          {!isReplay && <RunControls state={state} run={run} act={act} status={status} />}
         </div>
       </div>
     </section>

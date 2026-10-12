@@ -7,11 +7,31 @@ import { type InspectorState, initialState, reduce } from '../state/inspector-st
 
 const params = new URLSearchParams(window.location.search);
 const token = params.get('token') ?? '';
-const fixture = import.meta.env.DEV ? params.get('fixture') : null;
 
-const fixtureLoaders = import.meta.env.DEV
-  ? import.meta.glob<string>('../fixtures/*.jsonl', { query: '?raw', import: 'default' })
-  : {};
+/**
+ * The replay build (`vite build --mode replay`, the demo on gut.run) plays one recorded run with no
+ * gut process behind it, so nothing on the page acts. In dev, `?fixture=<name>` plays any fixture.
+ */
+export const isReplay = import.meta.env.MODE === 'replay';
+
+const fixture = (() => {
+  if (isReplay) return 'wikirace-clef';
+  if (import.meta.env.DEV) return params.get('fixture');
+  return null;
+})();
+
+const fixtureLoaders = (() => {
+  if (isReplay) {
+    return import.meta.glob<string>('../fixtures/wikirace-clef.jsonl', {
+      query: '?raw',
+      import: 'default',
+    });
+  }
+  if (import.meta.env.DEV) {
+    return import.meta.glob<string>('../fixtures/*.jsonl', { query: '?raw', import: 'default' });
+  }
+  return {};
+})();
 
 /** Open while events flow; lost while EventSource reconnects (it resumes from the last id). */
 export type ConnectionStatus = 'connecting' | 'open' | 'lost';
@@ -49,13 +69,6 @@ const loadFixtureEvents = async (
     throw new Error(`unknown fixture "${name}"; available: ${available}`);
   }
 
-  const speedParam = params.get('speed');
-  const speedNumber = speedParam !== null ? Number(speedParam) : undefined;
-  const speed =
-    speedNumber !== undefined && Number.isFinite(speedNumber) && speedNumber > 0
-      ? speedNumber
-      : undefined;
-
   const raw = await load();
   if (isCancelled()) {
     return;
@@ -66,25 +79,41 @@ const loadFixtureEvents = async (
     const trimmed = line.trim();
     if (trimmed === '') continue;
     const parsed = InspectorEventSchema.safeParse(parseJson(trimmed));
-    if (parsed.success) {
+    if (parsed.success && !(isReplay && isDecision(parsed.data))) {
       events.push(parsed.data);
     }
   }
 
   setStatus('open');
 
-  if (speed !== undefined) {
-    for (const event of events) {
-      if (isCancelled()) return;
-      dispatch(event);
-      await new Promise(resolve => setTimeout(resolve, speed));
-    }
-  } else {
-    for (const event of events) {
-      dispatch(event);
-    }
+  for (const event of events) {
+    if (isCancelled()) return;
+    dispatch(event);
+    const pause = pauseAfter(event);
+    if (pause > 0) await new Promise(resolve => setTimeout(resolve, pause));
   }
 };
+
+/** A decision waits for someone at the page; a replay has no one, so it shows the run without them. */
+const isDecision = (event: InspectorEvent) =>
+  event.type === 'decision.pending' || event.type === 'decision.resolved';
+
+/** How long the replay holds after each event: a visitor sees each turn asked, then answered. */
+const REPLAY_PAUSE_MS: Partial<Record<InspectorEvent['type'], number>> = {
+  'turn.asked': 700,
+  'turn.answered': 1600,
+  'round.picked': 400,
+  'step.invoked': 300,
+};
+
+/** In dev, `&speed=<ms>` holds after every event; without it a fixture lands at once. */
+const devSpeed = (() => {
+  const speed = Number(params.get('speed'));
+  return Number.isFinite(speed) && speed > 0 ? speed : 0;
+})();
+
+const pauseAfter = (event: InspectorEvent) =>
+  isReplay ? (REPLAY_PAUSE_MS[event.type] ?? 0) : devSpeed;
 
 export const useInspector = () => {
   const [state, dispatch] = useReducer(reducePage, initialState);
@@ -93,7 +122,7 @@ export const useInspector = () => {
   useEffect(() => {
     dispatch(RESET);
 
-    // Replay a recorded run for page work without a live run.
+    // A recorded run: the replay build's, or a dev fixture for page work without a live run.
     if (fixture !== null) {
       let isCancelled = false;
       void loadFixtureEvents(fixture, dispatch, setStatus, () => isCancelled);

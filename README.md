@@ -48,7 +48,7 @@ run, not once per step.
   what it spent.
 - **Any `/v1/systemone` model.** Clef on a local Ollama, TypeSafe's Jev, Jev on OpenRouter; nothing
   is tuned per model.
-- **A fraction of the code.** The wiki race is 39 lines with gut and about 145 without
+- **A fraction of the code.** The wiki race is 43 lines with gut and 149 without
   ([the comparison](#a-task)).
 
 ### More options than a model can take
@@ -154,9 +154,9 @@ achieved  9578 input tokens in 10 requests
 
 [`examples/wikirace.plain.ts`](examples/wikirace.plain.ts) is the same race as a plain one-off
 script on TypeSafe's SDK (`@typesafe-ai/sdk`), making the same requests (the same picks,
-probabilities and tokens on clef-flash) in 150 lines: bundles, splitting on refusal, the budget
+probabilities and tokens on clef-flash) in 149 lines: bundles, splitting on refusal, the budget
 and the log, written out. [`examples/wikirace.advocaat.ts`](examples/wikirace.advocaat.ts) does it
-with [advocaat](https://github.com/pithings/advocaat)'s `ask` in 143: a client saves the HTTP code,
+with [advocaat](https://github.com/pithings/advocaat)'s `ask` in 142: a client saves the HTTP code,
 not the loop around it.
 
 - `initGut(options?)` reads the config once ([Configuration](#configuration)) and returns

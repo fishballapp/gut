@@ -1,6 +1,7 @@
+import { cn } from '@fishballapps/cn';
 import type { Action } from '@gut.run/core/inspector';
 import { useEffect, useEffectEvent, useMemo, useState } from 'react';
-import type { ActOutcome } from '../lib/connection.ts';
+import { type ActOutcome, isReplay } from '../lib/connection.ts';
 import { copyBackOf } from '../lib/edit-copy.ts';
 import { roundEdits } from '../lib/edit-draft.ts';
 import { isPageKey } from '../lib/key-target.ts';
@@ -69,7 +70,10 @@ export const RoundPanel = ({
   return (
     <aside
       aria-label="Round"
-      className="overflow-auto border-t border-line p-5 lg:border-t-0 lg:border-l"
+      className={cn(
+        'overflow-auto border-t border-line p-5 lg:border-t-0 lg:border-l',
+        isReplay && 'max-lg:order-1',
+      )}
     >
       {round !== undefined && (
         <div key={round.round} className="flex min-w-0 flex-col gap-7">

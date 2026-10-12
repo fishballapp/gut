@@ -1,7 +1,8 @@
+import { cn } from '@fishballapps/cn';
 import type { Action } from '@gut.run/core/inspector';
 import { motion } from 'motion/react';
 import { useState } from 'react';
-import type { ActOutcome, ConnectionStatus } from '../lib/connection.ts';
+import { type ActOutcome, type ConnectionStatus, isReplay } from '../lib/connection.ts';
 import { canPickAgainFrom } from '../lib/pick-again.ts';
 import { findAwaitingTurn, findRoundDecision, findWaitingStep } from '../lib/round-rows.ts';
 import type { Selected } from '../lib/selection.ts';
@@ -44,7 +45,10 @@ export const TurnView = ({
   return (
     <motion.main
       layoutScroll
-      className="relative overflow-auto border-t border-line px-5 py-6 lg:border-t-0 lg:px-8"
+      className={cn(
+        'relative overflow-auto border-t border-line px-5 py-6 lg:border-t-0 lg:px-8',
+        isReplay && 'max-lg:border-t-0',
+      )}
     >
       <TurnEndings state={state} selected={selected} status={status} />
       {state.incompatible !== undefined && (

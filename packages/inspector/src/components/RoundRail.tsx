@@ -1,6 +1,7 @@
 import { Tooltip } from '@base-ui/react/tooltip';
 import { cn } from '@fishballapps/cn';
 import { useEffect, useEffectEvent, useRef } from 'react';
+import { isReplay } from '../lib/connection.ts';
 import { currentTurnOf, roundCurrentState } from '../lib/current-turn.ts';
 import { revealNearest } from '../lib/reveal.ts';
 import type { Select, Selected } from '../lib/selection.ts';
@@ -89,7 +90,11 @@ export const RoundRail = ({
     <nav
       ref={navRef}
       aria-label="Rounds"
-      className="relative overflow-auto border-line px-3 py-3.5 lg:border-r"
+      className={cn(
+        'relative overflow-auto border-line px-3 py-3.5 lg:border-r',
+        // A replay on a phone opens on the turn: the rail follows it rather than pushing it down.
+        isReplay && 'max-lg:order-1 max-lg:border-t',
+      )}
     >
       <h2 className="px-1.5 pb-2 text-xs font-semibold text-muted">Rounds</h2>
       <Tooltip.Provider delay={300}>
