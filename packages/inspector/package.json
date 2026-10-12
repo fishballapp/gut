@@ -1,6 +1,6 @@
 {
   "name": "@gut.run/inspector",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "description": "The page `gut run --inspect` serves: every round and turn of a gut run, live, and a way to answer them yourself.",
   "license": "MIT",
