@@ -8,11 +8,11 @@ import Terminal from './story/Terminal.astro';
 import WikiPage from './story/WikiPage.astro';
 import '../styles/story.css';
 
-// The wiki race told as a game you already know, then as gut: a deck of slides on one stage. While
-// the stage fills the screen, each scroll gesture moves one slide (lib/deck.ts); each slide is a
-// state of the stage, and CSS transitions play the change (styles/story.css). The narration alone
-// tells the story, for a screen reader, and on a page without the script, where it stacks as a list
-// above the stage, still on the model picking from the three things.
+// The wiki race told as a game you already know, then as gut, on one stage the scroll plays: the
+// stage sticks to the screen over a runway, and how far down the runway you are is how far the
+// story has played (the script at the bottom). Scrolling back plays it back. The narration alone
+// tells the story, for a screen reader, and on a page without the script or on a short screen,
+// where it reads as prose above the finished code and its run.
 const [first] = race.rounds;
 const start = race.articles.at(0);
 const goal = race.articles.at(-1);
@@ -30,21 +30,22 @@ const more = new Intl.NumberFormat('en').format(first.links.length - LINKS.lengt
 
 // Narration, a part at a time: tokens are the words that fly into the goal pill.
 type Part = string | { token: 'from' | 'to'; text: string; after: string };
-type Slide = {
+type Caption = {
   id: string;
-  /** Spoken large in the middle of the stage (`hero`), or as the heading above the scene. */
+  /** Large in the middle of the stage (`hero`), or as the heading above the scene. */
   place: 'hero' | 'heading';
   line: Part[];
   aside?: string;
-  /** How long stepping onto it plays, in ms, where that is longer than a plain slide. */
-  plays?: number;
+  /** How much scroll it holds, in beats (`--beat` of the screen's height each, styles/story.css). */
+  beats: number;
 };
-const SLIDES: Slide[] = [
+const CAPTIONS: Caption[] = [
   {
     id: 'imagine',
     place: 'hero',
     line: ['Imagine you’re playing WikiRace.'],
     aside: 'Get from one Wikipedia page to another using only its links.',
+    beats: 1.2,
   },
   {
     id: 'race',
@@ -55,48 +56,74 @@ const SLIDES: Slide[] = [
       ' Reach ',
       { token: 'to', text: goal, after: '.' },
     ],
+    beats: 1.6,
   },
-  { id: 'land', place: 'heading', line: [`You land on ${start}.`], plays: 1500 },
-  { id: 'need', place: 'heading', line: ['What do you need to play?'] },
-  { id: 'goal', place: 'heading', line: ['A goal: where you’re going.'] },
-  { id: 'context', place: 'heading', line: ['Context: where you are now.'] },
-  { id: 'ops', place: 'heading', line: ['Ops: what you can do. Here, click a link.'], plays: 900 },
-  { id: 'all', place: 'heading', line: ['That’s everything you need to play.'], plays: 1300 },
-  { id: 'you', place: 'heading', line: ['Then you decide.'], plays: 2800 },
-  { id: 'ai', place: 'heading', line: ['Now swap yourself for an AI.'] },
-  { id: 'gut', place: 'heading', line: ['gut lets you express exactly this.'], plays: 1200 },
-  { id: 'code', place: 'heading', line: ['In code, it’s this.'], plays: 1400 },
-  { id: 'fill-goal', place: 'heading', line: ['The goal is one line.'], plays: 1100 },
-  { id: 'fill-context', place: 'heading', line: ['The context around it is what the model reads.'], plays: 1100 },
-  { id: 'fill-ops', place: 'heading', line: ['The ops are what it can do. That’s the whole task.'], plays: 1100 },
-  { id: 'run', place: 'heading', line: ['Run it.'], plays: 5200 },
+  { id: 'land', place: 'heading', line: [`You land on ${start}.`], beats: 1.4 },
+  { id: 'need', place: 'heading', line: ['To play, you need three things.'], beats: 1 },
+  { id: 'goal', place: 'heading', line: ['A goal: where you’re going.'], beats: 1 },
+  { id: 'context', place: 'heading', line: ['Context: where you are now.'], beats: 1 },
+  { id: 'ops', place: 'heading', line: ['Ops: what you can do. Here, click a link.'], beats: 1.2 },
+  { id: 'you', place: 'heading', line: ['Then you decide.'], beats: 2 },
+  { id: 'ai', place: 'heading', line: ['Now swap yourself for an AI.'], beats: 1.2 },
+  { id: 'gut', place: 'heading', line: ['gut lets you express exactly this.'], beats: 1.2 },
+  { id: 'code', place: 'heading', line: ['In code, it’s this.'], beats: 1.6 },
+  { id: 'fill-goal', place: 'heading', line: ['The goal is one line.'], beats: 1 },
+  {
+    id: 'fill-context',
+    place: 'heading',
+    line: ['The context around it is what the model reads.'],
+    beats: 1,
+  },
+  {
+    id: 'fill-ops',
+    place: 'heading',
+    line: ['The ops are what it can do. That’s the whole task.'],
+    beats: 1.2,
+  },
+  { id: 'run', place: 'heading', line: ['Run it.'], beats: 2.6 },
 ];
+// Where each caption starts on the runway, in beats.
+const starts = CAPTIONS.map((_, index) =>
+  CAPTIONS.slice(0, index).reduce((sum, { beats }) => sum + beats, 0),
+);
+const BEATS = CAPTIONS.reduce((sum, { beats }) => sum + beats, 0);
 // The arrows: from each of the three things to who decides, and back to the op they pick.
 const ARROWS = ['goal', 'context', 'ops', 'pick'] as const;
-// A page without the script shows the stage on the model picking from the three things.
-const STILL = SLIDES.findIndex(({ id }) => id === 'gut');
-const textOf = (line: Part[]) =>
-  line.map(part => (typeof part === 'string' ? part : `${part.text}${part.after}`)).join('');
 ---
 
-<section id="story" aria-labelledby="story-title" class="story" data-story>
-  <div
-    class="story-stage"
-    data-stage
-    data-slide={SLIDES[STILL]?.id}
-    data-reached={SLIDES.slice(0, STILL + 1).map(({ id }) => id).join(' ')}
-  >
+{/*
+  Before the section is parsed, so the first paint is already the scrolled story's opening, never
+  the prose it falls back to. styles/story.css sets every piece's start; the script plays it on.
+*/}
+<script is:inline>
+  document.documentElement.dataset.storyMode = 'scroll';
+</script>
+
+<section
+  id="story"
+  aria-labelledby="story-title"
+  class="story"
+  data-story
+  style={`--beats: ${BEATS}`}
+>
+  <div class="story-stage" data-stage>
     <h2 id="story-title" class="sr-only">How gut plays a game: the wiki race</h2>
+
+    <svg class="stage-gut" aria-hidden="true" viewBox="0 0 1024 1024" preserveAspectRatio="xMidYMid slice">
+      <path d={gutPath}></path>
+      {gutEyes.map(({ cx, cy }) => <circle cx={cx} cy={cy} r={11} />)}
+    </svg>
+
     <ol class="story-captions">
       {
-        SLIDES.map(({ id, place, line, aside, plays }) => (
-          <li class="story-caption" data-caption={id} data-place={place} data-plays={plays}>
+        CAPTIONS.map(({ id, place, line, aside, beats }, index) => (
+          <li class="story-caption" data-caption={id} data-place={place} data-at={starts[index]} data-beats={beats}>
             <p class="story-line">
               {line.map(part =>
                 typeof part === 'string' ? (
                   <span class="story-plain">{part}</span>
                 ) : (
-                  <span class="story-keep"><span class="story-token" data-flip={`token-${part.token}`} data-text={part.text}>{part.text}</span><span class="story-plain">{part.after}</span></span>
+                  <span class="story-keep"><span class="story-token" data-flip={`token-${part.token}`}><span class="story-mark" />{part.text}</span><span class="story-plain">{part.after}</span></span>
                 ),
               )}
             </p>
@@ -106,14 +133,10 @@ const textOf = (line: Part[]) =>
       }
     </ol>
 
-    <svg class="stage-gut" aria-hidden="true" viewBox="0 0 1024 1024" preserveAspectRatio="xMidYMid slice">
-      <path d={gutPath}></path>
-      {gutEyes.map(({ cx, cy }) => <circle cx={cx} cy={cy} r={11} />)}
-    </svg>
-
     <div class="scene" data-scene aria-hidden="true">
       <div class="goal-top">
-        <span class="pill" data-flip="goal-move">
+        <span class="pill" data-flip="goal-column">
+          <span class="lit"></span>
           <span class="pill-word" data-flip="token-from">{start}</span>
           <span class="pill-arrow">→</span>
           <span class="pill-word" data-flip="token-to">{goal}</span>
@@ -126,7 +149,8 @@ const textOf = (line: Part[]) =>
       <div class="column">
         <div class="column-item">
           <span class="column-label" data-thing="goal" data-flip="label-goal label-goal-row">goal</span>
-          <span class="pill" data-flip="goal-move goal-row">
+          <span class="pill" data-flip="goal-column goal-row">
+            <span class="lit"></span>
             <span class="pill-word">{start}</span>
             <span class="pill-arrow">→</span>
             <span class="pill-word">{goal}</span>
@@ -134,16 +158,20 @@ const textOf = (line: Part[]) =>
         </div>
         <div class="column-item">
           <span class="column-label" data-thing="context" data-flip="label-context label-context-row">context</span>
-          <span class="card" data-flip="context-row"><span class="card-text" data-flip="context-card">{start}</span></span>
+          <span class="card" data-flip="context-row">
+            <span class="lit"></span>
+            <span class="card-text" data-flip="context-card">{start}</span>
+          </span>
         </div>
         <div class="column-item">
           <span class="column-label" data-thing="ops" data-flip="label-ops label-ops-row">ops</span>
           <ul class="chips" data-flip="ops-row">
             {
               LINKS.map((link, index) => (
-                <li class="op" style={`--i: ${index}`}>
+                <li class="op">
                   <span class="op-verb">click</span>
                   <span class="chip" data-flip={`op-${index}`} data-pick={link === pick ? '' : undefined}>
+                    {link === pick && <span class="pick-ring" />}
                     {link}
                   </span>
                 </li>
@@ -158,7 +186,7 @@ const textOf = (line: Part[]) =>
 
       <Decider />
 
-      <svg class="arrows" data-arrows>
+      <svg class="arrows">
         {
           ARROWS.map(name => (
             <g class="arrow" data-arrow={name}>
@@ -175,19 +203,23 @@ const textOf = (line: Part[]) =>
 
       <div class="code-stage">
         <div class="row">
-          <div class="row-item" data-thing="goal">
+          <div class="row-item">
             <span class="column-label" data-thing="goal" data-flip="label-goal-row">goal</span>
             <span class="pill" data-flip="goal-row goal-code">
+              <span class="lit"></span>
               <span class="pill-word">{start}</span>
               <span class="pill-arrow">→</span>
               <span class="pill-word">{goal}</span>
             </span>
           </div>
-          <div class="row-item" data-thing="context">
+          <div class="row-item">
             <span class="column-label" data-thing="context" data-flip="label-context-row">context</span>
-            <span class="card" data-flip="context-row context-code"><span class="card-text">{start}</span></span>
+            <span class="card" data-flip="context-row context-code">
+              <span class="lit"></span>
+              <span class="card-text">{start}</span>
+            </span>
           </div>
-          <div class="row-item" data-thing="ops">
+          <div class="row-item">
             <span class="column-label" data-thing="ops" data-flip="label-ops-row">ops</span>
             <span class="row-ops" data-flip="ops-row ops-code">
               <span class="op-verb">click</span>
@@ -202,399 +234,342 @@ const textOf = (line: Part[]) =>
       <Terminal start={start} goal={goal} />
     </div>
 
-    <nav class="story-progress" aria-label="Slides">
-      <ol>
-        {
-          SLIDES.map(({ line }, index) => (
-            <li>
-              <button type="button" data-go={index} aria-label={`Slide ${index + 1}: ${textOf(line)}`}>
-                <span class="story-progress-fill" />
-              </button>
-            </li>
-          ))
-        }
-      </ol>
-    </nav>
-    <p class="story-hint">Scroll, swipe or press ↓</p>
-    <p class="sr-only" aria-live="polite" data-live></p>
+    <div class="story-progress" aria-hidden="true"><span data-progress></span></div>
   </div>
 </section>
 
+
 <script>
-  // The deck owns scrolling while its stage fills the screen: each gesture (a wheel notch, a
-  // trackpad swipe and its inertia, a finger's swipe, a key) moves one slide. Past the last slide
-  // or before the first, the gesture scrolls the page on.
+  // The scroll plays the story. One timeline, measured in beats, is tied to how far the reader is
+  // down the story's runway, and eases toward it (`scrub` in seconds): the scene follows the
+  // finger, the wheel or the key, forward and back, and glides on to rest a moment after the scroll
+  // stops. Only the scene glides; the page scrolls natively, and the stage sticks by CSS,
+  // on the compositor, so the script never moves it; the timeline animates only transforms and
+  // opacity inside it. Every piece's state at the runway's start is set by styles/story.css before
+  // first paint, so the timeline starts where the page already is.
   //
-  // The stage is sticky over a runway (styles/story.css), so a scroll that reaches it can carry on
-  // without moving it: the compositor holds it still. Chrome on a Mac lets a page cancel only the
-  // first wheel event of a scroll, so the rest of a swipe that started on the page above, inertia
-  // and all, scrolls on whatever this script does. So once the stage is reached, the deck holds the
-  // page: every scroll a gesture still makes is moved back within the runway, unseen (as GSAP's
-  // pinned Observer demos do). It holds at the runway's start, or at its end on the last slide, so
-  // leaving moves the stage with the first frame of the gesture that leaves.
-  import { createDeck, createWheelReader } from '../lib/deck.ts';
+  // A piece that moves between scenes is one thing in two places (`data-flip`): the first in the
+  // page flies onto the second, fading as it lands, while the second fades up under it. Flights and
+  // arrows are measured from layout, and again on every refresh (a resize, the fonts arriving).
+  import { gsap } from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
   import { arrow, type Box, flightOnto, flow } from '../lib/flights.ts';
 
-  // How far, in px, a heading sits above what its slide is about.
-  const HEADING_GAP = 32;
-  // A finger travels this far, in px, before its swipe has a direction.
-  const SWIPE_PX = 10;
-  // A scroll this soon after a wheel, finger or key input is the user's gesture: it may reach the
-  // stage, and the deck holds against it. Any other scroll (the scrollbar, a link) passes by.
-  const USER_SCROLL_MS = 1000;
-  const KEYS: Record<string, 1 | -1> = { ArrowDown: 1, PageDown: 1, ' ': 1, ArrowUp: -1, PageUp: -1 };
+  gsap.registerPlugin(ScrollTrigger);
 
-  const startDeck = (story: HTMLElement, stage: HTMLElement) => {
-    const slides = [...stage.querySelectorAll<HTMLElement>('[data-caption]')];
-    const buttons = [...stage.querySelectorAll<HTMLButtonElement>('[data-go]')];
-    const live = stage.querySelector('[data-live]');
-    const last = slides.length - 1;
-    const still = stage.dataset.slide;
-    const deck = createDeck(
-      slides.length,
-      Object.fromEntries(slides.map((caption, index) => [index, Number(caption.dataset.plays) || undefined])),
-    );
-    const wheel = createWheelReader();
-    const isTallEnough = matchMedia('(min-height: 520px)');
-    let isHeld = false;
-    let lastY = scrollY;
-    let lastInputAt = Number.NEGATIVE_INFINITY;
-    let touch: { x: number; y: number; direction?: 1 | -1 } | undefined;
+  // Seconds the scene trails the scroll by, gliding to rest after it stops.
+  const TRAIL_SECONDS = 0.8;
 
-    const isUserScrolling = () => performance.now() - lastInputAt < USER_SCROLL_MS;
-    // An event's time on this page's clock, from a framed page's too (each counts from its own start).
-    const timeOf = (event: UIEvent) =>
-      event.timeStamp + (event.view?.performance.timeOrigin ?? performance.timeOrigin) - performance.timeOrigin;
-
-    /** The scroll positions over which the stage sticks to the top of the screen. */
-    const runway = () => {
-      const start = scrollY + story.getBoundingClientRect().top;
-      return { start, end: start + story.offsetHeight - stage.offsetHeight };
-    };
-    const holdY = () => {
-      const { start, end } = runway();
-      return deck.slide === last ? end : start;
-    };
-    const hold = () => {
-      if (Math.abs(scrollY - holdY()) >= 1) scrollTo({ top: holdY(), behavior: 'instant' });
-    };
-
-    const show = (slide: number, { shouldAnnounce = true } = {}) => {
-      const isDeck = story.hasAttribute('data-deck');
-      // Stacked, the stage stays on its still slide and every caption is read.
-      const index = isDeck ? slide : slides.findIndex(caption => caption.dataset.caption === still);
-      const before = slides.findIndex(caption => caption.dataset.caption === stage.dataset.slide);
-      // Going back plays each change straight back, without the delays that pace it going forward.
-      stage.dataset.direction = index < before ? 'back' : 'forward';
-      stage.dataset.slide = slides[index]?.dataset.caption;
-      stage.dataset.reached = slides
-        .slice(0, index + 1)
-        .map(caption => caption.dataset.caption)
-        .join(' ');
-      slides.forEach((caption, at) => {
-        caption.toggleAttribute('data-current', at === index);
-        if (isDeck && at !== index) caption.setAttribute('aria-hidden', 'true');
-        else caption.removeAttribute('aria-hidden');
-      });
-      buttons.forEach((button, at) => {
-        button.setAttribute('aria-current', String(at === index));
-      });
-      const caption = slides[index];
-      if (shouldAnnounce && isDeck && live && caption) live.textContent = caption.textContent?.trim() ?? '';
-    };
-
-    // The deck takes the page on `slide`; the gesture that brought it here is spent.
-    const take = (slide: number) => {
-      isHeld = true;
-      touch = undefined;
-      deck.go(slide, performance.now());
-      show(slide);
-      hold();
-    };
-
-    // One input of a gesture while the deck holds the page: it moves a slide, does nothing, or
-    // lets go, and then the page scrolls by this gesture.
-    const input = (event: UIEvent, gesture: { direction: 1 | -1; isNewGesture: boolean }) => {
-      const before = deck.slide;
-      const mayScroll = deck.input({ ...gesture, time: timeOf(event) });
-      if (mayScroll) {
-        isHeld = false;
-        return;
-      }
-      if (event.cancelable) event.preventDefault();
-      if (deck.slide === before) return;
-      show(deck.slide);
-      hold();
-    };
-
-    // Wheels and fingers, on this page and on any page framed in it (the replay below, its own
-    // document, takes the wheel while the pointer is over it, and scrolls this page on).
-    const listenForGestures = (target: Window) => {
-      target.addEventListener(
-        'wheel',
-        event => {
-          if (event.deltaY === 0 || event.ctrlKey) return;
-          lastInputAt = timeOf(event);
-          const isNewGesture = wheel.read({ deltaY: event.deltaY, time: timeOf(event) });
-          if (isHeld) input(event, { direction: event.deltaY > 0 ? 1 : -1, isNewGesture });
-        },
-        { passive: false },
-      );
-      target.addEventListener(
-        'touchstart',
-        event => {
-          const [finger] = event.touches;
-          touch = event.touches.length === 1 && finger ? { x: finger.clientX, y: finger.clientY } : undefined;
-        },
-        { passive: true },
-      );
-      target.addEventListener(
-        'touchmove',
-        event => {
-          lastInputAt = timeOf(event);
-          const [finger] = event.touches;
-          if (!isHeld || touch === undefined || finger === undefined) return;
-          if (touch.direction !== undefined) {
-            input(event, { direction: touch.direction, isNewGesture: false });
-            return;
-          }
-          const dy = touch.y - finger.clientY;
-          if (Math.abs(dy) < SWIPE_PX || Math.abs(dy) < Math.abs(touch.x - finger.clientX)) {
-            if (event.cancelable) event.preventDefault();
-            return;
-          }
-          touch.direction = dy > 0 ? 1 : -1;
-          input(event, { direction: touch.direction, isNewGesture: true });
-        },
-        { passive: false },
-      );
-      // A finger's fling scrolls on after it lifts.
-      target.addEventListener('touchend', event => {
-        lastInputAt = timeOf(event);
-      });
-    };
-    listenForGestures(window);
-    for (const frame of document.querySelectorAll('iframe')) {
-      const listenInFrame = () => {
-        if (frame.contentWindow) listenForGestures(frame.contentWindow);
-      };
-      // Each load is a new window: the first, and every reload of the replay.
-      frame.addEventListener('load', listenInFrame);
-      if (frame.contentDocument?.readyState === 'complete') listenInFrame();
-    }
-
-    addEventListener('keydown', event => {
-      if (event.key === 'Home' || event.key === 'End') isHeld = false;
-      const step = KEYS[event.key];
-      if (step === undefined || event.altKey || event.ctrlKey || event.metaKey) return;
-      const target = event.target instanceof HTMLElement ? event.target : undefined;
-      if (target?.closest('input, textarea, select, [contenteditable]')) return;
-      if (event.key === ' ' && target?.closest('button, a')) return;
-      lastInputAt = timeOf(event);
-      if (!isHeld) return;
-      if (event.repeat) {
-        event.preventDefault();
-        return;
-      }
-      input(event, { direction: event.key === ' ' && event.shiftKey ? -1 : step, isNewGesture: true });
-    });
-
-    // A click may follow a link past the stage; only a scroll gesture should stop on it.
-    addEventListener('click', () => {
-      lastInputAt = Number.NEGATIVE_INFINITY;
-    });
-
-    addEventListener(
-      'scroll',
-      () => {
-        const y = scrollY;
-        const { start, end } = runway();
-        if (isHeld && Math.abs(y - holdY()) >= 1) {
-          // A gesture's scroll is moved back; any other (the scrollbar, a link) takes the page.
-          if (isUserScrolling()) hold();
-          else isHeld = false;
-        } else if (!isHeld && isTallEnough.matches && isUserScrolling()) {
-          const isOnRunway = y >= start - 0.5 && y <= end + 0.5;
-          if (isOnRunway && lastY < start) take(0);
-          else if (isOnRunway && lastY > end) take(last);
-        }
-        // Out of sight, the stage waits on the slide the next scroll will enter it on.
-        const { top, bottom } = story.getBoundingClientRect();
-        if (top >= innerHeight && deck.slide !== 0) {
-          deck.go(0, performance.now());
-          show(0, { shouldAnnounce: false });
-        } else if (bottom <= 0 && deck.slide !== last) {
-          deck.go(last, performance.now());
-          show(last, { shouldAnnounce: false });
-        }
-        lastY = scrollY;
-      },
-      { passive: true },
-    );
-
-    addEventListener('resize', () => {
-      if (isHeld) hold();
-    });
-
-    for (const button of buttons) {
-      button.addEventListener('click', () => take(Number(button.dataset.go)));
-    }
-
-    const enterDeck = () => {
-      story.toggleAttribute('data-deck', isTallEnough.matches);
-      if (!isTallEnough.matches) isHeld = false;
-      show(deck.slide, { shouldAnnounce: false });
-    };
-    isTallEnough.addEventListener('change', enterDeck);
-    enterDeck();
-    const { start, end } = runway();
-    if (isTallEnough.matches && scrollY >= start && scrollY <= end) take(0);
-  };
-
-  // Where each piece of the scene flies, measured once per layout, not per frame: on load, once the
-  // fonts are in, and whenever the stage resizes. Two pieces that share a name in `data-flip` are
-  // one thing in two places, and each gets the flight that lays it over the other, as custom
-  // properties (`--<name>-x`, `-y`, `-s`) its slide rules read. The arrows are drawn between the
-  // pieces' boxes the same way.
-  const measureScene = (stage: HTMLElement, scene: HTMLElement) => {
-    // Layout boxes, ignoring transforms, so a piece already in flight measures where it lives.
-    const boxOf = (element: HTMLElement, within: HTMLElement): Box => {
-      let x = 0;
-      let y = 0;
-      let node: Element | null = element;
-      while (node instanceof HTMLElement && node !== within) {
-        x += node.offsetLeft;
-        y += node.offsetTop;
-        node = node.offsetParent;
-      }
-      return { x, y, width: element.offsetWidth, height: element.offsetHeight };
-    };
-    const sceneBox = (selector: string) => {
-      const element = scene.querySelector<HTMLElement>(selector);
-      return element === null ? undefined : boxOf(element, scene);
-    };
-
-    // The page sits back a little from its fourth slide on (`--settle`, in styles/story.css), and
-    // its pieces leave it from there: so a piece in it is measured where it shows, and its flight
-    // is undone by that scale, which its own transform sits inside.
-    const page = stage.querySelector<HTMLElement>('[data-page]');
-    const settle = page === null ? 1 : Number(getComputedStyle(page).getPropertyValue('--settle')) || 1;
-    const shownBoxOf = (element: HTMLElement): Box => {
-      const box = boxOf(element, stage);
-      if (page === null || !page.contains(element)) return box;
-      const { x, y, width, height } = boxOf(page, stage);
-      const centre = { x: x + width / 2, y: y + height / 2 };
-      return {
-        x: centre.x + (box.x - centre.x) * settle,
-        y: centre.y + (box.y - centre.y) * settle,
-        width: box.width * settle,
-        height: box.height * settle,
-      };
-    };
-
-    const measureFlights = () => {
-      const names = new Set(
-        [...stage.querySelectorAll<HTMLElement>('[data-flip]')].flatMap(element => (element.dataset.flip ?? '').split(' ')),
-      );
-      for (const name of names) {
-        const pair = [...stage.querySelectorAll<HTMLElement>(`[data-flip~="${name}"]`)];
-        const [one, other] = pair;
-        if (pair.length !== 2 || one === undefined || other === undefined) continue;
-        for (const [piece, onto] of [
-          [one, other],
-          [other, one],
-        ] as const) {
-          const flight = flightOnto(shownBoxOf(piece), shownBoxOf(onto));
-          const scale = page?.contains(piece) ? settle : 1;
-          piece.style.setProperty(`--${name}-x`, `${flight.x / scale}px`);
-          piece.style.setProperty(`--${name}-y`, `${flight.y / scale}px`);
-          piece.style.setProperty(`--${name}-s`, String(flight.scale));
-        }
-      }
-    };
-
-    // From each of the three things to who decides, and back from them to the op they pick. Wide,
-    // the column is on the left and the decider on the right, and the arrows flow across; narrow,
-    // the column is above and the decider below on the right, and they run down a rail beside it.
-    const drawArrows = () => {
-      const decider = sceneBox('.decider');
-      const picked = sceneBox('.chip[data-pick]');
-      const chips = sceneBox('.chips');
-      const from = { goal: sceneBox('.column .pill'), context: sceneBox('.card'), ops: chips };
-      if (decider === undefined || picked === undefined || chips === undefined) return;
-      const isWide = decider.y < chips.y + chips.height;
-      const gap = 14;
-      const paths: Record<string, { line: string; head: string }> = {};
-      (['goal', 'context', 'ops'] as const).forEach((name, index) => {
-        const box = from[name];
-        if (box === undefined) return;
-        const start = { x: box.x + box.width + gap, y: box.y + box.height / 2 };
-        if (isWide) {
-          // Onto the face, a little apart, top to bottom.
-          const end = { x: decider.x + decider.width * 0.2, y: decider.y + decider.height * (0.24 + index * 0.1) };
-          paths[name] = flow(start, end, 'x');
-          return;
-        }
-        // Down rails right of the chips into the head, the highest outermost, so none crosses.
-        const rail = chips.x + chips.width + 24 + (2 - index) * 12;
-        const end = { x: decider.x + decider.width * (0.62 - index * 0.12), y: decider.y - gap };
-        paths[name] = arrow(start, { x: rail, y: start.y }, { x: rail, y: end.y - 60 }, end);
-      });
-      // The pick goes back from the decider's shoulder to the op.
-      paths.pick = isWide
-        ? flow(
-            { x: decider.x + decider.width * 0.08 - gap, y: decider.y + decider.height * 0.88 },
-            { x: picked.x + picked.width + gap, y: picked.y + picked.height / 2 },
-            'x',
-          )
-        : flow(
-            { x: decider.x + decider.width * 0.28 - gap, y: decider.y + decider.height * 0.34 },
-            { x: picked.x + picked.width + gap, y: picked.y + picked.height / 2 },
-            'x',
-          );
-      for (const [name, { line, head }] of Object.entries(paths)) {
-        const group = scene.querySelector(`[data-arrow="${name}"]`);
-        group?.querySelector('.arrow-line')?.setAttribute('d', line);
-        group?.querySelector('.arrow-reveal')?.setAttribute('d', line);
-        group?.querySelector('.arrow-head')?.setAttribute('d', head);
-      }
-    };
-
-    // Each heading sits a gap above what its slide is about: the column of the three things, the
-    // row and code, or, once the row has emptied, the code. Measured as how far below the heading's
-    // own band that is.
-    const placeHeadings = () => {
-      const band = stage.querySelector<HTMLElement>('[data-place="heading"]');
-      const column = scene.querySelector<HTMLElement>('.column-item');
-      const code = scene.querySelector<HTMLElement>('.code-stage');
-      const done = scene.querySelector<HTMLElement>('.code');
-      const run = scene.querySelector<HTMLElement>('.run');
-      if (band === null || column === null || code === null || done === null || run === null) return;
-      const { y, height } = boxOf(band, stage);
-      const below = (element: HTMLElement) => Math.max(0, boxOf(element, stage).y - HEADING_GAP - (y + height));
-      stage.style.setProperty('--heading-y-column', `${below(column)}px`);
-      stage.style.setProperty('--heading-y-code', `${below(code)}px`);
-      stage.style.setProperty('--heading-y-done', `${below(done)}px`);
-      stage.style.setProperty('--heading-y-run', `${below(run)}px`);
-    };
-
-    const measure = () => {
-      measureFlights();
-      drawArrows();
-      placeHeadings();
-    };
-    measure();
-    void document.fonts.ready.then(measure);
-    new ResizeObserver(measure).observe(stage);
-  };
+  type Thing = 'goal' | 'context' | 'ops';
+  const THINGS: Thing[] = ['goal', 'context', 'ops'];
 
   const story = document.querySelector<HTMLElement>('[data-story]');
   const stage = story?.querySelector<HTMLElement>('[data-stage]');
-  const scene = stage?.querySelector<HTMLElement>('[data-scene]');
-  if (story && stage && scene) {
-    measureScene(stage, scene);
-    startDeck(story, stage);
-    // Nothing plays until the stage is set: the first slide shows as it is, not as a change.
-    requestAnimationFrame(() => requestAnimationFrame(() => story.setAttribute('data-ready', '')));
-  }
+  if (story == null || stage == null) throw new Error('the page has no story');
+
+  /** Every element in `within` that `selector` matches; throws on none. */
+  const all = (selector: string, within: Element = stage) => {
+    const elements = [...within.querySelectorAll<HTMLElement>(selector)];
+    if (elements.length === 0) throw new Error(`the story has no ${selector}`);
+    return elements;
+  };
+  const one = (selector: string, within: Element = stage) => {
+    const [element] = all(selector, within);
+    if (element === undefined) throw new Error(`the story has no ${selector}`);
+    return element;
+  };
+
+  // A layout box relative to `within`, ignoring transforms, so a piece mid-flight measures where it
+  // lives.
+  const boxOf = (element: HTMLElement, within: HTMLElement = stage): Box => {
+    let x = 0;
+    let y = 0;
+    let node: Element | null = element;
+    while (node instanceof HTMLElement && node !== within) {
+      x += node.offsetLeft;
+      y += node.offsetTop;
+      node = node.offsetParent;
+    }
+    return { x, y, width: element.offsetWidth, height: element.offsetHeight };
+  };
+
+  // From each of the three things to who decides, and back from them to the op they pick. Wide,
+  // the column is on the left and the decider on the right, and the arrows flow across; narrow,
+  // the column is above and the decider below on the right, and they run down a rail beside it.
+  const drawArrows = () => {
+    const scene = one('.scene');
+    const boxIn = (selector: string) => boxOf(one(selector), scene);
+    const decider = boxIn('.decider');
+    const picked = boxIn('.column .chip[data-pick]');
+    const chips = boxIn('.column .chips');
+    const from = { goal: boxIn('.column .pill'), context: boxIn('.column .card'), ops: chips };
+    const isWide = decider.y < chips.y + chips.height;
+    const gap = 14;
+    const paths: Record<string, { line: string; head: string }> = {};
+    THINGS.forEach((name, index) => {
+      const box = from[name];
+      const start = { x: box.x + box.width + gap, y: box.y + box.height / 2 };
+      if (isWide) {
+        // Onto the face, a little apart, top to bottom.
+        const end = { x: decider.x + decider.width * 0.2, y: decider.y + decider.height * (0.24 + index * 0.1) };
+        paths[name] = flow(start, end, 'x');
+        return;
+      }
+      // Down rails right of the chips into the head, the highest outermost, so none crosses.
+      const rail = chips.x + chips.width + 24 + (2 - index) * 12;
+      const end = { x: decider.x + decider.width * (0.62 - index * 0.12), y: decider.y - gap };
+      paths[name] = arrow(start, { x: rail, y: start.y }, { x: rail, y: end.y - 60 }, end);
+    });
+    // The pick goes back from the decider's shoulder to the op.
+    paths.pick = flow(
+      isWide
+        ? { x: decider.x + decider.width * 0.08 - gap, y: decider.y + decider.height * 0.88 }
+        : { x: decider.x + decider.width * 0.28 - gap, y: decider.y + decider.height * 0.34 },
+      { x: picked.x + picked.width + gap, y: picked.y + picked.height / 2 },
+      'x',
+    );
+    // The svg covers the scene, so its user units are the scene's pixels.
+    for (const [name, { line, head }] of Object.entries(paths)) {
+      const group = one(`[data-arrow="${name}"]`);
+      one('.arrow-line', group).setAttribute('d', line);
+      one('.arrow-reveal', group).setAttribute('d', line);
+      one('.arrow-head', group).setAttribute('d', head);
+    }
+  };
+
+  const build = ({ isReduced, isWide }: { isReduced: boolean; isWide: boolean }) => {
+    // Under reduced motion nothing travels: a flight is a crossfade, an entrance a fade.
+    const travel = isReduced ? 0 : 1;
+    const moved = ({ x = 0, y = 0, scale = 1 }: { x?: number; y?: number; scale?: number }) => ({
+      x: x * travel,
+      y: y * travel,
+      scale: 1 + (scale - 1) * travel,
+    });
+
+    const beats = Number(getComputedStyle(story).getPropertyValue('--beats'));
+    // How long the scene takes to catch up with the scroll once it stops. Under reduced motion it
+    // doesn't trail: motion that carries on after the reader's input is motion they didn't ask for.
+    const trail = isReduced ? true : TRAIL_SECONDS;
+    const timeline = gsap.timeline({
+      defaults: { ease: 'none', immediateRender: false },
+      scrollTrigger: {
+        trigger: story,
+        start: 'top top',
+        end: 'bottom bottom',
+        scrub: trail,
+        invalidateOnRefresh: true,
+        onRefresh: drawArrows,
+      },
+    });
+    // How far through the story the reader is. It runs the whole runway, which also makes the
+    // timeline exactly `beats` long, so a beat of time is a beat of scroll.
+    timeline.fromTo(one('[data-progress]'), { scaleX: 0 }, { scaleX: 1, duration: beats }, 0);
+
+    /** The beat a caption starts on, plus `offset`. */
+    const at = (id: string, offset = 0) => Number(one(`[data-caption="${id}"]`).dataset.at) + offset;
+
+    // Targets are the story's own: a selector is matched inside the stage, never the whole page.
+    type Targets = string | HTMLElement | HTMLElement[];
+    const targetsOf = (targets: Targets) => (typeof targets === 'string' ? all(targets) : targets);
+
+    const fade = (targets: Targets, time: number, to: number, duration = 0.2, from = 1 - to) =>
+      timeline.fromTo(targetsOf(targets), { opacity: from }, { opacity: to, duration }, time);
+    /** Brings `targets` up from transparent, settling from `from` into place. */
+    const enter = (
+      targets: Targets,
+      time: number,
+      from: { x?: number; y?: number; scale?: number },
+      { duration = 0.4, stagger = 0, ease = 'power3.out' } = {},
+    ) =>
+      timeline.fromTo(
+        targetsOf(targets),
+        { opacity: 0, ...moved(from) },
+        { opacity: 1, x: 0, y: 0, scale: 1, duration, stagger, ease },
+        time,
+      );
+    /** Takes `targets` away to transparent, moving out to `to`. */
+    const leave = (
+      targets: Targets,
+      time: number,
+      to: { x?: number; y?: number; scale?: number },
+      { duration = 0.3, ease = 'power2.in' } = {},
+    ) =>
+      timeline.fromTo(
+        targetsOf(targets),
+        { opacity: 1, x: 0, y: 0, scale: 1 },
+        { opacity: 0, ...moved(to), duration, ease },
+        time,
+      );
+    /** The piece named `name` flies onto its twin, which fades up under it as it lands. */
+    const fly = (name: string, time: number, duration = 0.6) => {
+      const [piece, twin, ...rest] = all(`[data-flip~="${name}"]`);
+      if (piece === undefined || twin === undefined || rest.length > 0) {
+        throw new Error(`"${name}" should be one thing in two places`);
+      }
+      const flight = () => flightOnto(boxOf(piece), boxOf(twin));
+      timeline.fromTo(
+        piece,
+        { x: 0, y: 0, scale: 1, transformOrigin: '0 0' },
+        {
+          x: () => flight().x * travel,
+          y: () => flight().y * travel,
+          scale: () => 1 + (flight().scale - 1) * travel,
+          duration,
+          ease: 'power3.inOut',
+        },
+        time,
+      );
+      fade(piece, time + duration * 0.75, 0, duration * 0.25);
+      fade(twin, time + duration * 0.7, 1, duration * 0.3);
+    };
+    /** Draws an arrow along its line, its head last. */
+    const draw = (name: string, time: number, duration = 0.4) => {
+      const group = one(`[data-arrow="${name}"]`);
+      fade(group, time, 1, 0.02);
+      timeline.fromTo(
+        one('.arrow-reveal', group),
+        { strokeDashoffset: 1 },
+        { strokeDashoffset: 0, duration, ease: 'power1.inOut' },
+        time,
+      );
+      fade(one('.arrow-head', group), time + duration * 0.9, 1, duration * 0.1);
+    };
+
+    // The narration: each caption holds the stage for its beats, then hands it to the next. Only
+    // the caption on show takes the pointer, so that one can be selected.
+    const captions = all('[data-caption]');
+    captions.forEach((caption, index) => {
+      const next = captions[index + 1];
+      if (index > 0) enter(caption, at(caption.dataset.caption ?? '', -0.05), { y: 24 }, { duration: 0.3 });
+      if (next === undefined) return;
+      const end = Number(next.dataset.at);
+      leave(caption, end - 0.3, { y: -24 }, { duration: 0.25 });
+      timeline.set(caption, { pointerEvents: 'none' }, end - 0.05);
+      timeline.set(next, { pointerEvents: 'auto' }, end - 0.05);
+    });
+
+    // Start at Banana. Reach Roman Empire: the highlighter runs under the two places, they lift
+    // out of the sentence and fly up into the goal at the top of the stage.
+    timeline.fromTo(
+      all('.story-mark'),
+      { scaleX: 0 },
+      { scaleX: 1, duration: 0.3, stagger: 0.2, ease: 'power2.out' },
+      at('race', 0.15),
+    );
+    enter('.goal-top .pill', at('land', -0.75), { scale: 0.92 }, { duration: 0.3 });
+    fade('[data-caption="race"] .story-plain', at('land', -0.95), 0, 0.3);
+    fly('token-from', at('land', -0.95));
+    fly('token-to', at('land', -0.9));
+
+    // You land on Banana: the page comes up from below.
+    enter('.page', at('land', -0.2), { y: 480 }, { duration: 0.8 });
+
+    // To play, you need three things: the page's text recedes, and a number marks each.
+    fade('.page-bar, .page-from, .page-infobox', at('need'), 0.3, 0.3, 1);
+    enter('.tag-number', at('need', 0.1), { scale: 0.4 }, { duration: 0.3, stagger: 0.12, ease: 'back.out(2)' });
+
+    // A goal, context, ops: each lit, and its number turned into its name.
+    const light = (thing: Thing, lit: string) => {
+      const time = at(thing, 0.05);
+      enter(lit, time, { scale: 1.12 }, { duration: 0.3, stagger: 0.05 });
+      leave(`[data-tag="${thing}"] .tag-number`, time, { scale: 0.4 }, { duration: 0.15 });
+      enter(`[data-tag="${thing}"] .tag-label`, time + 0.08, { y: 8, scale: 0.6 }, { duration: 0.3, ease: 'back.out(2)' });
+    };
+    light('goal', '.goal-top .lit');
+    light('context', '.page-title .lit');
+    light('ops', '.page-link .lit');
+
+    // Then you decide: the three things leave the page for a column, the page goes, a person comes
+    // in, and arrows draw from each thing to them, and back to the link they pick.
+    const decide = at('you');
+    fly('goal-column', decide);
+    fly('label-goal', decide + 0.05);
+    fly('context-card', decide + 0.1);
+    fly('label-context', decide + 0.15);
+    for (const index of [0, 1, 2, 3, 4]) fly(`op-${index}`, decide + 0.15 + index * 0.04);
+    fly('label-ops', decide + 0.2);
+    fade('.column .op-verb, .column .chip-more', decide + 0.6, 1);
+    enter('.column .card .lit', decide + 0.65, { scale: 0.9 }, { duration: 0.25 });
+    leave('.page', decide + 0.35, { y: 60, scale: 0.96 }, { duration: 0.35 });
+    enter('.figure-person', decide + 0.55, { y: 50 }, { duration: 0.45 });
+    THINGS.forEach((name, index) => draw(name, decide + 0.9 + index * 0.1));
+    draw('pick', decide + 1.35, 0.35);
+    enter('.pick-ring', decide + 1.7, { scale: 1.3 }, { duration: 0.2 });
+
+    // Now swap yourself for an AI: the same figure, a robot's head on it.
+    leave('.figure-person', at('ai', 0.1), { scale: 0.94 });
+    enter('.figure-robot', at('ai', 0.25), { scale: 1.06 });
+
+    // gut lets you express exactly this: gut's own cartoon comes up behind it all.
+    enter('.stage-gut', at('gut', 0.05), { scale: 1.08 }, { duration: 0.8 });
+
+    // In code, it's this: the decider and arrows go, and the column becomes a row over the code.
+    const code = at('code');
+    leave('.decider, .arrows', code, { scale: 0.96 });
+    for (const thing of THINGS) {
+      fly(`${thing}-row`, code + 0.1);
+      fly(`label-${thing}-row`, code + 0.1);
+    }
+    enter('.code', code + 0.4, { y: 60 }, { duration: 0.6 });
+    enter('.code-window > .code-line, .slot-dash', code + 0.5, { y: 8 }, { duration: 0.3, stagger: 0.015 });
+
+    // The goal, the context, the ops: each lands on its slot and fills it.
+    for (const thing of THINGS) {
+      const time = at(`fill-${thing}`, 0.05);
+      const slot = one(`.code-slot[data-slot="${thing}"]`);
+      fly(`${thing}-code`, time, 0.5);
+      leave(`.row [data-thing="${thing}"]`, time, { y: -8 }, { duration: 0.2 });
+      fade(one(':scope > .slot-dash', slot), time + 0.3, 0, 0.15);
+      enter(all(':scope > .code-line', slot), time + 0.4, { x: -8 }, { duration: 0.3, stagger: 0.02 });
+    }
+
+    // Run it: the code steps aside for a terminal, the command types, the rounds stream in as the
+    // reader scrolls, and the goal is met.
+    const run = at('run');
+    const codeBox = () => boxOf(one('.code'));
+    const sceneBox = () => boxOf(one('.scene'));
+    timeline.fromTo(
+      one('.code'),
+      { x: 0, y: 0, scale: 1, opacity: 1, transformOrigin: '50% 50%' },
+      isWide
+        ? // Wide, it shrinks into the left half, beside the terminal.
+          {
+            x: () => (sceneBox().x + sceneBox().width * 0.27 - (codeBox().x + codeBox().width / 2)) * travel,
+            scale: 0.72,
+            duration: 0.5,
+            ease: 'power2.inOut',
+          }
+        : // Narrow, the terminal comes over it.
+          { opacity: 0.08, scale: 1 - 0.04 * travel, duration: 0.4 },
+      run,
+    );
+    enter('.run-goal', run + 0.2, { y: -20 }, { duration: 0.4 });
+    enter('.terminal', run + 0.25, { y: 60 }, { duration: 0.5 });
+    timeline.fromTo(all('.term-char'), { opacity: 0 }, { opacity: 1, duration: 0.01, stagger: 0.012 }, run + 0.6);
+    enter('.term-line', run + 1, { x: -10 }, { duration: 0.1, stagger: 0.07 });
+    enter('.run-check', run + 2.05, { scale: 0.3 }, { duration: 0.15, ease: 'back.out(2.5)' });
+    // Confetti fires once, on its own clock, as the goal is met on the way down; going back up
+    // past it takes it away.
+    timeline.call(
+      () => {
+        story.toggleAttribute('data-celebrate', !isReduced && timeline.scrollTrigger?.direction === 1);
+      },
+      [],
+      run + 2.15,
+    );
+  };
+
+  // Played only where styles/story.css lays the story out as a stage: on a screen tall enough.
+  gsap.matchMedia().add(
+    {
+      isScrolled: '(min-height: 520px)',
+      isWide: '(min-width: 720px) and (min-aspect-ratio: 4 / 5)',
+      isReduced: '(prefers-reduced-motion: reduce)',
+    },
+    ({ conditions }) => {
+      if (!conditions?.isScrolled) return;
+      build({ isReduced: Boolean(conditions.isReduced), isWide: Boolean(conditions.isWide) });
+    },
+  );
+  void document.fonts.ready.then(() => ScrollTrigger.refresh());
 </script>

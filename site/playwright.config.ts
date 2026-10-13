@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-// The deck's e2e: real scroll gestures against the production build. `*.e2e.ts` keeps vitest's
+// The story's e2e: real scroll input against the production build. `*.e2e.ts` keeps vitest's
 // `*.test.ts` glob off these files.
 const PORT = 4329;
 

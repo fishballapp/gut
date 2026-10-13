@@ -48,6 +48,7 @@ catalog:
   astro: ^7.3.2
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
+  gsap: ^3.15.0
   motion: ^13.3.0
   playwright: 1.63.0
   repojj: ^2026.7.29

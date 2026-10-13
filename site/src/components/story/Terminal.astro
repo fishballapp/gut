@@ -3,8 +3,9 @@ import { RUN_COMMAND } from '../../lib/code.ts';
 import { race } from '../../lib/race.ts';
 
 // The race run: its command typed in, then one line per round of the recording, the article it was
-// on and the link it picked, until the model judged the goal met. Each line comes in on its own beat
-// (`--i`), the goal pill above gets its tick, and confetti fires from the terminal's bottom corners.
+// on and the link it picked, until the model judged the goal met. The scroll types the command and
+// streams the lines; then the goal pill above gets its tick, and confetti fires from the terminal's
+// bottom corners.
 type Props = { start: string; goal: string };
 const { start, goal } = Astro.props;
 
@@ -35,7 +36,7 @@ const shot = (side: 'left' | 'right') =>
 const cannons = [shot('left'), shot('right')];
 ---
 
-<div class="run" style={`--rounds: ${rounds.length}; --chars: ${command.length}`}>
+<div class="run">
   <span class="pill run-goal">
     <span class="pill-word">{start}</span>
     <span class="pill-arrow">→</span>
@@ -47,12 +48,12 @@ const cannons = [shot('left'), shot('right')];
   <div class="terminal">
     <p class="term-command">
       <span class="term-prompt">$</span>
-      {command.map((char, index) => <span class="term-char" style={`--c: ${index}`}>{char}</span>)}
+      {command.map(char => <span class="term-char">{char}</span>)}
     </p>
     <ol class="term-log">
       {
-        rounds.map(({ round, article, link }, index) => (
-          <li class="term-line" style={`--i: ${index}`}>
+        rounds.map(({ round, article, link }) => (
+          <li class="term-line">
             <span class="term-round">{round}</span>
             <span class="term-step">
               <span class="term-article">{article}</span>{' '}

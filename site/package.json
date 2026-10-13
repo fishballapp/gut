@@ -22,6 +22,7 @@
     "@fontsource-variable/geist-mono": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "astro": "catalog:",
+    "gsap": "catalog:",
     "tailwindcss": "catalog:"
   },
   "devDependencies": {

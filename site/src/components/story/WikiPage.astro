@@ -3,7 +3,8 @@ import Tag from './Tag.astro';
 
 // The Wikipedia article the race starts on, drawn as a page: its title, grey bars for its text, and
 // a handful of its real links in blue, one of them the run's first pick. Each link flies on to its
-// chip in the column (`data-flip="op-N"`), and the title to the context card.
+// chip in the column (`data-flip="op-N"`), and the title to the context card. A `.lit` layer behind
+// each is the highlighter the story turns on.
 type Props = { title: string; links: string[] };
 const { title, links } = Astro.props;
 
@@ -27,7 +28,7 @@ const PARAGRAPHS: Run[][] = [
   <div class="page-frame"></div>
   <div class="page-body">
     <h3 class="page-title">
-      <span class="page-title-text" data-flip="context-card">{title}</span>
+      <span class="page-title-text" data-flip="context-card"><span class="lit"></span>{title}</span>
       <Tag thing="context" number={2} />
     </h3>
     <p class="page-from">From Wikipedia, the free encyclopedia</p>
@@ -38,14 +39,15 @@ const PARAGRAPHS: Run[][] = [
       <span class="page-bar" style="--w: 8"></span>
     </div>
     {
-      PARAGRAPHS.map((runs, index) => (
-        <p class="page-text" style={`--p: ${index}`}>
+      PARAGRAPHS.map(runs => (
+        <p class="page-text">
           {runs.map(run =>
             'bar' in run ? (
               <span class="page-bar" style={`--w: ${run.bar}`} />
             ) : (
               <span class="page-link-place">
-                <span class="page-link" data-flip={`op-${run.link}`} style={`--i: ${run.link}`}>
+                <span class="page-link" data-flip={`op-${run.link}`}>
+                  <span class="lit"></span>
                   {links[run.link]}
                 </span>
                 {run.link === 0 && <Tag thing="ops" number={3} />}
