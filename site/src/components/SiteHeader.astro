@@ -1,0 +1,52 @@
+---
+import Icon from './Icon.astro';
+
+// The theme switch names the theme it turns on, so its label is its action.
+---
+
+<header class="sticky top-0 z-10 border-b border-line bg-ground/85 backdrop-blur-sm">
+  <div class="mx-auto flex h-11 max-w-6xl items-center gap-5 px-5 text-[13px] sm:px-8">
+    <a
+      href="/"
+      aria-label="gut, home"
+      class="rounded-[3px] bg-mark px-1.5 text-[17px] leading-snug font-bold tracking-tight text-on-mark"
+      >gut</a
+    >
+    <span class="flex-1"></span>
+    <a
+      href="https://github.com/fishballapp/gut#readme"
+      class="flex items-center gap-1 text-muted transition-colors hover:text-ink"
+    >
+      Docs <Icon name="arrowUpRight" size={12} />
+    </a>
+    <a
+      href="https://www.npmjs.com/org/gut.run"
+      class="hidden items-center gap-1 text-muted transition-colors hover:text-ink sm:flex"
+    >
+      npm <Icon name="arrowUpRight" size={12} />
+    </a>
+    <button
+      type="button"
+      data-theme-toggle
+      class="flex h-8 items-center gap-1.5 rounded-md border border-line bg-raised px-2.5 text-[13px] font-medium text-ink transition-colors hover:border-ink/40"
+    >
+      <Icon name="moon" size={15} class="in-data-[theme=dark]:hidden" />
+      <span class="in-data-[theme=dark]:hidden">Dark</span>
+      <Icon name="sun" size={15} class="hidden in-data-[theme=dark]:block" />
+      <span class="hidden in-data-[theme=dark]:inline">Light</span>
+    </button>
+  </div>
+</header>
+
+<script>
+  // Every page has this header, so the switch works on every page. The theme is stored where the
+  // inspector reads it, so the replay framed on the home page follows (a storage event); the Layout
+  // applies a stored choice before first paint.
+  for (const toggle of document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]')) {
+    toggle.addEventListener('click', () => {
+      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem('gut:theme', next);
+    });
+  }
+</script>

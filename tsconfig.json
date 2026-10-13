@@ -7,6 +7,10 @@
     { "path": "./packages/inspector" },
     { "path": "./packages/inspector/e2e" },
     { "path": "./examples" },
-    { "path": "./internal/cn" }
+    { "path": "./site" },
+    { "path": "./site/e2e" },
+    { "path": "./internal/cn" },
+    { "path": "./internal/marketing" },
+    { "path": "./internal/cookie-consent" }
   ]
 }

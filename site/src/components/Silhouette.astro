@@ -1,0 +1,30 @@
+---
+import type { CodeLine } from '../lib/code.ts';
+
+type Props = { lines: CodeLine[]; tone: 'mark' | 'block' };
+
+const { lines, tone } = Astro.props;
+// One bar per line, as long as the line and indented as it is: a character is 1% of the width,
+// the files' 100-column limit, so both files share one scale.
+---
+
+<div aria-hidden="true" class="flex flex-col gap-px">
+  {
+    lines.map(({ indent, length }) => (
+      <span class="block h-[3px]">
+        {length > 0 && (
+          <span
+            class:list={[
+              'block h-full rounded-[1px]',
+              tone === 'mark' ? 'bg-mark' : 'bg-block',
+            ]}
+            style={{
+              marginLeft: `${indent}%`,
+              width: `${Math.min(length, 100) - indent}%`,
+            }}
+          />
+        )}
+      </span>
+    ))
+  }
+</div>

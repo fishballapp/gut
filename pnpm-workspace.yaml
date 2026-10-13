@@ -1,10 +1,13 @@
 packages:
   - examples
   - internal/cn
+  - internal/cookie-consent
+  - internal/marketing
   - packages/cli
   - packages/core
   - packages/inspector
   - packages/playwright
+  - site
 autoInstallPeers: true
 strictPeerDependencies: false
 minimumReleaseAge: 10080
@@ -25,7 +28,11 @@ overrides:
 allowBuilds:
   "@biomejs/biome": true
   esbuild: true
+  sharp: false
+  workerd: true
 catalog:
+  "@astrojs/check": ^0.9.10
+  "@astrojs/sitemap": ^3.7.4
   "@base-ui/react": ^1.8.0
   "@biomejs/biome": ^2.5.13
   "@fontsource-variable/geist": ^5.3.0
@@ -38,6 +45,7 @@ catalog:
   "@typesafe-ai/sdk": 0.6.0
   "@vitejs/plugin-react": ^6.1.1
   advocaat: 0.0.6
+  astro: ^7.3.2
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
   motion: ^13.3.0
@@ -50,8 +58,11 @@ catalog:
   typescript: ~7.0.2
   vite: ^8.3.0
   vitest: ^5.0.1
+  wrangler: ^4.131.2
   zod: ^4.6.5
 catalogs:
+  ts6:
+    typescript: npm:@typescript/typescript6@~6.0.2
   web:
     "@types/react": ^19.3.0
     "@types/react-dom": ^19.3.0

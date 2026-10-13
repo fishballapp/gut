@@ -1,0 +1,37 @@
+{
+  "name": "@gut.run/site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "gut.run: one page that makes the case for gut, around a replay of the real inspector. Astro 7 + Tailwind v4, served by an assets-only Cloudflare Worker.",
+  "scripts": {
+    "demo": "pnpm -F @gut.run/inspector build:replay --outDir \"$PWD/public/demo\" --emptyOutDir",
+    "dev": "pnpm demo && astro dev",
+    "build": "pnpm demo && astro build",
+    "preview": "astro preview",
+    "deploy": "wrangler deploy",
+    "check": "astro check",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "catalog:",
+    "@fishballapps/marketing": "workspace:*",
+    "@fontsource-variable/geist": "catalog:",
+    "@fontsource-variable/geist-mono": "catalog:",
+    "@tailwindcss/vite": "catalog:",
+    "astro": "catalog:",
+    "tailwindcss": "catalog:"
+  },
+  "devDependencies": {
+    "@astrojs/check": "catalog:",
+    "@gut.run/core": "workspace:*",
+    "@gut.run/inspector": "workspace:*",
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:ts6",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

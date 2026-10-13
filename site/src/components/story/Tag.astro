@@ -1,0 +1,11 @@
+---
+// A numbered marker beside one of the three things the game gives you, which turns into its name
+// once that thing is lit. The name flies on to the same name in the column (`data-flip`).
+type Props = { thing: 'goal' | 'context' | 'ops'; number: number };
+const { thing, number } = Astro.props;
+---
+
+<span class="tag" data-tag={thing}>
+  <span class="tag-number">{number}</span>
+  <span class="tag-label" data-flip={`label-${thing}`}>{thing}</span>
+</span>

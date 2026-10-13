@@ -1,0 +1,152 @@
+---
+import PostHog from './PostHog.astro';
+
+export type CookieConsentCopy = {
+  message?: string;
+  policyLabel?: string;
+  acceptLabel?: string;
+  rejectLabel?: string;
+};
+
+type Props = {
+  // Canonical root URL for the site (e.g. 'https://socialized.dev').
+  siteUrl: string;
+  // Full canonical URL for this page (e.g. 'https://socialized.dev/privacy').
+  // Defaults to siteUrl if not provided.
+  canonicalUrl?: string;
+  title: string;
+  description: string;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogSiteName: string;
+  ogLocale?: string;
+  // Absolute path to the share image, relative to site root (e.g. '/social.png').
+  // When omitted, og:image is not rendered.
+  ogImagePath?: string;
+  themeColor: string;
+  // Apple App Store numeric ID (e.g. '6758626786'). When set, renders the
+  // <meta name="apple-itunes-app"> tag for iOS Safari's Smart App Banner.
+  appStoreId?: string;
+  // <html lang> attribute, e.g. 'zh-HK', 'en'
+  htmlLang: string;
+  // Google Fonts (or any other stylesheet) <link href>. Pass `null` to
+  // skip loading a font stylesheet entirely.
+  fontHref: string | null;
+  // JSON-LD object for the page (typically a SoftwareApplication for
+  // the marketing landing page). Server-rendered, not JS-injected, per
+  // Google's Dec 2025 guidance that JS-injected structured data may
+  // face delayed processing.
+  structuredData?: Record<string, unknown>;
+  // PostHog public project key (phc_...). Localhost is auto-skipped. Omit it for a site with no
+  // analytics: no snippet and no consent banner.
+  posthogApiKey?: string;
+  // PostHog ingest host. Defaults to EU.
+  posthogHost?: string;
+  // Privacy policy href for the cookie consent banner. Defaults to '/privacy'.
+  privacyPolicyHref?: string;
+  // Copy overrides for the cookie consent banner (e.g. for localization).
+  cookieConsentCopy?: CookieConsentCopy;
+};
+
+const {
+  siteUrl,
+  canonicalUrl,
+  title,
+  description,
+  ogTitle,
+  ogDescription,
+  ogSiteName,
+  ogLocale,
+  ogImagePath,
+  themeColor,
+  appStoreId,
+  htmlLang,
+  fontHref,
+  structuredData,
+  posthogApiKey,
+  posthogHost,
+  privacyPolicyHref = '/privacy',
+  cookieConsentCopy,
+} = Astro.props;
+
+const pageUrl = canonicalUrl ?? siteUrl;
+const ogImageUrl = ogImagePath !== undefined ? `${siteUrl}${ogImagePath}` : undefined;
+const resolvedOgTitle = ogTitle ?? title;
+const resolvedOgDescription = ogDescription ?? description;
+---
+
+<!doctype html>
+<html lang={htmlLang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={pageUrl} />
+    <meta name="theme-color" content={themeColor} />
+
+    {/* Smart App Banner — iOS Safari shows a one-tap install prompt for
+        users on iPhone who don't already have the app installed. */}
+    {appStoreId !== undefined && (
+      <meta name="apple-itunes-app" content={`app-id=${appStoreId}`} />
+    )}
+
+    {/* Open Graph (Facebook / WhatsApp / iMessage / generic) */}
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={pageUrl} />
+    <meta property="og:site_name" content={ogSiteName} />
+    <meta property="og:title" content={resolvedOgTitle} />
+    <meta property="og:description" content={resolvedOgDescription} />
+    {ogLocale !== undefined && <meta property="og:locale" content={ogLocale} />}
+    {ogImageUrl !== undefined && (
+      <>
+        <meta property="og:image" content={ogImageUrl} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+      </>
+    )}
+
+    {/* Twitter / X card. Falls back to og: tags but image is explicit
+        because some clients still check twitter:image first. */}
+    <meta name="twitter:card" content="summary_large_image" />
+    {ogImageUrl !== undefined && <meta name="twitter:image" content={ogImageUrl} />}
+
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    {fontHref !== null && (
+      <>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href={fontHref} rel="stylesheet" />
+      </>
+    )}
+
+    {structuredData !== undefined && (
+      <script
+        is:inline
+        type="application/ld+json"
+        set:html={JSON.stringify(structuredData)}
+      />
+    )}
+
+    {posthogApiKey !== undefined && <PostHog apiKey={posthogApiKey} host={posthogHost} />}
+  </head>
+  <body class="bg-background font-sans text-foreground antialiased">
+    <slot />
+    {posthogApiKey !== undefined && (
+      <>
+        <cookie-consent
+          policy-href={privacyPolicyHref}
+          message={cookieConsentCopy?.message}
+          policy-label={cookieConsentCopy?.policyLabel}
+          accept-label={cookieConsentCopy?.acceptLabel}
+          reject-label={cookieConsentCopy?.rejectLabel}
+        />
+        <script>
+          import '@fishballapps/cookie-consent/element';
+        </script>
+      </>
+    )}
+  </body>
+</html>

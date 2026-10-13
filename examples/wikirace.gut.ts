@@ -12,32 +12,28 @@ const instruction =
 
 const { runTask } = await initGut();
 
-await runTask(
-  `${from} → ${target}`,
-  async () => {
-    const article = await readArticle(path.at(-1) ?? from);
-    // A link can name a redirect ("Chaturaṅga" for "Chaturanga"), so keep the article's real title,
-    // or a later link with that title opens it again.
-    // ponytail: a second redirect name for a visited article still slips through; resolve every
-    // link (50 titles per Wikipedia query) if revisits show up in runs.
-    path.splice(-1, 1, article.title);
+await runTask(`${from} → ${target}`, async () => {
+  const article = await readArticle(path.at(-1) ?? from);
+  // A link can name a redirect ("Chaturaṅga" for "Chaturanga"), so keep the article's real title,
+  // or a later link with that title opens it again.
+  // ponytail: a second redirect name for a visited article still slips through; resolve every
+  // link (50 titles per Wikipedia query) if revisits show up in runs.
+  path.splice(-1, 1, article.title);
 
-    return {
-      context: {
-        instruction,
-        goal: `The current article is "${target}"`,
-        currentArticle: article.title,
-      },
+  return {
+    context: {
+      instruction,
+      goal: `The current article is "${target}"`,
+      currentArticle: article.title,
+    },
 
-      ops: {
-        openLink: op('Open a link on the current article', {
-          choices: article.links.filter(link => !path.includes(link)),
-          invoke: link => {
-            path.push(link);
-          },
-        }),
-      },
-    };
-  },
-  { isGoalAchieved: () => path.at(-1) === target },
-);
+    ops: {
+      openLink: op('Open a link on the current article', {
+        choices: article.links.filter(link => !path.includes(link)),
+        invoke: link => {
+          path.push(link);
+        },
+      }),
+    },
+  };
+});

@@ -1,0 +1,21 @@
+---
+// gut's mascot behind the whole page, as the inspector draws it: thin even strokes, barely there.
+import { gutEyes, gutPath } from '../../../packages/inspector/src/assets/gut.ts';
+---
+
+<svg
+  aria-hidden="true"
+  class="pointer-events-none fixed inset-0 -z-10 h-full w-full text-ink opacity-(--gut-opacity)"
+  viewBox="0 0 1024 1024"
+  preserveAspectRatio="xMidYMid slice"
+>
+  <path
+    d={gutPath}
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    vector-effect="non-scaling-stroke"></path>
+  {gutEyes.map(({ cx, cy }) => <circle cx={cx} cy={cy} r={11} fill="currentColor" />)}
+</svg>

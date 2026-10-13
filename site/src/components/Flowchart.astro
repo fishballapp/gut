@@ -1,0 +1,82 @@
+---
+// README's "When gut fits", set as the inspector sets a question: one option is chosen.
+const ROWS = [
+  { know: 'the steps and their order', use: 'plain code', isGut: false },
+  {
+    know: 'the steps and their order, with a judgment at fixed points ("is this a billing ticket?")',
+    use: 'plain code that asks a decision model at those points',
+    isGut: false,
+  },
+  {
+    know: 'every move that is allowed, but not the order: it depends on what the world shows each time',
+    use: 'gut',
+    isGut: true,
+  },
+  {
+    know: 'not even the moves, or each step needs real reasoning or writing',
+    use: 'a full LLM agent',
+    isGut: false,
+  },
+];
+---
+
+<section aria-labelledby="fits-title" class="border-t border-line">
+  <div class="mx-auto grid max-w-6xl gap-10 px-5 py-20 sm:px-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16 lg:py-24">
+    <div>
+      <h2 id="fits-title" class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+        Can you write the flowchart?
+      </h2>
+      <p class="mt-5 max-w-[60ch] text-muted">
+        gut is for ambiguous <em>paths</em> made of easy <em>steps</em>: racing across Wikipedia,
+        finishing a checkout on a site you haven't seen, finding the right page in unfamiliar docs.
+        The next move depends on what the last one revealed, but each move is a small pick among
+        described options.
+      </p>
+      <p class="mt-4 max-w-[60ch] text-muted">
+        A decision model makes each pick without generating text. The big model works once per run,
+        not once per step.
+      </p>
+    </div>
+
+    <div>
+      <div
+        class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 border-b border-line px-3 pb-2 sm:grid-cols-[1.75rem_minmax(0,1fr)_12rem]"
+      >
+        <p class="col-span-2 font-medium">You know…</p>
+        <p class="hidden font-medium sm:block">Use</p>
+      </div>
+      <ol class="mt-2 space-y-1">
+        {
+          ROWS.map(({ know, use, isGut }, index) => (
+            <li
+              class:list={[
+                'grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-md px-3 py-3 sm:grid-cols-[1.75rem_minmax(0,1fr)_12rem]',
+                isGut ? 'bg-highlight text-chosen ring-1 ring-mark' : 'text-ink',
+              ]}
+            >
+              <span
+                aria-hidden="true"
+                class:list={[
+                  'mt-0.5 grid h-5 w-5 place-items-center rounded-[3px] border font-mono text-[11px]',
+                  isGut ? 'border-current/40' : 'border-ink/25 text-muted',
+                ]}
+              >
+                {index + 1}
+              </span>
+              <span class:list={[isGut && 'font-medium']}>{know}</span>
+              <span
+                class:list={[
+                  'col-start-2 sm:col-start-auto',
+                  isGut ? 'font-semibold' : 'text-muted',
+                ]}
+              >
+                <span class:list={['font-normal sm:sr-only', !isGut && 'text-muted']}>Use </span>
+                {use}
+              </span>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </div>
+</section>

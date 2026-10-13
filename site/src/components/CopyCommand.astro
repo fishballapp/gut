@@ -1,0 +1,26 @@
+---
+import Icon from './Icon.astro';
+
+type Props = { command: string; label: string };
+
+const { command, label } = Astro.props;
+---
+
+<div
+  class="flex max-w-full items-stretch overflow-hidden rounded-lg border border-line bg-raised font-mono text-[13px]"
+>
+  <code class="flex min-w-0 items-baseline gap-2 px-4 py-3 [overflow-wrap:anywhere] sm:overflow-x-auto sm:whitespace-nowrap">
+    <span aria-hidden="true" class="text-muted select-none">$</span>{command}
+  </code>
+  <button
+    type="button"
+    data-copy={command}
+    aria-label={label}
+    class="group flex shrink-0 items-center gap-1.5 border-l border-line px-3.5 font-sans text-[12px] font-medium text-muted transition-colors hover:text-ink"
+  >
+    <Icon name="copy" class="group-data-copied:hidden" />
+    <Icon name="check" class="hidden group-data-copied:block" />
+    <span class="group-data-copied:hidden">Copy</span>
+    <span class="hidden group-data-copied:inline" aria-live="polite">Copied</span>
+  </button>
+</div>

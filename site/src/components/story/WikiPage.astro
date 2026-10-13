@@ -1,0 +1,59 @@
+---
+import Tag from './Tag.astro';
+
+// The Wikipedia article the race starts on, drawn as a page: its title, grey bars for its text, and
+// a handful of its real links in blue, one of them the run's first pick. Each link flies on to its
+// chip in the column (`data-flip="op-N"`), and the title to the context card.
+type Props = { title: string; links: string[] };
+const { title, links } = Astro.props;
+
+// The article's text as grey bars, a word group each, with a link wherever a paragraph names one:
+// `{ link: 2 }` is the third of `links`. The widths, in em, repeat a fixed run of lengths.
+type Run = { bar: number } | { link: number };
+const WIDTHS = [4, 7, 3, 9, 5, 6, 2, 8, 4, 5, 10, 3, 6, 7, 4, 5];
+const paragraph = (length: number, links: Record<number, number>, offset: number): Run[] =>
+  Array.from({ length }, (_, at) => {
+    const link = links[at];
+    return link === undefined ? { bar: WIDTHS[(at + offset) % WIDTHS.length] ?? 5 } : { link };
+  });
+const PARAGRAPHS: Run[][] = [
+  paragraph(24, { 4: 0, 15: 1 }, 0),
+  paragraph(30, { 7: 2, 22: 3 }, 5),
+  paragraph(22, { 11: 4 }, 9),
+];
+---
+
+<div class="page" data-page>
+  <div class="page-frame"></div>
+  <div class="page-body">
+    <h3 class="page-title">
+      <span class="page-title-text" data-flip="context-card">{title}</span>
+      <Tag thing="context" number={2} />
+    </h3>
+    <p class="page-from">From Wikipedia, the free encyclopedia</p>
+    <div class="page-infobox">
+      <span class="page-figure"></span>
+      <span class="page-bar" style="--w: 9"></span>
+      <span class="page-bar" style="--w: 6"></span>
+      <span class="page-bar" style="--w: 8"></span>
+    </div>
+    {
+      PARAGRAPHS.map((runs, index) => (
+        <p class="page-text" style={`--p: ${index}`}>
+          {runs.map(run =>
+            'bar' in run ? (
+              <span class="page-bar" style={`--w: ${run.bar}`} />
+            ) : (
+              <span class="page-link-place">
+                <span class="page-link" data-flip={`op-${run.link}`} style={`--i: ${run.link}`}>
+                  {links[run.link]}
+                </span>
+                {run.link === 0 && <Tag thing="ops" number={3} />}
+              </span>
+            ),
+          )}
+        </p>
+      ))
+    }
+  </div>
+</div>

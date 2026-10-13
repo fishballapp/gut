@@ -1,0 +1,12 @@
+{
+  "extends": ["astro/tsconfigs/strict", "../tsconfig.base.json"],
+  "compilerOptions": {
+    "composite": true,
+    "tsBuildInfoFile": "node_modules/.tmp/tsconfig.tsbuildinfo",
+    // Vite's `?raw` imports, typed without the generated .astro/ (absent in CI before a build).
+    "types": ["astro/client"]
+  },
+  // The cartoon gut is the inspector's own drawing, imported from its source.
+  "include": [".astro/types.d.ts", "**/*", "../packages/inspector/src/assets/gut.ts"],
+  "exclude": ["dist", "node_modules", "public", "e2e", "playwright.config.ts"]
+}

@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+# The replay framed on the home page, not a page of its own.
+Disallow: /demo/
+
+Sitemap: https://gut.run/sitemap-index.xml

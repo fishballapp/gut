@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+/* Self-hosted, as in the inspector: the page fetches nothing from elsewhere. */
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+/* The inspector's Marked tokens, so the site and the page it replays are one palette. */
+@import "../../../packages/inspector/src/styles/tokens.css";
+
+/* Tailwind v4 ignores node_modules. @fishballapps/marketing's Layout.astro sets the body classes
+   (bg-background, font-sans, text-foreground, antialiased); without this @source those utilities
+   are dropped from the built CSS and the body ships unstyled. */
+@source "../../../../../packages/marketing/src";
+
+@theme inline {
+  --color-background: var(--ground);
+  --color-foreground: var(--ink);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 4rem;
+    scrollbar-color: var(--faint) transparent;
+  }
+
+  body {
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  ::selection {
+    background: var(--mark);
+    color: var(--on-mark);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 1px;
+  }
+
+  code,
+  kbd,
+  pre,
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Everything clickable shows it; Tailwind v4 leaves buttons on the default cursor. */
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* A highlighter stroke behind ink on paper; on black, the lime is the colour of the text itself.
+   The headline's sweeps in once, the page's one entrance. */
+.marked {
+  color: var(--chosen);
+  background-color: transparent;
+  background-image: linear-gradient(var(--highlight), var(--highlight));
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  padding-inline: 0.08em;
+  margin-inline: -0.08em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* The headline's stroke sits low, as a highlighter drawn across a line of display type. */
+.marked-stroke {
+  background-size: 100% 0.52em;
+  background-position: 0 86%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .marked-stroke {
+    animation: sweep 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both;
+  }
+}
+
+@keyframes sweep {
+  from {
+    background-size: 0% 0.52em;
+  }
+}
+
+/* The shared cookie banner reads shadcn-style colour names; here `muted` is Marked's receding text,
+   not a surface, so the banner gets Marked's own surfaces, scoped to it alone. */
+cookie-consent {
+  --color-foreground: var(--ink);
+  --color-card: var(--raised);
+  --color-border: var(--line);
+  --color-muted: var(--track);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--ink);
+}

@@ -1,0 +1,76 @@
+---
+import { type CodeLine, lineOf, rangeOf, TASK_LINES, withGut } from '../../lib/code.ts';
+
+// The wiki race from `initGut()` on, without its comments: what the scene turns into. It first
+// shows as a skeleton, every line in place but three empty, dashed slots in the colours of the
+// three things: the `goal` line, the `context` section around it and the `ops` section. Each thing
+// lands on its slot (`data-flip`) and fills it.
+type Thing = 'goal' | 'context' | 'ops';
+
+const first = lineOf(withGut, TASK_LINES.initGut);
+const lines = withGut.filter(({ number, isComment }) => number >= first && !isComment);
+const goal = lineOf(withGut, TASK_LINES.goal);
+const SECTIONS = [
+  { thing: 'context', ...rangeOf(withGut, TASK_LINES.context) },
+  { thing: 'ops', ...rangeOf(withGut, TASK_LINES.ops) },
+] as const;
+
+// A section is one piece, so its thing lands on it whole.
+type Block = { kind: 'line'; line: CodeLine } | { kind: 'section'; thing: Thing; lines: CodeLine[] };
+const sectionOf = ({ number }: CodeLine) =>
+  SECTIONS.find(({ start, end }) => number >= start && number <= end);
+const blocks = lines.reduce<Block[]>((blocks, line) => {
+  const section = sectionOf(line);
+  if (section === undefined) return [...blocks, { kind: 'line', line }];
+  const last = blocks.at(-1);
+  if (last?.kind === 'section' && last.thing === section.thing) {
+    return [...blocks.slice(0, -1), { ...last, lines: [...last.lines, line] }];
+  }
+  return [...blocks, { kind: 'section', thing: section.thing, lines: [line] }];
+}, []);
+// Each line fades in after the one above it.
+const order = new Map(lines.map(({ number }, index) => [number, index]));
+const styleOf = ({ number, indent }: CodeLine) => `--n: ${order.get(number)}; --indent: ${indent}`;
+
+---
+
+<figure class="code" style={`--rows: ${lines.length}`}>
+  <figcaption class="code-file">
+    examples/wikirace.gut.ts
+  </figcaption>
+  <div class="code-window">
+    {
+      blocks.map(block =>
+        block.kind === 'section' ? (
+          <div
+            class="code-section code-slot"
+            data-flip={`${block.thing}-code`}
+            data-tint={block.thing}
+            style={`--indent: ${block.lines[0]?.indent ?? 0}`}
+          >
+            {block.lines.map(line =>
+              line.number === goal ? (
+                <div class="code-line code-slot" data-tint="goal" style={styleOf(line)}>
+                  <span class="code-number">{line.number}</span>
+                  <span class="code-text" data-flip="goal-code">
+                    {line.text.trim()}
+                  </span>
+                </div>
+              ) : (
+                <div class="code-line" style={styleOf(line)}>
+                  <span class="code-number">{line.number}</span>
+                  <span class="code-text">{line.text.trim()}</span>
+                </div>
+              ),
+            )}
+          </div>
+        ) : (
+          <div class="code-line" style={styleOf(block.line)}>
+            <span class="code-number">{block.line.number}</span>
+            <span class="code-text">{block.line.text.trim()}</span>
+          </div>
+        ),
+      )
+    }
+  </div>
+</figure>

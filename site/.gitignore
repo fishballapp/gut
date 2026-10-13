@@ -1,0 +1,5 @@
+.astro/
+dist/
+.wrangler/
+# Built by `pnpm demo` from @gut.run/inspector.
+public/demo/

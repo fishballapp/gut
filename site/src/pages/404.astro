@@ -1,0 +1,17 @@
+---
+import GutBackground from '../components/GutBackground.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Not found · gut" description="This page isn't on gut.run.">
+  <GutBackground />
+  <SiteHeader />
+  <main class="mx-auto max-w-6xl px-5 py-24 sm:px-8">
+    <p class="font-mono text-[12px] text-muted">404</p>
+    <h1 class="mt-2 text-4xl font-semibold tracking-tight">No move leads here.</h1>
+    <p class="mt-4 text-muted">
+      <a href="/" class="text-ink underline decoration-line hover:decoration-ink">Back to gut.run</a>
+    </p>
+  </main>
+</Layout>

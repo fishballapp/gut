@@ -1,0 +1,2279 @@
+/* biome-ignore-all lint/style/noDescendingSpecificity: the slide rules come last on purpose, each a state of the stage over the parts above */
+/*
+  The story (components/Story.astro): one stage, whose state is its slide. The deck's script sets
+  `data-slide` (the slide on show), `data-reached` (it and every slide before it) and
+  `data-direction` on the stage; every part below is a rule on those, and moves by a CSS transition
+  of transform or opacity, so a slide change plays on the compositor with no script per frame.
+  `[data-reached~="x"]` rules hold from slide x on, and a later one overrides an earlier by source
+  order. Going forward, delays pace a change into a sequence; going back, it plays straight back.
+
+  A piece that flies is one thing in two places (`data-flip`): the script measures, per layout, the
+  flight that lays each over the other (`--<name>-x`, `-y`, `-s`), and the rules below send a piece
+  "away" onto its other place, faded out, or bring it "home".
+
+  Without the script (or on a screen too short for it), the narration stacks as a list above the
+  stage, which stays on gut handing the model what it needs.
+*/
+
+.story {
+  /* How a thing moves: out of the way fast, into place softly. */
+  --ease: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-pop: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --fly: 850ms;
+
+  /* The three things the game gives you, each its own colour from here to the code. */
+  --goal: var(--mark);
+  --goal-ring: oklch(0.68 0.19 124);
+  --goal-fill: color-mix(in oklab, var(--goal) 38%, var(--raised));
+  --on-goal: var(--on-mark);
+  --context: oklch(0.53 0.2 296);
+  --ops: oklch(0.52 0.18 262);
+  --on-thing: oklch(1 0 0);
+  --stroke: 2.25px;
+  /* Between a thing and its name, wherever both are on show. */
+  --tag-gap: 10px;
+  --stage-gut: 0.1;
+
+  overflow-x: clip;
+  border-top: 1px solid var(--line);
+}
+
+:root[data-theme="dark"] .story {
+  --goal-ring: var(--mark);
+  --goal-fill: color-mix(in oklab, var(--goal) 10%, var(--raised));
+  --context: oklch(0.74 0.14 296);
+  --ops: oklch(0.74 0.12 258);
+  --on-thing: oklch(0.155 0.003 67.6);
+  --stage-gut: 0.16;
+}
+
+/* Nothing plays until the stage is set. */
+.story:not([data-ready]) *,
+.story:not([data-ready]) *::before,
+.story:not([data-ready]) *::after {
+  /* biome-ignore lint/complexity/noImportantStyles: the first slide shows as it is, not as a change */
+  transition: none !important;
+}
+
+.story-stage {
+  max-width: 80rem;
+  margin-inline: auto;
+  padding: 80px 20px;
+}
+
+@media (min-width: 640px) {
+  .story-stage {
+    padding-inline: 32px;
+  }
+}
+
+/* Narration: stacked, a numbered list above the stage. */
+
+.story-captions {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 40px;
+  font-size: 17px;
+  list-style: decimal inside;
+}
+
+.story-line {
+  display: inline;
+  font-weight: 500;
+}
+
+.story-plain,
+.story-token {
+  display: inline-block;
+  white-space: pre-wrap;
+}
+
+/* A place and the stop after it never part. */
+.story-keep {
+  white-space: nowrap;
+}
+
+/*
+  The race's two places, marked as the headline marks its words: they become the goal. The mark is
+  a layer over the word in the goal pill's own ink, so flying into the pill it fades, and the word
+  lands as the pill sets it.
+*/
+.story-token {
+  position: relative;
+}
+
+.story-token::after {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--highlight), var(--highlight));
+  background-repeat: no-repeat;
+  background-position: 0 88%;
+  background-size: 100% 0.42em;
+  color: var(--chosen);
+  content: attr(data-text);
+  transition: opacity 400ms linear;
+}
+
+.story-aside {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+/* The scene: every piece is placed in it, absolutely, by its own size (`cqw`, `cqh`). */
+
+.scene {
+  --top: 22px;
+  --pill-h: 46px;
+  --page-top: calc(var(--top) + var(--pill-h) + 18px);
+  --page-w: min(980px, 72cqw);
+  --page-h: calc(100cqh - var(--page-top));
+  /*
+    The column and the figure are one group, centred, so its margins match: measured from the
+    padding box the pieces are placed in (the scene's own padding is --pad), and to the figure's
+    shoulders, which stop 12% inside its box.
+  */
+  --pad: 0px;
+  --group-w: min(1080px, 86cqw);
+  --column-left: calc(var(--pad) + (100cqw - var(--group-w)) / 2);
+  --column-w: min(380px, 32cqw);
+  --figure-h: min(340px, 52cqh);
+  --figure-w: calc(var(--figure-h) * 200 / 240);
+  --figure-x: calc(var(--column-left) + var(--group-w) - var(--figure-w) * 0.38);
+
+  position: relative;
+  height: clamp(560px, 80svh, 760px);
+  container: scene / size;
+}
+
+/* The goal, as a pill: at the top of the screen while you play, then in the column. */
+
+.goal-top {
+  --lit-x: 1px;
+
+  position: absolute;
+  top: var(--top);
+  inset-inline: 0;
+  display: flex;
+  width: fit-content;
+  margin-inline: auto;
+}
+
+.pill {
+  position: relative;
+  display: inline-flex;
+  height: var(--pill-h);
+  align-items: center;
+  gap: 0.55em;
+  padding-inline: 20px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--raised);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  isolation: isolate;
+}
+
+.pill-word {
+  display: inline-block;
+}
+
+.pill-arrow {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* Lit: the highlighter behind it, ringed. */
+.pill::before {
+  position: absolute;
+  z-index: -1;
+  inset: -1px;
+  border: 2px solid var(--goal-ring);
+  border-radius: inherit;
+  background: var(--goal-fill);
+  content: "";
+  opacity: 0;
+  transform: scale(1.12);
+  transition:
+    opacity 300ms linear,
+    transform 500ms var(--ease-out);
+}
+
+.column .pill::before {
+  opacity: 1;
+  transform: none;
+}
+
+/* A numbered marker, then the name of what it marks. */
+
+.tag {
+  position: absolute;
+  top: 50%;
+  /* One gap between a thing and its name, from the edge of its lit box (`--lit-x` past its own). */
+  left: calc(100% + var(--lit-x, 0px) + var(--tag-gap));
+  display: grid;
+  height: 28px;
+  margin-top: -14px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  font-style: normal;
+  letter-spacing: 0;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.tag-number,
+.tag-label {
+  grid-area: 1 / 1;
+  display: grid;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+}
+
+.tag-number {
+  width: 28px;
+  border: 1.5px solid var(--faint);
+  background: var(--raised);
+  color: var(--muted);
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 250ms linear,
+    transform 500ms var(--ease-pop);
+}
+
+.tag-label {
+  width: max-content;
+  padding-inline: 11px;
+  opacity: 0;
+  transform: translate(0, 25%) scale(0.5);
+  transition:
+    opacity 250ms linear,
+    transform 550ms var(--ease-pop);
+}
+
+[data-tag="goal"] .tag-label,
+.column-label[data-thing="goal"] {
+  background: var(--goal);
+  color: var(--on-goal);
+}
+
+[data-tag="context"] .tag-label,
+.column-label[data-thing="context"] {
+  background: var(--context);
+  color: var(--on-thing);
+}
+
+[data-tag="ops"] .tag-label,
+.column-label[data-thing="ops"] {
+  background: var(--ops);
+  color: var(--on-thing);
+}
+
+/* The Wikipedia page. */
+
+.page {
+  /* How far the page sits back once you ask what the game needs; the script reads it too. */
+  --settle: 0.96;
+
+  position: absolute;
+  top: var(--page-top);
+  inset-inline: 0;
+  width: var(--page-w);
+  height: var(--page-h);
+  margin-inline: auto;
+  transform: translateY(100svh);
+  transition: transform 1000ms var(--ease-out);
+}
+
+.page-frame {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--raised);
+  box-shadow: 0 40px 80px -40px oklch(0.2 0.02 90 / 0.28);
+  transition:
+    opacity 500ms linear,
+    transform 700ms var(--ease);
+}
+
+.page-body {
+  position: relative;
+  height: 100%;
+  /* The text stops at the page's foot; what flies out of it is free to leave by any other side. */
+  clip-path: inset(-100vh -100vw 0 -100vw);
+  padding: clamp(28px, 5cqh, 48px) clamp(24px, 5cqw, 64px);
+  font-size: clamp(14px, 2.3cqh, 18px);
+  line-height: 2.1;
+}
+
+.page-title {
+  --lit-x: 14px;
+
+  position: relative;
+  width: fit-content;
+  font-family: "Linux Libertine", "Georgia", "Times", serif;
+  font-size: clamp(34px, 7cqh, 56px);
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.page-title-text {
+  position: relative;
+  display: inline-block;
+  isolation: isolate;
+}
+
+.page-title-text::before {
+  position: absolute;
+  z-index: -1;
+  inset: -2px -14px;
+  border: 2px solid var(--context);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--context) 14%, var(--raised));
+  content: "";
+  opacity: 0;
+  transform: scale(1.1);
+  transition:
+    opacity 300ms linear,
+    transform 500ms var(--ease-out);
+}
+
+.page-from {
+  margin-bottom: 0.9em;
+  padding-bottom: 0.6em;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8em;
+  transition: opacity 400ms linear;
+}
+
+.page-infobox {
+  float: right;
+  display: grid;
+  width: clamp(150px, 26%, 240px);
+  gap: 10px;
+  margin: 6px 0 16px 28px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  line-height: 1;
+  transition:
+    opacity 400ms linear,
+    transform 600ms var(--ease);
+}
+
+.page-figure {
+  aspect-ratio: 4 / 3;
+  border-radius: 4px;
+  background: var(--track);
+}
+
+.page-text {
+  margin-bottom: 0.9em;
+  text-align: justify;
+}
+
+.page-bar {
+  display: inline-block;
+  width: calc(var(--w) * 1em);
+  max-width: 100%;
+  height: 0.5em;
+  margin-inline: 0.2em;
+  border-radius: 0.25em;
+  background: var(--bar);
+  vertical-align: middle;
+  transform-origin: left;
+  transition:
+    opacity 400ms linear,
+    transform 500ms var(--ease);
+}
+
+.page-link-place {
+  --lit-x: 7px;
+
+  position: relative;
+  display: inline-block;
+  margin-inline: 0.55em;
+}
+
+.page-link {
+  position: relative;
+  display: inline-block;
+  color: var(--ops);
+  line-height: 1.5;
+  white-space: nowrap;
+  isolation: isolate;
+  transition: opacity 300ms linear;
+}
+
+.page-link::before {
+  position: absolute;
+  z-index: -1;
+  inset: -1px -7px;
+  border: 1.5px solid var(--ops);
+  border-radius: 7px;
+  background: color-mix(in oklab, var(--ops) 12%, var(--raised));
+  content: "";
+  opacity: 0;
+  transform: scale(1.15);
+  transition:
+    opacity 250ms linear,
+    transform 450ms var(--ease-out);
+}
+
+/* The column: what the game gives you, set out on the left. */
+
+.column {
+  /* Over the code, so the three things are seen flying into it. */
+  z-index: 1;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--column-left);
+  display: flex;
+  width: var(--column-w);
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(18px, 4cqh, 34px);
+}
+
+.column-item {
+  display: grid;
+  justify-items: start;
+  gap: var(--tag-gap);
+}
+
+.column-label {
+  display: grid;
+  height: 26px;
+  padding-inline: 11px;
+  place-items: center;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.card {
+  position: relative;
+  display: inline-block;
+  padding: 10px 26px 12px;
+  font-family: "Linux Libertine", "Georgia", "Times", serif;
+  font-size: clamp(30px, 5.5cqh, 42px);
+  line-height: 1.15;
+}
+
+/* Each op reads as an action: a muted "click", then its link. */
+.chips {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  align-items: center;
+  justify-items: start;
+  gap: 8px 10px;
+}
+
+.op {
+  display: contents;
+}
+
+.op-verb {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  transition: opacity 300ms linear;
+}
+
+.chip-more {
+  grid-column: 2;
+}
+
+.chip {
+  position: relative;
+  display: inline-block;
+  padding: 3px 12px;
+  border: 1.5px solid var(--ops);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--ops) 12%, var(--raised));
+  color: var(--ops);
+  font-size: 16px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.chip-more {
+  border-style: dashed;
+  border-color: color-mix(in oklab, var(--ops) 50%, transparent);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.85;
+}
+
+/* The card's frame comes after its name has landed. */
+.card::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border: 2px solid var(--context);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--context) 14%, var(--raised));
+  content: "";
+  transition:
+    opacity 250ms linear,
+    transform 500ms var(--ease-out);
+}
+
+.card {
+  isolation: isolate;
+}
+
+.card-text {
+  display: inline-block;
+}
+
+[data-stage]:not([data-reached~="all"]) .card::before {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+[data-reached~="all"] .card::before {
+  transition-delay: 700ms;
+}
+
+/* The pick: an ink ring, and a halo that breathes while it is someone's choice. */
+.chip[data-pick]::before,
+.chip[data-pick]::after {
+  position: absolute;
+  inset: -6px;
+  border-radius: 12px;
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chip[data-pick]::after {
+  border: 2px solid var(--ink);
+  transform: scale(1.1);
+  transition:
+    opacity 250ms linear,
+    transform 450ms var(--ease-out);
+}
+
+.chip[data-pick]::before {
+  background: color-mix(in oklab, var(--ink) 14%, transparent);
+}
+
+/* Who decides. */
+
+.figure {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: var(--stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.figure * {
+  vector-effect: non-scaling-stroke;
+}
+
+.decider {
+  position: absolute;
+  top: calc(50cqh - var(--figure-h) / 2);
+  left: calc(var(--figure-x) - var(--figure-w) / 2);
+  display: grid;
+  width: var(--figure-w);
+  height: var(--figure-h);
+}
+
+.figure {
+  grid-area: 1 / 1;
+  transition:
+    opacity 600ms var(--ease),
+    transform 700ms var(--ease-out);
+}
+
+.figure-robot {
+  opacity: 0;
+}
+
+/* The arrows: dotted, marching while their slide is on show. */
+
+.arrows {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  pointer-events: none;
+}
+
+.arrow {
+  opacity: 0;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: opacity 250ms linear;
+}
+
+/* The mask's stroke: hidden at a dash offset of 1, drawn along the whole line at 0. */
+.arrow-reveal {
+  stroke: white;
+  stroke-width: 16px;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 650ms var(--ease);
+}
+
+.arrow-line {
+  stroke-dasharray: 0.5 9;
+  stroke-width: 3.5px;
+  animation: march 900ms linear infinite paused;
+}
+
+.arrow-head {
+  stroke-width: 2.25px;
+  opacity: 0;
+  transition: opacity 150ms linear;
+}
+
+.arrow[data-arrow="goal"] {
+  stroke: var(--goal-ring);
+}
+
+.arrow[data-arrow="context"] {
+  stroke: var(--context);
+}
+
+.arrow[data-arrow="ops"] {
+  stroke: var(--ops);
+}
+
+.arrow[data-arrow="pick"] {
+  stroke: var(--ink);
+}
+
+@keyframes march {
+  to {
+    stroke-dashoffset: -9.5;
+  }
+}
+
+@keyframes breathe {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.35, 1.7);
+  }
+}
+
+/* The code it all becomes. */
+
+/* The row of the three things over the code, both centred on the stage as one. */
+.code-stage {
+  --row-h: 48px;
+
+  position: absolute;
+  inset: 0 var(--pad);
+  display: grid;
+  height: fit-content;
+  margin: auto;
+  justify-items: center;
+  gap: 22px;
+  pointer-events: none;
+}
+
+.row {
+  /* Over the code, so each thing is seen flying into its slot. */
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 14px 40px;
+}
+
+.row-item {
+  display: flex;
+  align-items: center;
+  gap: var(--tag-gap);
+}
+
+.row .pill {
+  height: 40px;
+  padding-inline: 16px;
+  font-size: 15px;
+}
+
+.row .pill::before {
+  opacity: 1;
+  transform: none;
+}
+
+.row .card {
+  padding: 3px 16px 5px;
+  font-size: 24px;
+}
+
+.row-ops {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.row .chip {
+  padding: 1px 8px;
+  font-size: 13px;
+}
+
+.row .chip-more {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.code {
+  --lh: clamp(13px, calc((100cqh - var(--row-h) - 90px) / (var(--rows) + 1.5)), 24px);
+
+  position: relative;
+  display: grid;
+  width: min(900px, 100%);
+  gap: 8px;
+}
+
+.code-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  transition: opacity 400ms linear;
+}
+
+.code-window {
+  padding-block: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--raised);
+  font-family: var(--font-mono);
+  font-size: calc(var(--lh) * 0.6);
+  line-height: var(--lh);
+  transition:
+    opacity 500ms linear,
+    transform 800ms var(--ease-out);
+}
+
+.code-line {
+  position: relative;
+  display: flex;
+  min-height: var(--lh);
+  padding-right: 16px;
+  transition:
+    opacity 400ms linear,
+    transform 600ms var(--ease-out);
+}
+
+.code-number {
+  flex: none;
+  width: 3.5em;
+  padding-right: 1.4em;
+  color: var(--faint);
+  text-align: right;
+  user-select: none;
+}
+
+.code-text {
+  display: inline-block;
+  min-width: 0;
+  margin-left: calc(var(--indent) * 1ch);
+  white-space: pre-wrap;
+  transition:
+    opacity 400ms linear,
+    transform var(--fly) var(--ease);
+}
+
+/*
+  A slot: one of the three things' places in the code. Empty, it is a dashed outline in the thing's
+  colour with its lines hidden; filled, a band of that colour with its lines on show.
+*/
+.code-slot {
+  position: relative;
+  isolation: isolate;
+}
+
+.code-slot::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-left: 3px solid var(--tint);
+  /* Opaque, so the goal's band reads as its own inside the context's. */
+  background: color-mix(in oklab, var(--tint) 16%, var(--raised));
+  content: "";
+  opacity: 0;
+  transition: opacity 400ms linear;
+}
+
+.code-slot::after {
+  position: absolute;
+  inset: 2px 12px 2px calc(3.5em + var(--indent) * 1ch - 8px);
+  border: 1.5px dashed var(--tint);
+  border-radius: 6px;
+  content: "";
+  transition: opacity 300ms linear;
+}
+
+.code-section .code-line > *,
+.code-line.code-slot > * {
+  opacity: 0;
+  transition: opacity 350ms linear;
+}
+
+[data-tint="goal"] {
+  --tint: var(--goal-ring);
+}
+
+[data-tint="context"] {
+  --tint: var(--context);
+}
+
+[data-tint="ops"] {
+  --tint: var(--ops);
+}
+
+.code-section {
+  display: block;
+}
+
+/*
+  The run: the goal pill, and under it a terminal (dark in either theme), the race's command typed
+  in and one line per round, the article in the context's colour and the pick in the ops'.
+*/
+.run {
+  --type-at: 700ms;
+  --log-at: 1350ms;
+  --beat: 170ms;
+  --done-at: calc(var(--log-at) + (var(--rounds) - 1) * var(--beat) + 250ms);
+  --fire-at: calc(var(--done-at) + 150ms);
+  --term-bg: oklch(0.205 0.006 85);
+  --term-ink: oklch(0.93 0.008 91);
+  --term-muted: oklch(0.66 0.014 87);
+  --term-context: oklch(0.79 0.12 296);
+  --term-ops: oklch(0.79 0.1 258);
+
+  position: absolute;
+  inset-block: 0;
+  right: max(24px, 6cqw);
+  display: grid;
+  width: min(540px, 40cqw);
+  height: fit-content;
+  margin-block: auto;
+  justify-items: center;
+  gap: 16px;
+  pointer-events: none;
+}
+
+:root[data-theme="dark"] .run {
+  --term-bg: oklch(0.12 0.004 70);
+}
+
+.run .pill::before {
+  opacity: 1;
+  transform: none;
+}
+
+/* The tick the goal gets once it is met. */
+.run-check {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  margin-right: -8px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--goal-ring);
+}
+
+.run-check svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--on-thing);
+  stroke-width: 2.25px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.terminal {
+  position: relative;
+  width: 100%;
+  padding: 18px 22px 20px;
+  border: 1px solid color-mix(in oklab, var(--term-ink) 10%, transparent);
+  border-radius: 14px;
+  background: var(--term-bg);
+  box-shadow: 0 30px 60px -30px oklch(0.15 0.01 90 / 0.45);
+  color: var(--term-ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.term-command {
+  white-space: pre;
+}
+
+.term-prompt {
+  margin-right: 1ch;
+  color: var(--mark);
+}
+
+.term-log {
+  margin-top: 8px;
+  list-style: none;
+}
+
+/* The round's number in its own column, so a long step wraps under itself. */
+.term-line {
+  display: grid;
+  grid-template-columns: 2ch minmax(0, 1fr);
+  column-gap: 1.2ch;
+}
+
+.term-round {
+  width: 2ch;
+  color: var(--term-muted);
+  text-align: right;
+}
+
+.term-article,
+.term-pick {
+  position: relative;
+  isolation: isolate;
+}
+
+.term-article {
+  color: var(--term-context);
+}
+
+.term-pick {
+  color: var(--term-ops);
+}
+
+.term-done {
+  color: var(--mark);
+}
+
+/* Each line flashes its sections' colours as it comes in. */
+.term-article::before,
+.term-pick::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 -4px;
+  border-radius: 4px;
+  content: "";
+  opacity: 0;
+}
+
+.term-article::before {
+  background: color-mix(in oklab, var(--term-context) 32%, transparent);
+}
+
+.term-pick::before {
+  background: color-mix(in oklab, var(--term-ops) 32%, transparent);
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes line-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes flash {
+  0%,
+  100% {
+    opacity: 0;
+  }
+
+  15% {
+    opacity: 1;
+  }
+}
+
+/* The confetti: two cannons at the terminal's bottom corners, firing up and out. */
+.confetti {
+  --confetti-mark: var(--mark);
+  --confetti-goal: var(--goal-ring);
+  --confetti-context: var(--context);
+  --confetti-ops: var(--ops);
+
+  position: absolute;
+  bottom: 4px;
+  pointer-events: none;
+}
+
+.confetti[data-side="left"] {
+  left: 4px;
+}
+
+.confetti[data-side="right"] {
+  right: 4px;
+}
+
+.confetti i {
+  position: absolute;
+  width: 7px;
+  height: 12px;
+  margin: -6px 0 0 -3.5px;
+  border-radius: 1.5px;
+  background: var(--colour);
+  opacity: 0;
+}
+
+.confetti i[data-shape="dot"] {
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+}
+
+/* Up fast, then slowing at the top of its arc as it drifts out, then falling as it fades. */
+@keyframes burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0) scale(0.6);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translate(var(--x), var(--y)) rotate(var(--turn)) scale(1);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.8, 0.6);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--x) * 1.35), calc(var(--y) + 220px))
+      rotate(calc(var(--turn) * 2)) scale(0.9);
+  }
+}
+
+/* Progress: one button per slide, shown only as a deck. */
+
+.story-progress,
+.story-hint {
+  display: none;
+}
+
+/*
+  Narrow or upright screens stack what sits side by side: the column above, who decides below it
+  on the right.
+*/
+@media (max-width: 719.98px), (max-aspect-ratio: 4 / 5) {
+  .scene {
+    --column-left: max(20px, 6cqw);
+    --column-w: calc(100cqw - 2 * var(--column-left));
+    --figure-h: min(320px, 30cqh);
+    --figure-w: calc(var(--figure-h) * 200 / 240);
+    --page-w: calc(100cqw - 2 * max(12px, 5cqw));
+  }
+
+  .page-infobox {
+    display: none;
+  }
+
+  .column {
+    top: 8px;
+    bottom: auto;
+    gap: clamp(16px, 2.4cqh, 28px);
+  }
+
+  .decider {
+    top: auto;
+    bottom: 0;
+    left: auto;
+    right: max(24px, 8cqw);
+  }
+
+  .run {
+    right: auto;
+    left: 0;
+    width: auto;
+    inset-inline: var(--pad);
+  }
+
+  [data-reached~="run"] .code {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* A phone: the same arrangement, set smaller, the code wrapping its long lines. */
+@media (max-width: 719.98px) {
+  .scene {
+    --top: 8px;
+    --pill-h: 40px;
+  }
+
+  .pill {
+    padding-inline: 16px;
+    font-size: 15px;
+  }
+
+  .page-body {
+    font-size: 15px;
+  }
+
+  .page-bar {
+    width: calc(var(--w) * 0.55em);
+  }
+
+  .card {
+    padding: 6px 18px 8px;
+    font-size: 28px;
+  }
+
+  .chips {
+    gap: 6px;
+  }
+
+  .chip {
+    padding: 2px 9px;
+    font-size: 13px;
+  }
+
+  .code-stage {
+    --row-h: 160px;
+
+    gap: 14px;
+  }
+
+  .row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .row .pill {
+    height: 34px;
+    padding-inline: 12px;
+    font-size: 13px;
+  }
+
+  .row .card {
+    padding: 1px 12px 3px;
+    font-size: 20px;
+  }
+
+  .row-ops {
+    max-width: calc(100cqw - 70px);
+    gap: 5px;
+  }
+
+  .row .chip {
+    font-size: 12px;
+  }
+
+  .code {
+    --lh: clamp(13px, calc((100cqh - var(--row-h) - 60px) / (var(--rows) + 4)), 16px);
+  }
+
+  .code-window {
+    padding-block: 10px;
+    border-radius: 10px;
+    font-size: calc(var(--lh) * 0.7);
+  }
+
+  .terminal {
+    padding: 14px 14px 16px;
+    font-size: 11.5px;
+  }
+
+  .code-number {
+    width: 2.6em;
+    padding-right: 1em;
+  }
+
+  .code-line {
+    padding-right: 8px;
+  }
+}
+
+/*
+  The deck: the stage fills the screen under the site's 44px header. It sticks to the top of a
+  section one runway taller than itself: the compositor holds it still however far a scroll carries
+  on past it, and while the deck holds the page, its script moves the scroll back within the
+  runway, unseen.
+*/
+
+.story[data-deck] {
+  --runway: 100svh;
+  --header: 44px;
+  /* The narration's band at the top, and the progress row's at the foot. */
+  --head: clamp(88px, 13svh, 124px);
+  --foot: 52px;
+
+  height: calc(100svh + var(--runway));
+  border-top: 0;
+}
+
+.story[data-deck] .story-stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  max-width: none;
+  padding: 0;
+  overflow: clip;
+}
+
+/* The ground the stage is set on, over the page's own faint gut; the story draws its own. */
+.story[data-deck] .story-stage::before {
+  position: absolute;
+  inset: 0;
+  background: var(--ground);
+  content: "";
+}
+
+.story[data-deck] .scene {
+  --pad: 20px;
+
+  position: absolute;
+  top: calc(var(--header) + var(--head));
+  bottom: var(--foot);
+  inset-inline: 0;
+  width: min(100%, 1440px);
+  height: auto;
+  margin-inline: auto;
+  padding-inline: var(--pad);
+}
+
+@media (max-width: 719.98px) {
+  .story[data-deck] {
+    --head: 100px;
+  }
+
+  .story[data-deck] .scene {
+    --pad: 12px;
+
+    padding-inline: var(--pad);
+  }
+}
+
+/* One line of narration at a time: large in the middle, then a heading at the top. */
+.story[data-deck] .story-captions {
+  display: contents;
+}
+
+.story[data-deck] .story-caption {
+  position: absolute;
+  inset-inline: 0;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  padding-inline: 24px;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 220ms linear,
+    transform 400ms var(--ease);
+}
+
+.story[data-deck] .story-caption[data-place="hero"] {
+  top: var(--header);
+  bottom: 0;
+  align-content: center;
+  transform: translateY(28px);
+}
+
+.story[data-deck] .story-caption[data-place="hero"] .story-line {
+  max-width: 13em;
+  font-size: clamp(40px, 6.4vw, 96px);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.story[data-deck] .story-aside {
+  max-width: 34ch;
+  margin-top: clamp(20px, 3.5vh, 36px);
+  font-size: clamp(17px, 1.1vw + 8px, 22px);
+  line-height: 1.45;
+  text-wrap: balance;
+}
+
+/*
+  A heading sits just above what it is about: the script measures how far down that is per kind of
+  slide (--heading-y-column, --heading-y-code), and every heading moves there with the slide.
+*/
+.story[data-deck] .story-caption[data-place="heading"] {
+  top: var(--header);
+  height: var(--head);
+  align-content: end;
+  transform: translateY(calc(var(--heading-y, 0px) + 12px));
+}
+
+.story-stage:is([data-slide="all"], [data-slide="you"], [data-slide="ai"], [data-slide="gut"]) {
+  --heading-y: var(--heading-y-column, 0px);
+}
+
+.story-stage:is([data-slide="code"], [data-slide="fill-goal"], [data-slide="fill-context"]) {
+  --heading-y: var(--heading-y-code, 0px);
+}
+
+/* The row empty, the heading comes down to the code itself. */
+.story-stage[data-slide="fill-ops"] {
+  --heading-y: var(--heading-y-done, 0px);
+}
+
+.story[data-deck] .story-caption[data-place="heading"] .story-line {
+  max-width: 22em;
+  font-size: clamp(26px, 1.6vw + 14px, 46px);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.story[data-deck] .story-caption[data-current] {
+  opacity: 1;
+  transform: translateY(var(--heading-y, 0px));
+  transition:
+    opacity 450ms linear 260ms,
+    transform 800ms var(--ease-out) 260ms;
+}
+
+/* Headings move as one: the one leaving and the one coming travel together, crossfading. */
+.story[data-deck] .story-caption[data-place="heading"] {
+  transition:
+    opacity 220ms linear,
+    transform 700ms var(--ease);
+}
+
+.story[data-deck] .story-caption[data-place="heading"][data-current] {
+  transition:
+    opacity 450ms linear 260ms,
+    transform 700ms var(--ease);
+}
+
+.story[data-deck] .story-caption[data-place="hero"]:not([data-current]) {
+  transform: translateY(-28px);
+}
+
+.story[data-deck] .story-caption[data-place="heading"]:not([data-current]) {
+  transform: translateY(calc(var(--heading-y, 0px) - 10px));
+}
+
+/*
+  The race's line hands its two places to the goal pill: its other words go at once, the places
+  fly up and are gone before the page rises. Its words stay out of sight from then on, so stepping
+  on never shows them again as the line fades.
+*/
+/* Held still where it is: outranks the hero line's exit, so the places fly from where they show. */
+.story[data-deck] .story-stage[data-slide="land"] .story-caption[data-caption="race"] {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+.story[data-deck] [data-reached~="land"] [data-caption="race"] .story-plain {
+  opacity: 0;
+  transform: translateY(-16px);
+  transition:
+    opacity 160ms linear,
+    transform 300ms var(--ease);
+}
+
+.story[data-deck] .story-plain {
+  transition:
+    opacity 250ms linear,
+    transform 400ms var(--ease);
+}
+
+.story[data-deck] .story-token {
+  transform-origin: 0 0;
+  transition:
+    opacity 200ms linear,
+    transform 650ms var(--ease);
+}
+
+.story[data-deck] [data-reached~="land"] [data-flip~="token-from"].story-token {
+  transform: translate(var(--token-from-x), var(--token-from-y)) scale(var(--token-from-s));
+}
+
+.story[data-deck] [data-reached~="land"] [data-flip~="token-to"].story-token {
+  transform: translate(var(--token-to-x), var(--token-to-y)) scale(var(--token-to-s));
+}
+
+.story[data-deck] [data-reached~="land"] .story-token {
+  opacity: 0;
+  transition:
+    opacity 150ms linear 520ms,
+    transform 650ms var(--ease);
+}
+
+.story[data-deck] [data-reached~="land"] .story-token::after {
+  opacity: 0;
+  transition-delay: 100ms;
+}
+
+/* Progress, under the narration. */
+.story[data-deck] .story-progress {
+  position: absolute;
+  bottom: 14px;
+  inset-inline: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+}
+
+.story-progress ol {
+  display: flex;
+}
+
+.story-progress button {
+  display: grid;
+  width: 22px;
+  height: 28px;
+  place-items: center;
+}
+
+.story-progress button::before,
+.story-progress-fill {
+  grid-area: 1 / 1;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.story-progress button::before {
+  background: var(--line);
+  content: "";
+}
+
+.story-progress-fill {
+  background: var(--ink);
+  transform: scaleX(0);
+  transition: transform 300ms var(--ease);
+}
+
+.story-progress button[aria-current="true"] .story-progress-fill {
+  transform: none;
+}
+
+.story[data-deck] .story-hint {
+  position: absolute;
+  bottom: 54px;
+  inset-inline: 0;
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  transition: opacity 300ms linear;
+}
+
+[data-slide]:not([data-slide="imagine"]) .story-hint {
+  opacity: 0;
+}
+
+/*
+  The slides, in order. Before the deck lands on Banana, nothing of the scene is on show.
+*/
+
+/* 3 · You land on Banana: the page rises; the race's places become the goal pill. */
+.goal-top .pill {
+  opacity: 0;
+  transform: translate(5%, 5%) scale(0.9);
+  transition:
+    opacity 300ms linear,
+    transform 700ms var(--ease-out);
+}
+
+[data-reached~="land"] .goal-top .pill {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 200ms linear 420ms,
+    transform 500ms var(--ease-out) 250ms;
+}
+
+/* The page rises once the race's line is gone. */
+[data-slide="land"] .page {
+  transition-delay: 450ms;
+}
+
+.story[data-deck] [data-slide="land"] [data-caption="land"] {
+  transition-delay: 700ms;
+}
+
+[data-reached~="land"] .page {
+  transform: none;
+}
+
+/* 4 · What do you need to play? The page settles back, a touch dimmer. */
+[data-reached~="need"] .page {
+  transform: scale(var(--settle));
+}
+
+[data-reached~="need"] .page-frame,
+[data-reached~="need"] .page-bar,
+[data-reached~="need"] .page-infobox {
+  opacity: 0.72;
+}
+
+/*
+  5 · A goal: a marker comes in on each of the three things at once; the goal's lights and becomes
+  its name, the other two stay dim until their own slides, and everything else dims.
+*/
+[data-reached~="goal"] .tag-number {
+  opacity: 1;
+  transform: none;
+}
+
+[data-slide="goal"] [data-tag="context"] .tag-number {
+  transition-delay: 120ms;
+}
+
+[data-slide="goal"] [data-tag="ops"] .tag-number {
+  transition-delay: 240ms;
+}
+[data-reached~="goal"] .goal-top .pill::before {
+  opacity: 1;
+  transform: none;
+}
+
+[data-reached~="goal"] [data-tag="context"] .tag-number,
+[data-reached~="goal"] [data-tag="ops"] .tag-number {
+  opacity: 0.4;
+}
+
+[data-reached~="goal"] [data-tag="goal"] .tag-number,
+[data-reached~="context"] [data-tag="context"] .tag-number,
+[data-reached~="ops"] [data-tag="ops"] .tag-number {
+  opacity: 0;
+  transform: scale(0.4);
+}
+
+[data-reached~="goal"] [data-tag="goal"] .tag-label,
+[data-reached~="context"] [data-tag="context"] .tag-label,
+[data-reached~="ops"] [data-tag="ops"] .tag-label {
+  opacity: 1;
+  transform: none;
+  transition-delay: 100ms;
+}
+
+/* On the way into the goal slide, its marker shows a beat with the others, then becomes the name. */
+[data-slide="goal"][data-direction="forward"] [data-tag="goal"] .tag-number {
+  animation: marker-beat 650ms var(--ease-out) both;
+}
+
+[data-slide="goal"] [data-tag="goal"] .tag-label {
+  transition-delay: 500ms;
+}
+
+@keyframes marker-beat {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+
+  35%,
+  70% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+[data-reached~="goal"] .page-frame {
+  opacity: 0.55;
+}
+
+[data-reached~="goal"] .page-bar,
+[data-reached~="goal"] .page-infobox,
+[data-reached~="goal"] .page-from {
+  opacity: 0.32;
+}
+
+[data-reached~="goal"] .page-title-text,
+[data-reached~="goal"] .page-link {
+  opacity: 0.4;
+}
+
+/* 7 · Context: the title lights. */
+[data-reached~="context"] .page-title-text {
+  opacity: 1;
+}
+
+[data-reached~="context"] .page-title-text::before {
+  opacity: 1;
+  transform: none;
+}
+
+/* 8 · Ops: the links light, one after another. */
+[data-reached~="ops"] .page-link {
+  opacity: 1;
+  transition-delay: calc(var(--i) * 70ms);
+}
+
+[data-reached~="ops"] .page-link::before {
+  opacity: 1;
+  transform: none;
+  transition-delay: calc(var(--i) * 70ms);
+}
+
+[data-reached~="ops"] [data-tag="ops"] .tag-label {
+  transition-delay: 350ms;
+}
+
+/*
+  9 · That's everything: the page strips away, and what was lit flies into a column on the left.
+  Each piece flies onto its place in the column while its twin there flies in from where it was.
+*/
+.column [data-flip],
+.chip-more {
+  transform-origin: 0 0;
+  transition:
+    opacity 350ms linear,
+    transform var(--fly) var(--ease);
+}
+
+.goal-top .pill,
+.page-title-text,
+.page-link,
+.tag-label {
+  transform-origin: 0 0;
+}
+
+/* Away in the column until the game is stripped down to it. */
+[data-stage]:not([data-reached~="all"]) .column [data-flip~="goal-move"] {
+  opacity: 0;
+  transform: translate(var(--goal-move-x), var(--goal-move-y)) scale(var(--goal-move-s));
+}
+
+[data-stage]:not([data-reached~="all"]) .card-text {
+  opacity: 0;
+  transform: translate(var(--context-card-x), var(--context-card-y)) scale(var(--context-card-s));
+}
+
+[data-stage]:not([data-reached~="all"]) .chip-more,
+[data-stage]:not([data-reached~="all"]) .column-label {
+  opacity: 0;
+}
+
+[data-stage]:not([data-reached~="all"]) .column-label[data-flip~="label-goal"] {
+  transform: translate(var(--label-goal-x), var(--label-goal-y)) scale(var(--label-goal-s));
+}
+
+[data-stage]:not([data-reached~="all"]) .column-label[data-flip~="label-context"] {
+  transform: translate(var(--label-context-x), var(--label-context-y)) scale(var(--label-context-s));
+}
+
+[data-stage]:not([data-reached~="all"]) .column-label[data-flip~="label-ops"] {
+  transform: translate(var(--label-ops-x), var(--label-ops-y)) scale(var(--label-ops-s));
+}
+
+[data-stage]:not([data-reached~="all"]) .chip[data-flip~="op-0"] {
+  transform: translate(var(--op-0-x), var(--op-0-y)) scale(var(--op-0-s));
+}
+
+[data-stage]:not([data-reached~="all"]) .chip[data-flip~="op-1"] {
+  transform: translate(var(--op-1-x), var(--op-1-y)) scale(var(--op-1-s));
+}
+
+[data-stage]:not([data-reached~="all"]) .chip[data-flip~="op-2"] {
+  transform: translate(var(--op-2-x), var(--op-2-y)) scale(var(--op-2-s));
+}
+
+[data-stage]:not([data-reached~="all"]) .chip[data-flip~="op-3"] {
+  transform: translate(var(--op-3-x), var(--op-3-y)) scale(var(--op-3-s));
+}
+
+[data-stage]:not([data-reached~="all"]) .chip[data-flip~="op-4"] {
+  transform: translate(var(--op-4-x), var(--op-4-y)) scale(var(--op-4-s));
+}
+
+[data-stage]:not([data-reached~="all"]) .chip {
+  opacity: 0;
+}
+
+/*
+  Twins fly in step, the same delay (`--d`), length and curve, so they stay one over the other; the
+  one leaving fades out as the one arriving fades in, just before they land.
+*/
+.goal-top .pill,
+.column .pill {
+  --d: 80ms;
+}
+
+.page-title-text,
+.card-text,
+.tag-label,
+.column-label {
+  --d: 160ms;
+}
+
+.page-link,
+.chip {
+  --d: calc(240ms + var(--i, 0) * 50ms);
+}
+
+[data-reached~="all"] .goal-top .pill,
+[data-reached~="all"] .page-title-text,
+[data-reached~="all"] .tag .tag-label,
+[data-reached~="all"] .page-link {
+  opacity: 0;
+  transition:
+    opacity 200ms linear calc(var(--d, 0ms) + 600ms),
+    transform var(--fly) var(--ease) var(--d, 0ms);
+}
+
+[data-reached~="all"] .column [data-flip] {
+  transition:
+    opacity 200ms linear calc(var(--d, 0ms) + 520ms),
+    transform var(--fly) var(--ease) var(--d, 0ms);
+}
+
+[data-reached~="all"] .goal-top .pill {
+  transform: translate(var(--goal-move-x), var(--goal-move-y)) scale(var(--goal-move-s));
+}
+
+[data-reached~="all"] .page-title-text {
+  transform: translate(var(--context-card-x), var(--context-card-y)) scale(var(--context-card-s));
+}
+
+[data-reached~="all"] [data-tag="goal"] .tag-label {
+  transform: translate(var(--label-goal-x), var(--label-goal-y)) scale(var(--label-goal-s));
+}
+
+[data-reached~="all"] [data-tag="context"] .tag-label {
+  transform: translate(var(--label-context-x), var(--label-context-y)) scale(var(--label-context-s));
+}
+
+[data-reached~="all"] [data-tag="ops"] .tag-label {
+  transform: translate(var(--label-ops-x), var(--label-ops-y)) scale(var(--label-ops-s));
+}
+
+[data-reached~="all"] .tag .tag-number {
+  opacity: 0;
+  transition-delay: 0ms;
+}
+
+[data-reached~="all"] .page-link[data-flip~="op-0"] {
+  transform: translate(var(--op-0-x), var(--op-0-y)) scale(var(--op-0-s));
+}
+
+[data-reached~="all"] .page-link[data-flip~="op-1"] {
+  transform: translate(var(--op-1-x), var(--op-1-y)) scale(var(--op-1-s));
+}
+
+[data-reached~="all"] .page-link[data-flip~="op-2"] {
+  transform: translate(var(--op-2-x), var(--op-2-y)) scale(var(--op-2-s));
+}
+
+[data-reached~="all"] .page-link[data-flip~="op-3"] {
+  transform: translate(var(--op-3-x), var(--op-3-y)) scale(var(--op-3-s));
+}
+
+[data-reached~="all"] .page-link[data-flip~="op-4"] {
+  transform: translate(var(--op-4-x), var(--op-4-y)) scale(var(--op-4-s));
+}
+
+[data-reached~="all"] .chip-more {
+  transition-delay: 1000ms, 0ms;
+}
+
+/* Once the links are chips, each reads as an action. */
+[data-stage]:not([data-reached~="all"]) .op-verb {
+  opacity: 0;
+}
+
+[data-reached~="all"] .op-verb {
+  transition-delay: calc(950ms + var(--i, 0) * 50ms);
+}
+
+/* The rest of the game strips away: the text first, then the page under it. */
+[data-reached~="all"] .page-bar {
+  opacity: 0;
+  transform: scaleX(0);
+  transition-delay: calc(var(--p, 0) * 60ms);
+}
+
+[data-reached~="all"] .page-from,
+[data-reached~="all"] .page-infobox {
+  opacity: 0;
+}
+
+[data-reached~="all"] .page-infobox {
+  transform: scale(0.9);
+}
+
+[data-reached~="all"] .page-frame {
+  opacity: 0;
+  transform: scale(0.92, 0.6);
+  transition-delay: 200ms;
+}
+
+/*
+  10 · Then you decide: the person comes in from the right, the three things flow to them, their
+  pick flows back to the op, and the op lights. The arrows stay until the code.
+*/
+.decider {
+  opacity: 0;
+  transform: translateX(32cqw);
+  transition:
+    opacity 400ms linear,
+    transform 1000ms var(--ease-out);
+}
+
+[data-reached~="you"] .decider {
+  opacity: 1;
+  transform: none;
+}
+
+[data-reached~="you"] .arrow {
+  opacity: 1;
+}
+
+[data-reached~="you"] .arrow-reveal {
+  stroke-dashoffset: 0;
+}
+
+[data-reached~="you"] .arrow-head {
+  opacity: 1;
+}
+
+[data-slide="you"] .arrow-line,
+[data-slide="ai"] .arrow-line,
+[data-slide="gut"] .arrow-line {
+  animation-play-state: running;
+}
+
+[data-slide="you"] .arrow[data-arrow="goal"] .arrow-reveal {
+  transition-delay: 900ms;
+}
+
+[data-slide="you"] .arrow[data-arrow="context"] .arrow-reveal {
+  transition-delay: 1050ms;
+}
+
+[data-slide="you"] .arrow[data-arrow="ops"] .arrow-reveal {
+  transition-delay: 1200ms;
+}
+
+[data-slide="you"] .arrow[data-arrow="goal"] .arrow-head {
+  transition-delay: 1500ms;
+}
+
+[data-slide="you"] .arrow[data-arrow="context"] .arrow-head {
+  transition-delay: 1650ms;
+}
+
+[data-slide="you"] .arrow[data-arrow="ops"] .arrow-head {
+  transition-delay: 1800ms;
+}
+
+[data-slide="you"] .arrow[data-arrow="pick"] .arrow-reveal {
+  transition-delay: 1850ms;
+}
+
+[data-slide="you"] .arrow[data-arrow="pick"] .arrow-head {
+  transition-delay: 2450ms;
+}
+
+[data-reached~="you"] .chip[data-pick]::after {
+  opacity: 1;
+  transform: none;
+}
+
+[data-slide="you"] .chip[data-pick]::after {
+  transition-delay: 2550ms;
+}
+
+[data-slide="you"] .chip[data-pick]::before,
+[data-slide="ai"] .chip[data-pick]::before,
+[data-slide="gut"] .chip[data-pick]::before {
+  animation: breathe 1400ms var(--ease-out) infinite;
+}
+
+[data-slide="you"] .chip[data-pick]::before {
+  animation-delay: 2650ms;
+}
+
+/* 11 · Now swap yourself for an AI: the person becomes a robot, in the same place and pose. */
+[data-reached~="ai"] .figure-person {
+  opacity: 0;
+}
+
+[data-reached~="ai"] .figure-robot {
+  opacity: 1;
+}
+
+/* 12 · gut lets you express exactly this: gut's own pattern fills in behind the stage. */
+.stage-gut {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1200ms linear;
+}
+
+.stage-gut path {
+  vector-effect: non-scaling-stroke;
+}
+
+.stage-gut circle {
+  fill: var(--ink);
+  stroke: none;
+}
+
+[data-reached~="gut"] .stage-gut {
+  opacity: var(--stage-gut);
+}
+
+/*
+  13 · In code, it's this: the robot and its arrows go, the three things line up in a row under the
+  narration, and the code comes in under them as a skeleton with three empty slots.
+*/
+.code-window,
+.code-file,
+.code-line {
+  opacity: 0;
+}
+
+.code-window {
+  transform: translateY(24px) scale(0.98);
+}
+
+.code-line {
+  transform: translateY(8px);
+}
+
+[data-reached~="code"] .code-window,
+[data-reached~="code"] .code-file,
+[data-reached~="code"] .code-line {
+  opacity: 1;
+  transform: none;
+}
+
+[data-reached~="code"] .code-window,
+[data-reached~="code"] .code-file {
+  transition-delay: 300ms;
+}
+
+[data-reached~="code"] .code-line {
+  transition-delay: calc(450ms + var(--n) * 16ms);
+}
+
+.code-section .code-line {
+  transform: none;
+}
+
+[data-reached~="code"] .arrow {
+  opacity: 0;
+}
+
+[data-reached~="code"] .chip[data-pick]::after {
+  opacity: 0;
+}
+
+[data-reached~="code"] .decider {
+  opacity: 0;
+  transform: none;
+  transition: opacity 400ms linear;
+}
+
+[data-reached~="code"] .column .chip-more {
+  opacity: 0;
+  transition: opacity 250ms linear;
+}
+
+/* The column's pieces fly up into the row, each with its twin there. */
+.chips,
+.decider,
+.row [data-flip] {
+  transform-origin: 0 0;
+}
+
+.row [data-flip] {
+  transition:
+    opacity 350ms linear,
+    transform var(--fly) var(--ease);
+}
+
+[data-stage]:not([data-reached~="code"]) .row [data-flip] {
+  opacity: 0;
+}
+
+[data-stage]:not([data-reached~="code"]) .row .pill {
+  transform: translate(var(--goal-row-x), var(--goal-row-y)) scale(var(--goal-row-s));
+}
+
+[data-stage]:not([data-reached~="code"]) .row .card {
+  transform: translate(var(--context-row-x), var(--context-row-y)) scale(var(--context-row-s));
+}
+
+[data-stage]:not([data-reached~="code"]) .row-ops {
+  transform: translate(var(--ops-row-x), var(--ops-row-y)) scale(var(--ops-row-s));
+}
+
+[data-stage]:not([data-reached~="code"]) .row [data-flip~="label-goal-row"] {
+  transform: translate(var(--label-goal-row-x), var(--label-goal-row-y))
+    scale(var(--label-goal-row-s));
+}
+
+[data-stage]:not([data-reached~="code"]) .row [data-flip~="label-context-row"] {
+  transform: translate(var(--label-context-row-x), var(--label-context-row-y))
+    scale(var(--label-context-row-s));
+}
+
+[data-stage]:not([data-reached~="code"]) .row [data-flip~="label-ops-row"] {
+  transform: translate(var(--label-ops-row-x), var(--label-ops-row-y)) scale(var(--label-ops-row-s));
+}
+
+[data-reached~="code"] .row [data-flip] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 200ms linear 620ms,
+    transform var(--fly) var(--ease) 100ms;
+}
+
+[data-reached~="code"] .column [data-flip] {
+  opacity: 0;
+  transition:
+    opacity 200ms linear 700ms,
+    transform var(--fly) var(--ease) 100ms;
+}
+
+[data-reached~="code"] .column .pill {
+  transform: translate(var(--goal-row-x), var(--goal-row-y)) scale(var(--goal-row-s));
+}
+
+[data-reached~="code"] .column .card {
+  transform: translate(var(--context-row-x), var(--context-row-y)) scale(var(--context-row-s));
+}
+
+[data-reached~="code"] .column .chips {
+  transform: translate(var(--ops-row-x), var(--ops-row-y)) scale(var(--ops-row-s));
+}
+
+[data-reached~="code"] .column [data-flip~="label-goal-row"] {
+  transform: translate(var(--label-goal-row-x), var(--label-goal-row-y))
+    scale(var(--label-goal-row-s));
+}
+
+[data-reached~="code"] .column [data-flip~="label-context-row"] {
+  transform: translate(var(--label-context-row-x), var(--label-context-row-y))
+    scale(var(--label-context-row-s));
+}
+
+[data-reached~="code"] .column [data-flip~="label-ops-row"] {
+  transform: translate(var(--label-ops-row-x), var(--label-ops-row-y)) scale(var(--label-ops-row-s));
+}
+
+/* Inside the column's twins, nothing moves on its own: they travel whole. */
+[data-reached~="code"] .column .chip,
+[data-reached~="code"] .column .card-text {
+  opacity: 1;
+  transform: none;
+}
+
+/*
+  14 to 16 · One by one, each thing flies from the row into its slot, which fills with its lines,
+  and its name in the row goes with it.
+*/
+[data-reached~="fill-goal"] .row .pill,
+[data-reached~="fill-context"] .row .card,
+[data-reached~="fill-ops"] .row .row-ops {
+  opacity: 0;
+  transition:
+    opacity 200ms linear 550ms,
+    transform var(--fly) var(--ease);
+}
+
+[data-reached~="fill-goal"] .row .pill {
+  transform: translate(var(--goal-code-x), var(--goal-code-y)) scale(var(--goal-code-s));
+}
+
+[data-reached~="fill-context"] .row .card {
+  transform: translate(var(--context-code-x), var(--context-code-y)) scale(var(--context-code-s));
+}
+
+[data-reached~="fill-ops"] .row .row-ops {
+  transform: translate(var(--ops-code-x), var(--ops-code-y)) scale(var(--ops-code-s));
+}
+
+[data-reached~="fill-goal"] .row-item[data-thing="goal"] .column-label,
+[data-reached~="fill-context"] .row-item[data-thing="context"] .column-label,
+[data-reached~="fill-ops"] .row-item[data-thing="ops"] .column-label {
+  opacity: 0;
+  transition: opacity 300ms linear 300ms;
+}
+
+[data-reached~="fill-goal"] .code-line.code-slot > *,
+[data-reached~="fill-goal"] .code-line.code-slot::before,
+[data-reached~="fill-context"] .code-section[data-tint="context"] > .code-line:not(.code-slot) > *,
+[data-reached~="fill-context"] .code-section[data-tint="context"]::before,
+[data-reached~="fill-ops"] .code-section[data-tint="ops"] .code-line > *,
+[data-reached~="fill-ops"] .code-section[data-tint="ops"]::before {
+  opacity: 1;
+  transition-delay: 500ms;
+}
+
+[data-reached~="fill-goal"] .code-line.code-slot::after,
+[data-reached~="fill-context"] .code-section[data-tint="context"]::after,
+[data-reached~="fill-ops"] .code-section[data-tint="ops"]::after {
+  opacity: 0;
+  transition-delay: 450ms;
+}
+
+/*
+  16 · Run it: the code steps aside (or, upright, gives way) for a terminal. The command is typed,
+  the rounds stream in from the recording, the goal pill gets its tick, and confetti fires. Going
+  back, it is all just gone; coming back from below, the run shows finished.
+*/
+.code {
+  transition:
+    opacity 400ms linear,
+    transform 800ms var(--ease);
+}
+
+[data-reached~="run"] .code {
+  transform: translateX(-23cqw) scale(0.72);
+}
+
+.run {
+  opacity: 0;
+  transform: translateX(40px);
+  transition:
+    opacity 400ms linear,
+    transform 800ms var(--ease-out);
+}
+
+[data-reached~="run"] .run {
+  opacity: 1;
+  transform: none;
+  transition-delay: 150ms;
+}
+
+.story-stage[data-slide="run"] {
+  --heading-y: var(--heading-y-run, 0px);
+}
+
+.term-char,
+.term-line {
+  opacity: 0;
+}
+
+[data-reached~="run"] .term-char,
+[data-reached~="run"] .term-line {
+  opacity: 1;
+}
+
+.run-check {
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 200ms linear,
+    transform 500ms var(--ease-pop);
+}
+
+[data-reached~="run"] .run-check {
+  opacity: 1;
+  transform: none;
+}
+
+[data-slide="run"][data-direction="forward"] .term-char {
+  animation: appear 1ms linear calc(var(--type-at) + var(--c) * 14ms) both;
+}
+
+[data-slide="run"][data-direction="forward"] .term-line {
+  animation: line-in 220ms var(--ease-out) calc(var(--log-at) + var(--i) * var(--beat)) both;
+}
+
+[data-slide="run"][data-direction="forward"] .term-article::before {
+  animation: flash 650ms var(--ease-out) calc(var(--log-at) + var(--i) * var(--beat)) both;
+}
+
+[data-slide="run"][data-direction="forward"] .term-pick::before {
+  animation: flash 650ms var(--ease-out) calc(var(--log-at) + var(--i) * var(--beat) + 60ms) both;
+}
+
+[data-slide="run"][data-direction="forward"] .run-check {
+  transition-delay: var(--done-at);
+}
+
+/* The goal met: confetti, once, on the way in. */
+[data-slide="run"][data-direction="forward"] .confetti i {
+  /* forwards, not both: nothing of it shows before it fires. */
+  animation: burst 1100ms cubic-bezier(0.1, 0.8, 0.3, 1) calc(var(--fire-at) + var(--delay))
+    forwards;
+}
+
+/* Less motion: the run shows finished, its tick at once, and no confetti. */
+@media (prefers-reduced-motion: reduce) {
+  [data-slide="run"][data-direction] .run-check {
+    transition-delay: 0ms;
+  }
+}
+
+/* Going back, each change plays straight back. */
+[data-direction="back"],
+[data-direction="back"] *,
+[data-direction="back"] *::before,
+[data-direction="back"] *::after {
+  /* biome-ignore lint/complexity/noImportantStyles: must beat every slide rule's delay */
+  transition-delay: 0ms !important;
+}
+
+/* Less motion: nothing moves; what changes fades. */
+@media (prefers-reduced-motion: reduce) {
+  .story-stage *,
+  .story-stage *::before,
+  .story-stage *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: must beat every slide rule's transition */
+    transition-property: opacity !important;
+    /* biome-ignore lint/complexity/noImportantStyles: no marching, no breathing */
+    animation: none !important;
+  }
+}
+
+/* Stacked, the page's own faint gut is already behind the still stage. */
+.story:not([data-deck]) .stage-gut {
+  display: none;
+}

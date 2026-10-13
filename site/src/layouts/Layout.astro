@@ -1,0 +1,67 @@
+---
+import MarketingLayout from '@fishballapps/marketing/Layout.astro';
+import '../styles/global.css';
+
+type Props = { title?: string; description?: string };
+
+const SITE_URL = 'https://gut.run';
+const GUT_DESCRIPTION =
+  'Build agent tasks with System 1 decision models. Write the moves in TypeScript; gut runs the loop while the model picks, without generating text. Free and MIT licensed.';
+
+const {
+  title = 'gut — Open-source TypeScript framework for System 1 models',
+  description = GUT_DESCRIPTION,
+} = Astro.props;
+
+// With build.format 'file', Astro.url.pathname is the built file ("/index.html", "/404.html").
+const pathname = Astro.url.pathname.replace(/\.html$/, '').replace(/^\/index$/, '/');
+const canonicalUrl = new URL(pathname, SITE_URL).href;
+
+const softwareSourceCodeSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareSourceCode',
+  name: 'gut',
+  // What gut is, on every page, whatever the page's own description says.
+  description: GUT_DESCRIPTION,
+  url: `${SITE_URL}/`,
+  codeRepository: 'https://github.com/fishballapp/gut',
+  programmingLanguage: 'TypeScript',
+  license: 'https://opensource.org/licenses/MIT',
+  publisher: { '@type': 'Organization', name: 'Fishball Ltd', url: 'https://fishball.ltd' },
+};
+
+// Public PostHog key of gut.run's own project (gut org, EU cloud); safe to commit.
+const POSTHOG_API_KEY = 'phc_mYfCMfvm6cQZWkPQy9vHog8dDRocSQzPFTH5P4c35Yji';
+---
+
+<MarketingLayout
+  siteUrl={SITE_URL}
+  canonicalUrl={canonicalUrl}
+  title={title}
+  description={description}
+  ogSiteName="gut"
+  ogLocale="en_US"
+  ogImagePath="/og.png"
+  themeColor="#f6f5f0"
+  htmlLang="en"
+  fontHref={null}
+  structuredData={softwareSourceCodeSchema}
+  posthogApiKey={POSTHOG_API_KEY}
+  privacyPolicyHref="https://fishball.app/privacy-policy"
+>
+  <script is:inline>
+    // The theme before first paint: a stored choice, else the system's. The inspector reads the
+    // same key, so the replay framed below matches.
+    (() => {
+      try {
+        const stored = localStorage.getItem('gut:theme');
+        const system = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme =
+          stored === 'light' || stored === 'dark' ? stored : system;
+      } catch {
+        document.documentElement.dataset.theme = 'light';
+      }
+    })();
+  </script>
+  <slot />
+</MarketingLayout>

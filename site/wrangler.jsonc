@@ -1,0 +1,11 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  // Assets only: the built site, no Worker code. Binding gut.run is OpenTofu's job, not this file's.
+  "name": "gut-run-marketing",
+  "compatibility_date": "2026-10-01",
+  "account_id": "ef1db00eff7bafcb12e7acb5754d1377",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page"
+  }
+}

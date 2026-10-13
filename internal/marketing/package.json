@@ -1,0 +1,17 @@
+{
+  "name": "@fishballapps/marketing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./Layout.astro": "./src/Layout.astro",
+    "./PostHog.astro": "./src/PostHog.astro",
+    "./posthog": "./src/posthog.ts"
+  },
+  "dependencies": {
+    "@fishballapps/cookie-consent": "workspace:*"
+  },
+  "peerDependencies": {
+    "astro": "catalog:"
+  }
+}

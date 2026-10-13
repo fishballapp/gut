@@ -1,0 +1,144 @@
+---
+import Icon from './Icon.astro';
+
+const PROTOCOL = 'https://github.com/fishballapp/gut#what-the-model-receives';
+
+const MODELS = [
+  {
+    name: 'Jev',
+    where: "TypeSafe's, hosted",
+    text: "Through OpenRouter or TypeSafe's own API, with your key. Up to 255 options a question.",
+  },
+  {
+    name: 'Clef and clef-flash',
+    where: "Cloudflare's, open weights",
+    text: 'Run Clef locally with Ollama, 0.35.1 or later. Up to 26 options a question.',
+    command: 'ollama pull clef-flash',
+  },
+  {
+    name: 'Your own endpoint',
+    where: 'any server',
+    text: 'One that answers choice questions at /v1/systemone, as the models above do.',
+  },
+];
+
+// The README's decisionModel, for Jev on OpenRouter; each key is explained beside it.
+const CONFIG = `{
+  "decisionModel": {
+    "endpoint": "https://openrouter.ai/api/v1/systemone",
+    "name": "~typesafe/jev-latest",
+    "apiKey": "<your OpenRouter key>",
+    "capabilities": { "choiceQuestions": { "maxOptions": 255 } }
+  }
+}`;
+
+const FIELDS = [
+  { key: 'endpoint', text: 'The /v1/systemone server: a local Ollama, TypeSafe or OpenRouter.' },
+  { key: 'name', text: 'The model the server runs.' },
+  { key: 'apiKey', text: 'Optional. Sent as a bearer token; Ollama needs none.' },
+  { key: 'maxOptions', text: 'The most options one question takes: 255 by default, 26 on Ollama.' },
+];
+
+const MECHANISMS = [
+  {
+    name: 'Bundles',
+    text: 'A list too long for one question is asked as bundles, each listing everything it holds. The model picks a bundle, then an option inside it.',
+  },
+  {
+    name: 'Groups',
+    text: 'A question opens the smallest groups while they fit. A closed group shows an outline of its first 8 moves, and choosing it asks every move inside.',
+  },
+  {
+    name: 'Split on refusal',
+    text: 'If a request is refused as too large, gut splits the question and asks again.',
+  },
+];
+---
+
+<section id="models" aria-labelledby="models-title" class="border-t border-line">
+  <div class="mx-auto max-w-6xl px-5 py-20 sm:px-8 lg:py-24">
+    <div class="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16">
+      <div>
+        <h2 id="models-title" class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+          Decision models that work with gut
+        </h2>
+        <p class="mt-5 max-w-[60ch] text-muted">
+          One runtime. Any compatible decision model. gut speaks the{' '}
+          <code class="font-mono text-ink">/v1/systemone</code> API, and nothing is tuned per model, so
+          a model is configuration, not code.
+        </p>
+        <ul class="mt-8 divide-y divide-line border-y border-line">
+          {
+            MODELS.map(({ name, where, text, command }) => (
+              <li class="py-4">
+                <p class="flex flex-wrap items-baseline justify-between gap-x-4">
+                  <span class="font-semibold">{name}</span>
+                  <span class="font-mono text-[12px] text-muted">{where}</span>
+                </p>
+                <p class="mt-1 text-muted">{text}</p>
+                {command && (
+                  <p class="mt-2 font-mono text-[12px]">
+                    <span aria-hidden="true" class="text-muted select-none">$ </span>
+                    {command}
+                  </p>
+                )}
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <figure class="min-w-0 self-start">
+        <figcaption class="flex items-baseline justify-between gap-4 pb-2 font-mono text-[12px] text-muted">
+          <span>gut.config.json</span>
+          <a href={PROTOCOL} class="flex items-center gap-1 font-sans hover:text-ink">
+            Build a model? What it receives <Icon name="arrowUpRight" size={12} />
+          </a>
+        </figcaption>
+        <pre
+          class="overflow-x-auto rounded-lg border border-line bg-raised px-4 py-3 font-mono text-[12px] leading-relaxed"><code>{CONFIG}</code></pre>
+        <dl class="mt-5 grid gap-x-4 gap-y-2 text-[13px] sm:grid-cols-[7rem_minmax(0,1fr)]">
+          {
+            FIELDS.map(({ key, text }) => (
+              <>
+                <dt class="font-mono text-[12px] text-ink sm:pt-px">{key}</dt>
+                <dd class="-mt-1.5 text-muted sm:mt-0">{text}</dd>
+              </>
+            ))
+          }
+        </dl>
+        <p class="mt-8 max-w-[60ch] border-t border-line pt-6 text-[13px] text-muted">
+          Compatible is a contract, not a label: not every model called System 1 works with gut as it
+          is. It must answer gut's choice questions with a probability for every option, and report
+          the input tokens it read.
+        </p>
+        <p class="mt-4 max-w-[60ch] text-[13px] text-muted">
+          gut is free and open source. Hosted model usage is billed by your provider.
+        </p>
+      </figure>
+    </div>
+
+    <div class="mt-20 grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16">
+      <div>
+        <h3 class="text-2xl font-semibold tracking-tight text-balance">
+          More options than a model can take
+        </h3>
+        <p class="mt-4 max-w-[60ch] text-muted">
+          A Wikipedia article has hundreds of links; a model takes 26 or 255 options a question. Hand
+          gut every option, at any length. Every move stays within reach. gut groups and bundles
+          options instead of dropping them.
+        </p>
+      </div>
+      <dl class="grid gap-8 sm:grid-cols-3 sm:gap-6">
+        {
+          MECHANISMS.map(({ name, text }) => (
+            <div class="border-t border-line pt-4">
+              <dt class="font-semibold">{name}</dt>
+              <dd class="mt-1.5 text-[14px] text-muted">{text}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </div>
+  </div>
+</section>

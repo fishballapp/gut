@@ -47,4 +47,5 @@ jobs:
 
       - run: pnpm test
       - run: pnpm -F @gut.run/inspector test:e2e
+      - run: pnpm -F @gut.run/site test:e2e
       - run: pnpm build

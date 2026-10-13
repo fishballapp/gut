@@ -1,6 +1,6 @@
 # gut
 
-**A non-deterministic runtime.** You write the moves. The model writes the order.
+**A non-deterministic runtime.** Agents think too much. Give them a gut.
 
 Non-deterministic as in a nondeterministic machine, or McCarthy's `amb`: at every step several
 moves are legal, and something chooses one. In gut that something is a fast decision model, so the
@@ -42,13 +42,11 @@ run, not once per step.
 - **The goal is the finish line.** A task that can check it in code does (`isGoalAchieved`), and
   the model is never asked. Otherwise each round's first request also asks the model whether the
   goal is met, at no extra request, and the run ends as `achieved` for the caller to check.
-- **Cheap and fast.** Decision models never generate and charge only for input: Jev on OpenRouter
-  answers in about 255 ms at $0.042 per million input tokens, and clef-flash runs free on a laptop.
 - **Bounded.** An input-token budget, stall detection, and a result that says how the run ended and
   what it spent.
 - **Any `/v1/systemone` model.** Clef on a local Ollama, TypeSafe's Jev, Jev on OpenRouter; nothing
   is tuned per model.
-- **A fraction of the code.** The wiki race is 43 lines with gut and 149 without
+- **A fraction of the code.** The wiki race is 39 lines with gut and 149 without
   ([the comparison](#a-task)).
 
 ### More options than a model can take
@@ -111,36 +109,33 @@ const instruction =
 
 const { runTask } = await initGut();
 
-await runTask(
-  `Banana → ${target}`,
-  async () => {
-    const article = await readArticle(path.at(-1) ?? '');
-    path.splice(-1, 1, article.title); // a link can name a redirect; keep the real title
+await runTask(`Banana → ${target}`, async () => {
+  const article = await readArticle(path.at(-1) ?? '');
+  path.splice(-1, 1, article.title); // a link can name a redirect; keep the real title
 
-    return {
-      context: {
-        instruction,
-        goal: `The current article is "${target}"`,
-        currentArticle: article.title,
-      },
+  return {
+    context: {
+      instruction,
+      goal: `The current article is "${target}"`,
+      currentArticle: article.title,
+    },
 
-      ops: {
-        openLink: op('Open a link on the current article', {
-          choices: article.links.filter(link => !path.includes(link)),
-          invoke: link => {
-            path.push(link);
-          },
-        }),
-      },
-    };
-  },
-  { isGoalAchieved: () => path.at(-1) === target },
-);
+    ops: {
+      openLink: op('Open a link on the current article', {
+        choices: article.links.filter(link => !path.includes(link)),
+        invoke: link => {
+          path.push(link);
+        },
+      }),
+    },
+  };
+});
 ```
 
-A run on clef-flash, one line per round, with a probability per level: the op (1.00, the only one,
-so not asked), a bundle, then a link inside it. The last round is the title check, with no
-request:
+The race leaves the goal to the model: each round's first request also asks whether the current
+article is the target. A run on clef-flash, from when the race still checked its title in code
+(`isGoalAchieved`), one line per round, with a probability per level: the op (1.00, the only one,
+so not asked), a bundle, then a link inside it. The last round is that check, with no request:
 
 ```
 round 1  openLink("Columbian exchange")  1.00/0.15/0.38  10.5s  2889 input tokens
@@ -153,9 +148,8 @@ achieved  9578 input tokens in 10 requests
 ```
 
 [`examples/wikirace.plain.ts`](examples/wikirace.plain.ts) is the same race as a plain one-off
-script on TypeSafe's SDK (`@typesafe-ai/sdk`), making the same requests (the same picks,
-probabilities and tokens on clef-flash) in 149 lines: bundles, splitting on refusal, the budget
-and the log, written out. [`examples/wikirace.advocaat.ts`](examples/wikirace.advocaat.ts) does it
+script on TypeSafe's SDK (`@typesafe-ai/sdk`) in 149 lines, checking the title in code rather than
+asking the model: bundles, splitting on refusal, the budget and the log, written out. [`examples/wikirace.advocaat.ts`](examples/wikirace.advocaat.ts) does it
 with [advocaat](https://github.com/pithings/advocaat)'s `ask` in 142: a client saves the HTTP code,
 not the loop around it.
 
@@ -362,7 +356,7 @@ first, as in any JS object. Levels the runtime adds to split a long list stay ou
 the goal is achieved, and the round's first real choice (a level with one option has nothing to
 ask). They are answered together and independently, so checking the goal costs no extra request
 and sends the context once; only a round with nothing to choose (one move, or none at all) asks the goal alone. When the goal is achieved the run ends and the move is
-ignored. A task with `isGoalAchieved` (the wiki race) is never asked the `achieved` question;
+ignored. A task with `isGoalAchieved` (the counter) is never asked the `achieved` question;
 its requests carry only the move. Later requests in the round ask only the move, one level
 further down, worded "Current action: Open a link on the current article. Which one?" (the
 descriptions down to this level), since an option alone, such as a city, may not say what it is for.

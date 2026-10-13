@@ -1,0 +1,82 @@
+---
+import { RUN_COMMAND } from '../../lib/code.ts';
+import { race } from '../../lib/race.ts';
+
+// The race run: its command typed in, then one line per round of the recording, the article it was
+// on and the link it picked, until the model judged the goal met. Each line comes in on its own beat
+// (`--i`), the goal pill above gets its tick, and confetti fires from the terminal's bottom corners.
+type Props = { start: string; goal: string };
+const { start, goal } = Astro.props;
+
+const command = [...RUN_COMMAND];
+const rounds = race.rounds.map(({ round, article, link }) => ({ round, article, link }));
+const last = rounds.at(-1);
+if (last === undefined || last.link !== undefined || last.article !== goal) {
+  throw new Error(`the race should end on ${goal}, with nothing left to pick`);
+}
+
+// Two cannons at the terminal's bottom corners, each firing pieces up and a little out toward its
+// own side, each piece its own height, drift, turn and colour, in the three things' colours and the
+// lime.
+const PER_CANNON = 22;
+const shot = (side: 'left' | 'right') =>
+  Array.from({ length: PER_CANNON }, (_, index) => {
+    const outward = side === 'left' ? -1 : 1;
+    return {
+      side,
+      x: Math.round(outward * (30 + ((index * 67) % 170)) - outward * ((index * 29) % 60)),
+      y: -Math.round(260 + ((index * 113) % 300)),
+      turn: ((index * 137) % 720) - 360,
+      colour: ['mark', 'goal', 'context', 'ops'][(index + (side === 'left' ? 0 : 2)) % 4],
+      shape: index % 3 === 0 ? 'dot' : 'bit',
+      delay: (index % 6) * 30,
+    };
+  });
+const cannons = [shot('left'), shot('right')];
+---
+
+<div class="run" style={`--rounds: ${rounds.length}; --chars: ${command.length}`}>
+  <span class="pill run-goal">
+    <span class="pill-word">{start}</span>
+    <span class="pill-arrow">→</span>
+    <span class="pill-word">{goal}</span>
+    <span class="run-check">
+      <svg viewBox="0 0 16 16"><path d="M4 8.5L7 11.5L12.5 5"></path></svg>
+    </span>
+  </span>
+  <div class="terminal">
+    <p class="term-command">
+      <span class="term-prompt">$</span>
+      {command.map((char, index) => <span class="term-char" style={`--c: ${index}`}>{char}</span>)}
+    </p>
+    <ol class="term-log">
+      {
+        rounds.map(({ round, article, link }, index) => (
+          <li class="term-line" style={`--i: ${index}`}>
+            <span class="term-round">{round}</span>
+            <span class="term-step">
+              <span class="term-article">{article}</span>{' '}
+              {link === undefined ? (
+                <span class="term-done">goal met</span>
+              ) : (
+                <span class="term-pick">→ click {link}</span>
+              )}
+            </span>
+          </li>
+        ))
+      }
+    </ol>
+    {
+      cannons.map(pieces => (
+        <div class="confetti" data-side={pieces[0]?.side}>
+          {pieces.map(({ x, y, turn, colour, shape, delay }) => (
+            <i
+              data-shape={shape}
+              style={`--x: ${x}px; --y: ${y}px; --turn: ${turn}deg; --colour: var(--confetti-${colour}); --delay: ${delay}ms`}
+            />
+          ))}
+        </div>
+      ))
+    }
+  </div>
+</div>
