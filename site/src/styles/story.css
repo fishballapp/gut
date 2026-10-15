@@ -849,7 +849,7 @@
       overflow: clip;
     }
 
-    /* The narration: headings in a band above the scene, the first two large on the stage. */
+    /* The narration: headings in a band above the scene, the first large on the stage. */
 
     .story-captions {
       grid-row: 2;

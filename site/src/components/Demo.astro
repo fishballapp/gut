@@ -5,60 +5,45 @@ import Icon from './Icon.astro';
 const format = new Intl.NumberFormat('en');
 ---
 
-<section id="demo" aria-labelledby="demo-title" class="mx-auto max-w-6xl px-5 sm:px-8">
-  <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-    <div class="max-w-2xl">
-      <h2 id="demo-title" class="text-[13px] font-semibold">
-        A real run, replayed in the real inspector
-      </h2>
-      <p class="mt-1 text-[13px] text-muted">
-        {race.name} on {race.model}, a 9B model on a laptop: {race.rounds.length} rounds,{' '}
-        {race.requests} requests, {format.format(race.inputTokens)} input tokens. Nothing on this page calls a model. Open any turn
-        in the rail to read exactly what the model read.
-      </p>
+<section id="demo" aria-labelledby="demo-title" class="border-t border-line">
+  <div class="mx-auto max-w-6xl px-5 py-20 sm:px-8 lg:py-24">
+    <div class="flex flex-wrap items-end justify-between gap-x-10 gap-y-5">
+      <div class="max-w-2xl">
+        <h2 id="demo-title" class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+          See why it picked what it picked.
+        </h2>
+        <p class="mt-5 text-muted">
+          The race above, replayed in gut’s inspector: {race.rounds.length} rounds,{' '}
+          {race.requests} requests and {format.format(race.inputTokens)} input tokens to{' '}
+          {race.model} on a laptop. Open any turn to read what the model read, and the probability it
+          gave each option.
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a
+          href="/demo/"
+          class="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-raised px-3 text-[13px] font-medium transition-colors hover:border-ink/40"
+        >
+          Open full screen <Icon name="arrowUpRight" size={12} />
+        </a>
+        <button
+          type="button"
+          data-replay
+          class="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-raised px-3 text-[13px] font-medium transition-colors hover:border-ink/40"
+        >
+          <Icon name="replay" />
+          Replay
+        </button>
+      </div>
     </div>
-    <div class="flex items-center gap-2">
-    <a
-      href="/demo/"
-      class="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-raised px-3 text-[13px] font-medium transition-colors hover:border-ink/40"
-    >
-      Open full inspector <Icon name="arrowUpRight" size={12} />
-    </a>
-    <button
-      type="button"
-      data-replay
-      class="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-raised px-3 text-[13px] font-medium transition-colors hover:border-ink/40"
-    >
-      <Icon name="replay" />
-      Replay
-    </button>
+
+    <div class="mt-8 overflow-hidden rounded-lg border border-line bg-ground shadow-[0_24px_48px_-24px_oklch(0.2_0.01_90/0.25)]">
+      <iframe
+        data-replay-frame
+        src="/demo/index.html"
+        title={`The gut inspector replaying ${race.name} on ${race.model}`}
+        loading="lazy"
+        class="block h-[70svh] max-h-[680px] min-h-[520px] w-full"></iframe>
     </div>
   </div>
-
-  <div class="mt-4 overflow-hidden rounded-lg border border-line bg-ground shadow-[0_24px_48px_-24px_oklch(0.2_0.01_90/0.25)]">
-    <iframe
-      data-replay-frame
-      src="/demo/index.html"
-      title={`The gut inspector replaying ${race.name} on ${race.model}`}
-      loading="lazy"
-      class="block h-[82svh] max-h-[860px] min-h-[560px] w-full"></iframe>
-  </div>
-
-  <ol
-    aria-label="The articles it went through"
-    class="mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[12px] text-muted"
-  >
-    {
-      race.articles.map((article, index) => (
-        <li class="flex items-center gap-1.5">
-          {index > 0 && <span aria-hidden="true" class="text-faint">→</span>}
-          {index === race.articles.length - 1 ? (
-            <span class="marked rounded-[2px] font-medium">{article}</span>
-          ) : (
-            article
-          )}
-        </li>
-      ))
-    }
-  </ol>
 </section>

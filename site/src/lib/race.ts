@@ -119,9 +119,6 @@ export const readRace = (events: InspectorEvent[]) => {
   if (started.model === null) throw new Error('the recorded run has no model');
 
   const rounds = eventsOf(events, 'round.observed').map(observed => roundOf(events, observed));
-  const turnsPerPick = rounds
-    .filter(({ turns }) => turns.length > 0)
-    .map(({ turns }) => turns.length);
 
   return {
     name: started.name,
@@ -133,8 +130,6 @@ export const readRace = (events: InspectorEvent[]) => {
     articles: rounds.map(({ article }) => article),
     requests: result.usage.requests,
     inputTokens: result.usage.inputTokens,
-    /** The fewest and most requests one pick took. */
-    requestsPerPick: { min: Math.min(...turnsPerPick), max: Math.max(...turnsPerPick) },
   };
 };
 

@@ -2,117 +2,40 @@
 import CopyCommand from './CopyCommand.astro';
 import Icon from './Icon.astro';
 
-// The recipe as it was run in an empty folder (2026-10-12): the counter needs no model, so every
-// turn is answered in the inspector; then the same task on clef-flash.
-const COUNTER_URL = 'https://raw.githubusercontent.com/fishballapp/gut/main/examples/counter.gut.ts';
-const COUNTER_SOURCE = 'https://github.com/fishballapp/gut/blob/main/examples/counter.gut.ts';
-
-const CONFIG = `{
-  "decisionModel": {
-    "endpoint": "http://localhost:11434/v1/systemone",
-    "name": "clef-flash",
-    "capabilities": { "choiceQuestions": { "maxOptions": 26 } }
-  }
-}`;
+const README = 'https://github.com/fishballapp/gut';
 ---
 
 <section id="start" aria-labelledby="start-title" class="border-t border-line">
-  <div class="mx-auto max-w-6xl px-5 py-20 sm:px-8 lg:py-24">
-    <h2 id="start-title" class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-      Get started
-    </h2>
-    <p class="mt-5 max-w-[62ch] text-muted">
-      The counter task needs no model: you answer each turn yourself, in the inspector. Then point
-      the same task at one.
-    </p>
-    <ol class="mt-10 divide-y divide-line border-y border-line">
-      <li class="grid min-w-0 gap-x-12 gap-y-4 py-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        <div>
-          <h3 class="font-semibold">
-            <span class="mr-3 font-mono text-[12px] font-normal text-muted">1</span>Make a folder for
-            the task
-          </h3>
-          <p class="mt-2 text-[13px] text-muted">
-            A gut task is an ES module, so the folder's package says so.
-          </p>
-        </div>
-        <div class="min-w-0">
-          <CopyCommand
-            command={`mkdir my-gut-task && cd my-gut-task && echo '{ "type": "module" }' > package.json`}
-            label="Copy the folder command"
-          />
-        </div>
-      </li>
-      <li class="grid min-w-0 gap-x-12 gap-y-4 py-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        <h3 class="font-semibold">
-          <span class="mr-3 font-mono text-[12px] font-normal text-muted">2</span>Install the library
-          and the CLI
-        </h3>
-        <div class="min-w-0">
-          <CopyCommand
-            command="npm install @gut.run/core && npm install --global @gut.run/cli"
-            label="Copy the install command"
-          />
-        </div>
-      </li>
-      <li class="grid min-w-0 gap-x-12 gap-y-4 py-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        <div>
-          <h3 class="font-semibold">
-            <span class="mr-3 font-mono text-[12px] font-normal text-muted">3</span>Download the
-            counter
-          </h3>
-          <p class="mt-2 text-[13px] text-muted">
-            <a href={COUNTER_SOURCE} class="text-ink underline decoration-line hover:decoration-ink"
-              >counter.gut.ts</a
-            >: count to 3 with Add one, Subtract one, and a group of more moves.
-          </p>
-        </div>
-        <div class="min-w-0">
-          <CopyCommand command={`curl -O ${COUNTER_URL}`} label="Copy the download command" />
-        </div>
-      </li>
-      <li class="grid min-w-0 gap-x-12 gap-y-4 py-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        <div>
-          <h3 class="font-semibold">
-            <span class="mr-3 font-mono text-[12px] font-normal text-muted">4</span>Run it, and be
-            the model
-          </h3>
-          <p class="mt-2 text-[13px] text-muted">
-            The inspector opens on 127.0.0.1. With no gut config, every turn waits for you: pick Add
-            one three times, and the goal is met.
-          </p>
-        </div>
-        <div class="min-w-0">
-          <CopyCommand command="gut run counter.gut.ts --inspect" label="Copy the run command" />
-        </div>
-      </li>
-      <li class="grid min-w-0 gap-x-12 gap-y-4 py-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        <div>
-          <h3 class="font-semibold">
-            <span class="mr-3 font-mono text-[12px] font-normal text-muted">5</span>Point it at a
-            decision model
-          </h3>
-          <p class="mt-2 text-[13px] text-muted">
-            Put a <code class="font-mono text-ink">gut.config.json</code> in the folder, here
-            clef-flash on a local Ollama (<code class="font-mono text-ink">ollama pull clef-flash</code>),
-            and run it again: Play lets the model answer. For Jev, use{' '}
-            <a href="#models" class="text-ink underline decoration-line hover:decoration-ink"
-              >the config with your key</a
-            >.
-          </p>
-        </div>
-        <pre
-          class="min-w-0 overflow-x-auto rounded-lg border border-line bg-raised px-4 py-3 font-mono text-[12px] leading-relaxed"><code>{CONFIG}</code></pre>
-      </li>
-    </ol>
-    <div class="mt-14 flex flex-wrap items-center gap-x-6 gap-y-4">
-      <a
-        href="https://github.com/fishballapp/gut#a-task"
-        class="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink px-4 text-[14px] font-medium text-ground transition-opacity hover:opacity-90"
-      >
-        Write your own task <Icon name="arrowUpRight" />
-      </a>
-      <p class="text-[13px] text-muted">The README covers ops, groups, budgets and the browser.</p>
+  <div class="mx-auto grid max-w-6xl gap-10 px-5 py-20 sm:px-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16 lg:py-24">
+    <div>
+      <h2 id="start-title" class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+        Get started
+      </h2>
+      <p class="mt-5 max-w-[56ch] text-muted">
+        Try a task with no model first, answering each pick yourself in the inspector. Then point it
+        at Jev (hosted, through OpenRouter), Clef on a local Ollama, or any{' '}
+        <code class="font-mono text-[0.9em] text-ink">/v1/systemone</code> endpoint.
+      </p>
+    </div>
+    <div class="min-w-0 self-end">
+      <CopyCommand
+        command="npm install @gut.run/core && npm install --global @gut.run/cli"
+        label="Copy the install command"
+      />
+      <div class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-4">
+        <a
+          href={`${README}#try-it`}
+          class="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink px-4 text-[14px] font-medium text-ground transition-opacity hover:opacity-90"
+        >
+          Try it with no model <Icon name="arrowUpRight" />
+        </a>
+        <a
+          href={`${README}#a-task`}
+          class="inline-flex items-center gap-1 text-[14px] font-medium underline decoration-line underline-offset-4 hover:decoration-ink"
+        >
+          Write your own task <Icon name="arrowUpRight" size={12} />
+        </a>
+      </div>
     </div>
   </div>
 </section>

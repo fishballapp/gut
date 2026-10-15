@@ -1,0 +1,53 @@
+---
+import { withGut, withoutGut } from '../lib/code.ts';
+import { medianMs } from '../lib/speed.ts';
+import Icon from './Icon.astro';
+import Silhouette from './Silhouette.astro';
+
+const EXAMPLES = 'https://github.com/fishballapp/gut/blob/main/examples';
+---
+
+<section aria-label="What it takes" class="border-t border-line">
+  <div class="mx-auto grid max-w-6xl gap-16 px-5 py-20 sm:px-8 lg:grid-cols-2 lg:gap-20 lg:py-24">
+    <figure>
+      <h2 class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+        The wiki race in {withGut.length} lines. Without gut, {withoutGut.length}.
+      </h2>
+      <div class="mt-8 grid max-w-md grid-cols-2 gap-6 sm:gap-10">
+        <div>
+          <p class="font-mono text-[12px] text-muted">with gut</p>
+          <div class="mt-3"><Silhouette lines={withGut} tone="mark" /></div>
+        </div>
+        <div>
+          <p class="font-mono text-[12px] text-muted">without</p>
+          <div class="mt-3"><Silhouette lines={withoutGut} tone="block" /></div>
+        </div>
+      </div>
+      <figcaption class="mt-5 max-w-[60ch] text-[13px] text-muted">
+        Each bar is a line. Without gut, the race spells out the bundles, the split on refusal, the
+        budget and the log:{' '}
+        <a href={`${EXAMPLES}/wikirace.gut.ts`} class="text-ink underline decoration-line hover:decoration-ink">wikirace.gut.ts</a>{' '}
+        against{' '}
+        <a href={`${EXAMPLES}/wikirace.plain.ts`} class="text-ink underline decoration-line hover:decoration-ink">wikirace.plain.ts</a>.
+      </figcaption>
+    </figure>
+
+    <div>
+      <h2 class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+        Quick enough for every small step.
+      </h2>
+      <p class="mt-8 font-mono text-[clamp(3.5rem,8vw,5.5rem)] leading-none font-medium tracking-[-0.04em]">
+        {medianMs}<span class="text-[0.4em] tracking-normal text-muted"> ms</span>
+      </p>
+      <p class="mt-4 max-w-[46ch] text-muted">
+        The median request to Jev, a hosted decision model. It only picks; it never writes text.
+      </p>
+      <a
+        href="https://github.com/fishballapp/gut#how-it-does"
+        class="mt-6 inline-flex items-center gap-1 text-[13px] font-medium underline decoration-line hover:decoration-ink"
+      >
+        How it was measured, and the browser bench <Icon name="arrowUpRight" size={12} />
+      </a>
+    </div>
+  </div>
+</section>

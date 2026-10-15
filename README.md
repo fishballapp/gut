@@ -91,6 +91,24 @@ and binds each value to the field it may be typed into. The run prints JSON when
 `halted` with a reason. The calling agent reads the answer from the final context. Anything more
 dynamic is a script for `gut run`.
 
+## Try it
+
+The counter task needs no model: you answer each turn yourself, in the inspector. Then point the
+same task at one.
+
+```sh
+mkdir my-gut-task && cd my-gut-task && echo '{ "type": "module" }' > package.json   # a task is an ES module
+npm install @gut.run/core && npm install --global @gut.run/cli
+curl -O https://raw.githubusercontent.com/fishballapp/gut/main/examples/counter.gut.ts
+gut run counter.gut.ts --inspect
+```
+
+The counter counts to 3 with Add one, Subtract one, and a group of more moves. The inspector opens
+on 127.0.0.1; with no gut config, every turn waits for you: pick Add one three times, and the goal
+is met. Then put a `gut.config.json` in the folder ([Configuration](#configuration)), for example
+clef-flash on a local Ollama (`ollama pull clef-flash`), and run it again: Play lets the model
+answer.
+
 ## A task
 
 A script adds moves of its own. The Wikipedia race: get from one article to another by following
@@ -268,7 +286,11 @@ gut run projects/gut/examples/browser.gut.ts https://news.ycombinator.com \
 
 ### How it does
 
-The measured run was 15 of the bench's tasks (8 on local fixture sites — a docs site with a page of
+**Speed.** Requests to Jev on OpenRouter took a median of 255 ms (p90 330 ms), over 124 requests
+of 0.3k–7k tokens, barely growing with their size (measured 2026-10-05). A request is one
+turn, not a pick: a pick takes one request, or a few when its options are bundled or grouped.
+
+**The browser bench.** The measured run was 15 of the bench's tasks (8 on local fixture sites — a docs site with a page of
 30 links, an office directory of identical "Details" links, a two-field form, and results behind a
 dialog, each in two layouts — and 7 on live sites; the bench also has a Wikipedia race). Each run
 gets only what a caller knows: the start URL, the goal in words and the values to type, with links
@@ -470,11 +492,14 @@ Files don't merge.
 
 `decisionModel` is everything about the model, in one place:
 
-- `endpoint` is any `/v1/systemone` server: a local Ollama, or TypeSafe. It must report
-  `usage.input_tokens`, which the token budget counts. A network error, 429 or 5xx is retried 3
+- `endpoint` is any `/v1/systemone` server: a local Ollama (0.35.1 or later), TypeSafe, or
+  OpenRouter. Compatible is a contract, not a label: not every model called System 1 works with gut
+  as it is. The server must answer gut's choice questions with a probability for every option, and
+  report `usage.input_tokens`, which the token budget counts. A network error, 429 or 5xx is retried 3
   times, after 1, 2 and 4 s.
 - `name` is the model the server runs: `clef-flash`, or `~typesafe/jev-latest` on OpenRouter.
 - `apiKey`, optional, is sent as `Authorization: Bearer <apiKey>` (TypeSafe's API, OpenRouter).
+  gut is free; a hosted model's usage is billed by its provider.
 - `capabilities`, optional, says what the model can take; every field has a default:
   - `choiceQuestions.maxOptions` is the most options one choice question takes: 255 by default, as
     TypeSafe's Jev takes. Ollama takes at most 26 and rejects more ("criteria must contain 2–26

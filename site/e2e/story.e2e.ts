@@ -230,7 +230,7 @@ test.describe('on a desktop', () => {
     await open(page);
     await scrollToBeat(page, 0);
     expect(await sceneState(page)).toEqual(unscripted);
-    expect(await shownCaption(page)).toEqual(['imagine']);
+    expect(await shownCaption(page)).toEqual(['race']);
   });
 
   test('a trackpad swipe plays the story and glides to rest where it stopped', async ({ page }) => {
@@ -243,7 +243,7 @@ test.describe('on a desktop', () => {
     const frames = await framesOf(page);
     expectPinnedAndTrailing(frames, runway, 'down');
     expectToGlide(frames);
-    expect(await shownCaption(page)).not.toEqual(['imagine']);
+    expect(await shownCaption(page)).not.toEqual(['race']);
   });
 
   test('a swipe back up plays it back and glides to rest', async ({ page }) => {
@@ -299,7 +299,7 @@ test.describe('on a desktop', () => {
     expect(await shownCaption(page)).toEqual(['goal']);
     expect(await opacityOf(page, '.goal-top .lit')).toBe(1);
     await scrollToBeat(page, 0);
-    expect(await shownCaption(page)).toEqual(['imagine']);
+    expect(await shownCaption(page)).toEqual(['race']);
     expect(await opacityOf(page, '.goal-top .lit')).toBe(0);
     expect(await opacityOf(page, '.page')).toBe(0);
   });
@@ -314,7 +314,7 @@ test.describe('on a desktop', () => {
     await settle(page);
     const after = await page.evaluate(() => scrollY);
     expect(after).toBeGreaterThan(Math.max(before, start) + 400);
-    expect(await shownCaption(page)).not.toEqual(['imagine']);
+    expect(await shownCaption(page)).not.toEqual(['race']);
   });
 
   test('the narration on show can be selected', async ({ page }) => {
@@ -400,7 +400,7 @@ test.describe('read as prose', () => {
     const page = await context.newPage();
     await page.goto('/');
     const captions = page.locator('[data-caption]');
-    await expect(captions).toHaveCount(15);
+    await expect(captions).toHaveCount(9);
     for (const caption of await captions.all()) await expect(caption).toBeVisible();
     await expect(page.locator('.code-window')).toBeVisible();
     // The scene's other pieces are the stage's: here they stay out of the way.

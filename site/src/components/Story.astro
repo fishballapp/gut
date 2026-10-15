@@ -41,46 +41,40 @@ type Caption = {
 };
 const CAPTIONS: Caption[] = [
   {
-    id: 'imagine',
-    place: 'hero',
-    line: ['Imagine you’re playing WikiRace.'],
-    aside: 'Get from one Wikipedia page to another using only its links.',
-    beats: 1.2,
-  },
-  {
     id: 'race',
     place: 'hero',
     line: [
-      'Start at ',
-      { token: 'from', text: start, after: '.' },
-      ' Reach ',
+      'Imagine a WikiRace from ',
+      { token: 'from', text: start, after: '' },
+      ' to ',
       { token: 'to', text: goal, after: '.' },
     ],
+    aside: 'Get from one Wikipedia page to the other using only its links.',
+    beats: 1.5,
+  },
+  {
+    id: 'land',
+    place: 'heading',
+    line: [`You land on ${start}. To play, you need three things.`],
     beats: 1.6,
   },
-  { id: 'land', place: 'heading', line: [`You land on ${start}.`], beats: 1.4 },
-  { id: 'need', place: 'heading', line: ['To play, you need three things.'], beats: 1 },
   { id: 'goal', place: 'heading', line: ['A goal: where you’re going.'], beats: 1 },
   { id: 'context', place: 'heading', line: ['Context: where you are now.'], beats: 1 },
-  { id: 'ops', place: 'heading', line: ['Ops: what you can do. Here, click a link.'], beats: 1.2 },
-  { id: 'you', place: 'heading', line: ['Then you decide.'], beats: 2 },
-  { id: 'ai', place: 'heading', line: ['Now swap yourself for an AI.'], beats: 1.2 },
-  { id: 'gut', place: 'heading', line: ['gut lets you express exactly this.'], beats: 1.2 },
-  { id: 'code', place: 'heading', line: ['In code, it’s this.'], beats: 1.6 },
-  { id: 'fill-goal', place: 'heading', line: ['The goal is one line.'], beats: 1 },
+  { id: 'ops', place: 'heading', line: ['Ops: what you can do. Here, click a link.'], beats: 1 },
+  { id: 'you', place: 'heading', line: ['Then you decide.'], beats: 1.8 },
+  { id: 'ai', place: 'heading', line: ['Now swap yourself for an AI.'], beats: 1 },
   {
-    id: 'fill-context',
+    id: 'code',
     place: 'heading',
-    line: ['The context around it is what the model reads.'],
-    beats: 1,
+    line: ['With gut, those three things are the whole task.'],
+    beats: 2.6,
   },
   {
-    id: 'fill-ops',
+    id: 'run',
     place: 'heading',
-    line: ['The ops are what it can do. That’s the whole task.'],
-    beats: 1.2,
+    line: ['Run it. You wrote the moves; gut finds the path.'],
+    beats: 2.4,
   },
-  { id: 'run', place: 'heading', line: ['Run it.'], beats: 2.6 },
 ];
 // Where each caption starts on the runway, in beats.
 const starts = CAPTIONS.map((_, index) =>
@@ -448,25 +442,25 @@ const ARROWS = ['goal', 'context', 'ops', 'pick'] as const;
       timeline.set(next, { pointerEvents: 'auto' }, end - 0.05);
     });
 
-    // Start at Banana. Reach Roman Empire: the highlighter runs under the two places, they lift
-    // out of the sentence and fly up into the goal at the top of the stage.
+    // A WikiRace from Banana to Roman Empire: the highlighter runs under the two places, they
+    // lift out of the sentence and fly up into the goal at the top of the stage.
     timeline.fromTo(
       all('.story-mark'),
       { scaleX: 0 },
       { scaleX: 1, duration: 0.3, stagger: 0.2, ease: 'power2.out' },
       at('race', 0.15),
     );
-    enter('.goal-top .pill', at('land', -0.75), { scale: 0.92 }, { duration: 0.3 });
-    fade('[data-caption="race"] .story-plain', at('land', -0.95), 0, 0.3);
-    fly('token-from', at('land', -0.95));
-    fly('token-to', at('land', -0.9));
+    enter('.goal-top .pill', at('land', -0.5), { scale: 0.92 }, { duration: 0.3 });
+    fade('[data-caption="race"] :is(.story-plain, .story-aside)', at('land', -0.7), 0, 0.3);
+    fly('token-from', at('land', -0.7));
+    fly('token-to', at('land', -0.65));
 
     // You land on Banana: the page comes up from below.
     enter('.page', at('land', -0.2), { y: 480 }, { duration: 0.8 });
 
-    // To play, you need three things: the page's text recedes, and a number marks each.
-    fade('.page-bar, .page-from, .page-infobox', at('need'), 0.3, 0.3, 1);
-    enter('.tag-number', at('need', 0.1), { scale: 0.4 }, { duration: 0.3, stagger: 0.12, ease: 'back.out(2)' });
+    // You need three things: the page's text recedes, and a number marks each.
+    fade('.page-bar, .page-from, .page-infobox', at('land', 0.75), 0.3, 0.3, 1);
+    enter('.tag-number', at('land', 0.85), { scale: 0.4 }, { duration: 0.3, stagger: 0.12, ease: 'back.out(2)' });
 
     // A goal, context, ops: each lit, and its number turned into its name.
     const light = (thing: Thing, lit: string) => {
@@ -492,19 +486,18 @@ const ARROWS = ['goal', 'context', 'ops', 'pick'] as const;
     enter('.column .card .lit', decide + 0.65, { scale: 0.9 }, { duration: 0.25 });
     leave('.page', decide + 0.35, { y: 60, scale: 0.96 }, { duration: 0.35 });
     enter('.figure-person', decide + 0.55, { y: 50 }, { duration: 0.45 });
-    THINGS.forEach((name, index) => draw(name, decide + 0.9 + index * 0.1));
-    draw('pick', decide + 1.35, 0.35);
-    enter('.pick-ring', decide + 1.7, { scale: 1.3 }, { duration: 0.2 });
+    THINGS.forEach((name, index) => draw(name, decide + 0.85 + index * 0.1));
+    draw('pick', decide + 1.25, 0.35);
+    enter('.pick-ring', decide + 1.55, { scale: 1.3 }, { duration: 0.2 });
 
     // Now swap yourself for an AI: the same figure, a robot's head on it.
     leave('.figure-person', at('ai', 0.1), { scale: 0.94 });
     enter('.figure-robot', at('ai', 0.25), { scale: 1.06 });
 
-    // gut lets you express exactly this: gut's own cartoon comes up behind it all.
-    enter('.stage-gut', at('gut', 0.05), { scale: 1.08 }, { duration: 0.8 });
-
-    // In code, it's this: the decider and arrows go, and the column becomes a row over the code.
+    // With gut, those three things are the whole task: gut's own cartoon comes up behind it all,
+    // the decider and arrows go, and the column becomes a row over the code.
     const code = at('code');
+    enter('.stage-gut', code + 0.05, { scale: 1.08 }, { duration: 0.8 });
     leave('.decider, .arrows', code, { scale: 0.96 });
     for (const thing of THINGS) {
       fly(`${thing}-row`, code + 0.1);
@@ -513,15 +506,15 @@ const ARROWS = ['goal', 'context', 'ops', 'pick'] as const;
     enter('.code', code + 0.4, { y: 60 }, { duration: 0.6 });
     enter('.code-window > .code-line, .slot-dash', code + 0.5, { y: 8 }, { duration: 0.3, stagger: 0.015 });
 
-    // The goal, the context, the ops: each lands on its slot and fills it.
-    for (const thing of THINGS) {
-      const time = at(`fill-${thing}`, 0.05);
+    // The goal, the context, the ops: each lands on its slot and fills it, one after another.
+    THINGS.forEach((thing, index) => {
+      const time = code + 0.9 + index * 0.45;
       const slot = one(`.code-slot[data-slot="${thing}"]`);
       fly(`${thing}-code`, time, 0.5);
       leave(`.row [data-thing="${thing}"]`, time, { y: -8 }, { duration: 0.2 });
       fade(one(':scope > .slot-dash', slot), time + 0.3, 0, 0.15);
       enter(all(':scope > .code-line', slot), time + 0.4, { x: -8 }, { duration: 0.3, stagger: 0.02 });
-    }
+    });
 
     // Run it: the code steps aside for a terminal, the command types, the rounds stream in as the
     // reader scrolls, and the goal is met.

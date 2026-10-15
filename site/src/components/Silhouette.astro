@@ -11,7 +11,7 @@ const { lines, tone } = Astro.props;
 <div aria-hidden="true" class="flex flex-col gap-px">
   {
     lines.map(({ indent, length }) => (
-      <span class="block h-[3px]">
+      <span class="block h-[2px]">
         {length > 0 && (
           <span
             class:list={[

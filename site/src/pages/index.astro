@@ -1,12 +1,10 @@
 ---
-import Comparison from '../components/Comparison.astro';
 import Demo from '../components/Demo.astro';
-import Flowchart from '../components/Flowchart.astro';
+import Fits from '../components/Fits.astro';
 import GetStarted from '../components/GetStarted.astro';
 import GutBackground from '../components/GutBackground.astro';
 import Icon from '../components/Icon.astro';
-import Measured from '../components/Measured.astro';
-import Models from '../components/Models.astro';
+import Proof from '../components/Proof.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import Story from '../components/Story.astro';
@@ -18,9 +16,7 @@ import Layout from '../layouts/Layout.astro';
   <SiteHeader />
   <main class="isolate">
     <section class="mx-auto max-w-6xl px-5 pt-14 pb-12 sm:px-8 sm:pt-20 lg:pb-14">
-      <p class="font-mono text-[13px] text-muted">
-        The open-source TypeScript framework for System&nbsp;1 models
-      </p>
+      <p class="font-mono text-[13px] text-muted">For developers building agents</p>
       <h1
         class="mt-4 text-[clamp(2.75rem,7vw,5rem)] leading-[0.98] font-semibold tracking-[-0.035em] text-balance"
       >
@@ -28,8 +24,8 @@ import Layout from '../layouts/Layout.astro';
         <span class="sm:block">Give them <span class="marked marked-stroke">a&nbsp;gut.</span></span>
       </h1>
       <p class="mt-8 max-w-[58ch] text-[17px] leading-relaxed text-muted">
-        Write the moves in TypeScript. gut runs the loop while a fast decision model picks the next
-        move, round by round, until the goal is met. The model only picks; it never generates text.
+        Let your agent’s big model think once, to set the goal. gut hands every small pick after
+        that to a fast decision model, round by round, until the goal is met.
       </p>
       <div class="mt-9 flex flex-wrap items-center gap-x-6 gap-y-4">
         <a
@@ -55,18 +51,10 @@ import Layout from '../layouts/Layout.astro';
     </section>
 
     <Story />
-
-    <div class="border-t border-line pt-20 lg:pt-24">
-      <Demo />
-    </div>
-
-    <div class="mt-20 lg:mt-28">
-      <Models />
-      <Flowchart />
-      <Comparison />
-      <Measured />
-      <GetStarted />
-    </div>
+    <Fits />
+    <Proof />
+    <Demo />
+    <GetStarted />
   </main>
   <SiteFooter />
 </Layout>
