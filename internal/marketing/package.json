@@ -6,10 +6,19 @@
   "exports": {
     "./Layout.astro": "./src/Layout.astro",
     "./PostHog.astro": "./src/PostHog.astro",
+    "./integration": "./src/integration.ts",
     "./posthog": "./src/posthog.ts"
   },
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
-    "@fishballapps/cookie-consent": "workspace:*"
+    "@fishballapps/cookie-consent": "workspace:*",
+    "node-html-parser": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "astro": "catalog:"

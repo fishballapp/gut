@@ -13,10 +13,6 @@ const {
   description = GUT_DESCRIPTION,
 } = Astro.props;
 
-// With build.format 'file', Astro.url.pathname is the built file ("/index.html", "/404.html").
-const pathname = Astro.url.pathname.replace(/\.html$/, '').replace(/^\/index$/, '/');
-const canonicalUrl = new URL(pathname, SITE_URL).href;
-
 const softwareSourceCodeSchema = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareSourceCode',
@@ -35,13 +31,16 @@ const POSTHOG_API_KEY = 'phc_mYfCMfvm6cQZWkPQy9vHog8dDRocSQzPFTH5P4c35Yji';
 ---
 
 <MarketingLayout
-  siteUrl={SITE_URL}
-  canonicalUrl={canonicalUrl}
   title={title}
   description={description}
   ogSiteName="gut"
   ogLocale="en_US"
-  ogImagePath="/og.png"
+  ogImage={{
+    path: '/og.png',
+    alt: 'gut: Agents think too much. Give them a gut. An open-source TypeScript runtime for agent tasks, beside a smiling cartoon gut.',
+    width: 2400,
+    height: 1260,
+  }}
   themeColor="#f6f5f0"
   htmlLang="en"
   fontHref={null}

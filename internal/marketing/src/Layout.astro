@@ -9,20 +9,16 @@ export type CookieConsentCopy = {
 };
 
 type Props = {
-  // Canonical root URL for the site (e.g. 'https://socialized.dev').
-  siteUrl: string;
-  // Full canonical URL for this page (e.g. 'https://socialized.dev/privacy').
-  // Defaults to siteUrl if not provided.
-  canonicalUrl?: string;
   title: string;
   description: string;
   ogTitle?: string;
   ogDescription?: string;
   ogSiteName: string;
   ogLocale?: string;
-  // Absolute path to the share image, relative to site root (e.g. '/social.png').
-  // When omitted, og:image is not rendered.
-  ogImagePath?: string;
+  // The share image. `path` is from the site root (e.g. '/og.png'); `width` and `height` are the
+  // file's real pixels, declared so the first share renders before the scraper has fetched it.
+  // When omitted, no og:image is rendered and the Twitter card is `summary`.
+  ogImage?: { path: string; alt: string; width: number; height: number };
   themeColor: string;
   // Apple App Store numeric ID (e.g. '6758626786'). When set, renders the
   // <meta name="apple-itunes-app"> tag for iOS Safari's Smart App Banner.
@@ -32,11 +28,11 @@ type Props = {
   // Google Fonts (or any other stylesheet) <link href>. Pass `null` to
   // skip loading a font stylesheet entirely.
   fontHref: string | null;
-  // JSON-LD object for the page (typically a SoftwareApplication for
-  // the marketing landing page). Server-rendered, not JS-injected, per
-  // Google's Dec 2025 guidance that JS-injected structured data may
-  // face delayed processing.
+  // JSON-LD object for the page (typically a SoftwareApplication on the home page). Server-rendered
+  // so it is in the HTML Google reads first; the home page also gets a WebSite block on its own.
   structuredData?: Record<string, unknown>;
+  // `false` renders `robots: noindex`; the build check then fails while the page is in the sitemap.
+  isIndexable?: boolean;
   // PostHog public project key (phc_...). Localhost is auto-skipped. Omit it for a site with no
   // analytics: no snippet and no consent banner.
   posthogApiKey?: string;
@@ -49,30 +45,44 @@ type Props = {
 };
 
 const {
-  siteUrl,
-  canonicalUrl,
   title,
   description,
   ogTitle,
   ogDescription,
   ogSiteName,
   ogLocale,
-  ogImagePath,
+  ogImage,
   themeColor,
   appStoreId,
   htmlLang,
   fontHref,
   structuredData,
+  isIndexable = true,
   posthogApiKey,
   posthogHost,
   privacyPolicyHref = '/privacy',
   cookieConsentCopy,
 } = Astro.props;
 
-const pageUrl = canonicalUrl ?? siteUrl;
-const ogImageUrl = ogImagePath !== undefined ? `${siteUrl}${ogImagePath}` : undefined;
-const resolvedOgTitle = ogTitle ?? title;
-const resolvedOgDescription = ogDescription ?? description;
+if (Astro.site === undefined) {
+  throw new Error('@fishballapps/marketing Layout: set `site` in astro.config');
+}
+
+// Under build.format 'file' the pathname is the built file ("/index.html", "/about.html"), which
+// Workers Static Assets serves at "/" and "/about": the URL that answers 200 is the canonical.
+const pageUrl = new URL(
+  Astro.url.pathname.replace(/\.html$/, '').replace(/\/index$/, '/'),
+  Astro.site,
+).href;
+const homeUrl = new URL('/', Astro.site).href;
+const ogImageUrl = ogImage !== undefined ? new URL(ogImage.path, Astro.site).href : undefined;
+
+const jsonLdBlocks = [
+  ...(pageUrl === homeUrl
+    ? [{ '@context': 'https://schema.org', '@type': 'WebSite', name: ogSiteName, url: homeUrl }]
+    : []),
+  ...(structuredData !== undefined ? [structuredData] : []),
+];
 ---
 
 <!doctype html>
@@ -83,6 +93,7 @@ const resolvedOgDescription = ogDescription ?? description;
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     <meta name="description" content={description} />
+    {!isIndexable && <meta name="robots" content="noindex" />}
     <link rel="canonical" href={pageUrl} />
     <meta name="theme-color" content={themeColor} />
 
@@ -96,21 +107,27 @@ const resolvedOgDescription = ogDescription ?? description;
     <meta property="og:type" content="website" />
     <meta property="og:url" content={pageUrl} />
     <meta property="og:site_name" content={ogSiteName} />
-    <meta property="og:title" content={resolvedOgTitle} />
-    <meta property="og:description" content={resolvedOgDescription} />
+    <meta property="og:title" content={ogTitle ?? title} />
+    <meta property="og:description" content={ogDescription ?? description} />
     {ogLocale !== undefined && <meta property="og:locale" content={ogLocale} />}
-    {ogImageUrl !== undefined && (
+    {ogImage !== undefined && (
       <>
         <meta property="og:image" content={ogImageUrl} />
-        <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
+        <meta property="og:image:width" content={String(ogImage.width)} />
+        <meta property="og:image:height" content={String(ogImage.height)} />
+        <meta property="og:image:alt" content={ogImage.alt} />
       </>
     )}
 
     {/* Twitter / X card. Falls back to og: tags but image is explicit
         because some clients still check twitter:image first. */}
-    <meta name="twitter:card" content="summary_large_image" />
-    {ogImageUrl !== undefined && <meta name="twitter:image" content={ogImageUrl} />}
+    <meta name="twitter:card" content={ogImage !== undefined ? 'summary_large_image' : 'summary'} />
+    {ogImage !== undefined && (
+      <>
+        <meta name="twitter:image" content={ogImageUrl} />
+        <meta name="twitter:image:alt" content={ogImage.alt} />
+      </>
+    )}
 
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -122,13 +139,14 @@ const resolvedOgDescription = ogDescription ?? description;
       </>
     )}
 
-    {structuredData !== undefined && (
+    {/* `<` escaped so a value holding "</script>" can't close the tag. */}
+    {jsonLdBlocks.map(block => (
       <script
         is:inline
         type="application/ld+json"
-        set:html={JSON.stringify(structuredData)}
+        set:html={JSON.stringify(block).replaceAll('<', '\\u003c')}
       />
-    )}
+    ))}
 
     {posthogApiKey !== undefined && <PostHog apiKey={posthogApiKey} host={posthogHost} />}
     <slot name="head" />
