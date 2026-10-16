@@ -1,0 +1,4 @@
+# Fingerprinted Astro assets are named by their content, so they can be cached for a year. HTML is
+# not fingerprinted and keeps the Workers default, so it revalidates.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable

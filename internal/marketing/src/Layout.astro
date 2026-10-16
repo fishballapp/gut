@@ -131,6 +131,7 @@ const resolvedOgDescription = ogDescription ?? description;
     )}
 
     {posthogApiKey !== undefined && <PostHog apiKey={posthogApiKey} host={posthogHost} />}
+    <slot name="head" />
   </head>
   <body class="bg-background font-sans text-foreground antialiased">
     <slot />
