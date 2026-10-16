@@ -8,7 +8,8 @@ export default defineConfig({
   site: 'https://gut.run',
   trailingSlash: 'never',
   build: { format: 'file' },
-  integrations: [sitemap()],
+  // /og is the page public/og.png is screenshotted from, not a page to find.
+  integrations: [sitemap({ filter: page => !page.endsWith('/og') })],
   vite: {
     plugins: [tailwindcss()],
   },

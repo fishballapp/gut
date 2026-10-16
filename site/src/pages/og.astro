@@ -1,0 +1,122 @@
+---
+/*
+The Open Graph card, 1200 by 630: the headline beside gut's mascot. It is a page so
+it draws with the site's own fonts, tokens and cartoon; the shipped asset is a headless-Chrome
+screenshot of the built page, at 2x, saved as public/og.png. Noindexed, unlinked and left out of
+the sitemap. Regenerate after changing this file, from the repo root (preview serves in the
+background, on 4321 unless it is taken: it prints its URL):
+
+  pnpm -F @gut.run/site build && pnpm -F @gut.run/site preview
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless \
+    --screenshot=projects/gut/site/public/og.png --window-size=1200,630 \
+    --force-device-scale-factor=2 --hide-scrollbars \
+    --virtual-time-budget=4000 http://localhost:4321/og
+  pnpm -F @gut.run/site astro preview stop
+*/
+import '@fontsource-variable/geist';
+import '../../../packages/inspector/src/styles/tokens.css';
+import { gutEyes, gutPath } from '../../../packages/inspector/src/assets/gut.ts';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>gut Open Graph card</title>
+    <style is:global>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+
+      html,
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background: var(--ground);
+      }
+
+      body {
+        position: relative;
+        font-family: "Geist Variable", sans-serif;
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .copy {
+        position: absolute;
+        left: 64px;
+        top: 56px;
+        bottom: 56px;
+        width: 600px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .wordmark {
+        align-self: flex-start;
+        border-radius: 6px;
+        background: var(--mark);
+        padding: 0 10px;
+        color: var(--on-mark);
+        font-size: 40px;
+        line-height: 1.3;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+      }
+
+      h1 {
+        margin-top: auto;
+        font-size: 84px;
+        line-height: 0.98;
+        font-weight: 600;
+        letter-spacing: -0.035em;
+      }
+
+      /* The site's headline stroke: a highlighter drawn low across the display type. */
+      .marked {
+        background: linear-gradient(var(--mark), var(--mark)) 0 86% / 100% 0.52em no-repeat;
+        padding-inline: 0.08em;
+        margin-inline: -0.08em;
+      }
+
+      .lede {
+        margin-top: 28px;
+        color: var(--muted);
+        font-size: 28px;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+      }
+
+      /* The mascot in ink on the page, as large as the card allows. */
+      .gut {
+        position: absolute;
+        right: 56px;
+        top: 56px;
+        width: 518px;
+        height: 518px;
+        color: var(--ink);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="copy">
+      <span class="wordmark">gut</span>
+      <h1>Agents think<br />too much.<br />Give them<br /><span class="marked">a gut.</span></h1>
+      <p class="lede">Open-source TypeScript runtime<br />for agent tasks</p>
+    </div>
+
+    <svg class="gut" aria-hidden="true" viewBox="120 140 784 784">
+      <path
+        d={gutPath}
+        fill="none"
+        stroke="currentColor"
+        stroke-width="9"
+        stroke-linecap="round"
+        stroke-linejoin="round"></path>
+      {gutEyes.map(({ cx, cy }) => <circle cx={cx} cy={cy} r={11} fill="currentColor" />)}
+    </svg>
+  </body>
+</html>
