@@ -43,6 +43,12 @@ Any element with a `data-cookie-settings` attribute anywhere in the DOM will reo
 <button type="button" data-cookie-settings>Cookie settings</button>
 ```
 
+### Keeping clear of the banner
+
+While the banner shows, the element sets `--cookie-consent-inset` on the root element to how much
+of the window's bottom it covers (`0px` once it's answered), so a page can lift what must stay
+visible: `bottom: calc(1.5rem + var(--cookie-consent-inset, 0px))`.
+
 ## Analytics Hook (e.g. PostHog)
 
 Analytics libraries sync with the consent store using `getConsent` and `onConsentChange`:

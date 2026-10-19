@@ -2,6 +2,12 @@ import { getConsent, setConsent } from './consent';
 
 const STYLE_ID = 'fishball-cookie-consent-styles';
 
+/**
+ * How much of the window's bottom the banner covers while it shows (`0px` once answered), set on
+ * the root element so a page can keep what matters clear of it.
+ */
+export const COOKIE_CONSENT_INSET = '--cookie-consent-inset';
+
 const STYLES = `
 cookie-consent {
   display: block;
@@ -212,6 +218,14 @@ export class CookieConsentElement extends HTMLElement {
     this.appendChild(bar);
 
     this.hidden = getConsent() !== null;
+
+    // The bar's box changes as it shows, hides or wraps; the window's height moves its top.
+    const publishInset = () => {
+      const inset = this.hidden ? 0 : Math.max(0, innerHeight - bar.getBoundingClientRect().top);
+      document.documentElement.style.setProperty(COOKIE_CONSENT_INSET, `${Math.round(inset)}px`);
+    };
+    new ResizeObserver(publishInset).observe(bar);
+    addEventListener('resize', publishInset);
   }
 
   attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null): void {

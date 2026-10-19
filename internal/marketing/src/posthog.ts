@@ -16,11 +16,13 @@ declare global {
  * stub queues `capture()` until the SDK loads, and on Accept the SDK replays that queue after the
  * opt-in, so a click made while `getConsent()` is still `null` must never reach `posthog.capture`:
  * a pre-choice CTA would ship after Accept. Once a choice exists, capture as usual; a rejecter is
- * still counted on PostHog's cookieless path.
+ * still counted on PostHog's cookieless path. Returns whether it captured, so a once-per-page event
+ * can wait for the first one after the choice.
  */
-export const captureIfDecided = (event: string, properties?: Record<string, unknown>): void => {
-  if (getConsent() === null) return;
+export const captureIfDecided = (event: string, properties?: Record<string, unknown>): boolean => {
+  if (getConsent() === null) return false;
   window.posthog?.capture?.(event, properties);
+  return true;
 };
 
 const applyConsent = (consent: Consent, isUserAction: boolean): void => {
