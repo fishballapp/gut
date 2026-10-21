@@ -60,14 +60,14 @@ import Layout from '../layouts/Layout.astro';
 </Layout>
 
 <script>
-  // Bundled, not is:inline, so it can import captureIfDecided (skips while consent is undecided).
-  import { captureIfDecided } from '@fishballapps/marketing/posthog';
+  // Bundled, not is:inline, so it can import capture.
+  import { capture } from '@fishballapps/marketing/posthog';
 
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
     button.addEventListener('click', async () => {
       const command = button.dataset.copy ?? '';
       await navigator.clipboard.writeText(command);
-      captureIfDecided('command_copied', { command });
+      capture('command_copied', { command });
       button.dataset.copied = '';
       setTimeout(() => delete button.dataset.copied, 1600);
     });

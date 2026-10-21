@@ -73,6 +73,13 @@ describe('consent store', () => {
     expect(memoryStorage.getItem(COOKIE_CONSENT_KEY)).toBe('denied');
   });
 
+  it('stores nothing until the visitor chooses', () => {
+    expect(getConsent()).toBeNull();
+    onConsentChange(() => {});
+
+    expect(memoryStorage.length).toBe(0);
+  });
+
   it('returns null for invalid stored values', () => {
     memoryStorage.setItem(COOKIE_CONSENT_KEY, 'unknown_value');
     expect(getConsent()).toBeNull();

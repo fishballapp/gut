@@ -3,19 +3,20 @@
 // capture() calls survive the gap between page parse and the real SDK
 // arriving.
 //
-// UK PECR / ICO compliance:
-// `cookieless_mode: 'on_reject'` ensures that no cookies or browser storage
-// (localStorage / sessionStorage) are written, and no events are captured,
-// until the visitor has either granted or denied consent via the cookie
-// consent banner. Pre-consent events are not captured.
+// UK PECR / ICO compliance: nothing is written to cookies, localStorage or
+// sessionStorage until the visitor accepts on the cookie consent banner.
+// `cookieless_mode: 'on_reject'` with `opt_out_capturing_by_default: true`
+// treats a visitor who hasn't chosen as opted out by default: PostHog counts
+// them, page views and custom events alike, with its cookieless server-side
+// hash, and stores nothing, not even an opt-out flag.
 //
 // Single source of truth:
 // The `@fishballapps/cookie-consent` store holds the visitor's choice.
 // When consent is 'granted', `posthog.opt_in_capturing()` enables cookies
 // and client storage.
-// When consent is 'denied', `posthog.opt_out_capturing()` switches to
-// PostHog's cookieless server-side hash mode, counting visits without cookies
-// (PostHog keeps only its opt-out flag, `__ph_opt_in_out_<key>`, in localStorage).
+// When consent is 'denied', `posthog.opt_out_capturing()` keeps the
+// cookieless counting and stores PostHog's opt-out flag,
+// `__ph_opt_in_out_<key>`, in localStorage.
 //
 // The IIFE below is PostHog's canonical snippet, pasted verbatim from
 // project settings. Do not pretty-format — it relies on comma-operator
@@ -57,6 +58,7 @@ const {
       person_profiles: 'identified_only',
       disable_session_recording: true,
       cookieless_mode: 'on_reject',
+      opt_out_capturing_by_default: true,
     });
   }
 </script>
