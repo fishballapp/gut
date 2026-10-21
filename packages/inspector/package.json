@@ -30,7 +30,6 @@
   },
   "devDependencies": {
     "@base-ui/react": "catalog:",
-    "@fishballapps/cn": "workspace:*",
     "@fontsource-variable/geist": "catalog:",
     "@fontsource-variable/geist-mono": "catalog:",
     "@gut.run/core": "workspace:*",
@@ -42,6 +41,7 @@
     "@types/react-dom": "catalog:web",
     "@vitejs/plugin-react": "catalog:",
     "class-variance-authority": "catalog:",
+    "cn": "catalog:",
     "motion": "catalog:",
     "react": "catalog:web",
     "react-dom": "catalog:web",

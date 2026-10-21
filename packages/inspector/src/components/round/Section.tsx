@@ -1,5 +1,5 @@
-import { cn } from '@fishballapps/cn';
 import { CheckIcon, CopyIcon } from '@phosphor-icons/react';
+import { cn } from 'cn';
 import { type ReactNode, useState } from 'react';
 
 /** A small, quiet button in a section's header: Copy, Edit. */

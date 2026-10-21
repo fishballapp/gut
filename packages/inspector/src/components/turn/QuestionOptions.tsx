@@ -1,5 +1,5 @@
 import { RadioGroup } from '@base-ui/react/radio-group';
-import { cn } from '@fishballapps/cn';
+import { cn } from 'cn';
 import { motion, useReducedMotion } from 'motion/react';
 import { type Ref, useEffect, useId, useRef } from 'react';
 import { GOAL_QUESTION_KEY, keycapOf, LIST_LIMIT } from '../../lib/answer.ts';

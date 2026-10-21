@@ -1,6 +1,6 @@
 import { Tooltip } from '@base-ui/react/tooltip';
-import { cn } from '@fishballapps/cn';
 import { UserIcon } from '@phosphor-icons/react';
+import { cn } from 'cn';
 import type { ReactNode, Ref } from 'react';
 import { type CurrentState, isAwaitingYou } from '../../lib/current-turn.ts';
 import type { BlockLook } from '../../lib/turn-block.ts';

@@ -1,4 +1,4 @@
-import { cn } from '@fishballapps/cn';
+import { cn } from 'cn';
 import { type CopyBack, copyTextOf, MARK } from '../../lib/edit-copy.ts';
 import type { DiffLine } from '../../lib/line-diff.ts';
 import { CopyButton, Section } from './Section.tsx';

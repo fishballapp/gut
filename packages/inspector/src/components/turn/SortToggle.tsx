@@ -1,6 +1,6 @@
 import { Toggle } from '@base-ui/react/toggle';
 import { ToggleGroup } from '@base-ui/react/toggle-group';
-import { cn } from '@fishballapps/cn';
+import { cn } from 'cn';
 import type { OptionSort } from '../../lib/sort-options.ts';
 
 const OPTIONS: { value: OptionSort; label: string }[] = [

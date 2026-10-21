@@ -1,5 +1,5 @@
 import { Tooltip } from '@base-ui/react/tooltip';
-import { cn } from '@fishballapps/cn';
+import { cn } from 'cn';
 import type { ReactNode, RefObject } from 'react';
 import type { CurrentState } from '../../lib/current-turn.ts';
 import { roundEdits } from '../../lib/edit-draft.ts';

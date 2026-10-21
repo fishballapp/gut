@@ -1,6 +1,6 @@
 import { Collapsible } from '@base-ui/react/collapsible';
-import { cn } from '@fishballapps/cn';
 import { CaretRightIcon } from '@phosphor-icons/react';
+import { cn } from 'cn';
 import { type ReactNode, useState } from 'react';
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>

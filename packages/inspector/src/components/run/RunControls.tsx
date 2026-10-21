@@ -1,7 +1,7 @@
 import { Button } from '@base-ui/react/button';
 import { Tooltip } from '@base-ui/react/tooltip';
-import { cn } from '@fishballapps/cn';
 import type { Action } from '@gut.run/core/inspector';
+import { cn } from 'cn';
 import { type ReactNode, useEffect, useEffectEvent } from 'react';
 import type { ActOutcome, ConnectionStatus } from '../../lib/connection.ts';
 import { isKeyBlocked } from '../../lib/key-target.ts';

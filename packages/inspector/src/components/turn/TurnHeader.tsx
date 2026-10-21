@@ -1,4 +1,4 @@
-import { cn } from '@fishballapps/cn';
+import { cn } from 'cn';
 import { turnStatusLabel } from '../../lib/turn-display.ts';
 import type { Round, Turn } from '../../state/inspector-state.ts';
 

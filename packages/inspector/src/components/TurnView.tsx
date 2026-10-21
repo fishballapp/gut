@@ -1,5 +1,5 @@
-import { cn } from '@fishballapps/cn';
 import type { Action } from '@gut.run/core/inspector';
+import { cn } from 'cn';
 import { motion } from 'motion/react';
 import { useState } from 'react';
 import { type ActOutcome, type ConnectionStatus, isReplay } from '../lib/connection.ts';

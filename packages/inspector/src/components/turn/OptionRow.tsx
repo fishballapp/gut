@@ -1,5 +1,5 @@
 import { Radio } from '@base-ui/react/radio';
-import { cn } from '@fishballapps/cn';
+import { cn } from 'cn';
 import { motion, useReducedMotion } from 'motion/react';
 import { formatProbability } from '../../lib/format.ts';
 import { REORDER_SECONDS, staggerSeconds } from '../../lib/option-motion.ts';

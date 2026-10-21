@@ -9,7 +9,6 @@
     { "path": "./examples" },
     { "path": "./site" },
     { "path": "./site/e2e" },
-    { "path": "./internal/cn" },
     { "path": "./internal/marketing" },
     { "path": "./internal/cookie-consent" }
   ]

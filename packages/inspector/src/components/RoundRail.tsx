@@ -1,5 +1,5 @@
 import { Tooltip } from '@base-ui/react/tooltip';
-import { cn } from '@fishballapps/cn';
+import { cn } from 'cn';
 import { useEffect, useEffectEvent, useRef } from 'react';
 import { isReplay } from '../lib/connection.ts';
 import { currentTurnOf, roundCurrentState } from '../lib/current-turn.ts';

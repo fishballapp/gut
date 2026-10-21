@@ -1,5 +1,5 @@
-import { cn } from '@fishballapps/cn';
 import type { Action } from '@gut.run/core/inspector';
+import { cn } from 'cn';
 import { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import { type ActOutcome, isReplay } from '../lib/connection.ts';
 import { copyBackOf } from '../lib/edit-copy.ts';

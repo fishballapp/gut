@@ -1,4 +1,4 @@
-import { cn } from '@fishballapps/cn';
+import { cn } from 'cn';
 import type { ReactNode } from 'react';
 import { isReplay } from '../../lib/connection.ts';
 import type { Ending } from '../../lib/endings.ts';

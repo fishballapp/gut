@@ -1,7 +1,7 @@
 import { Collapsible } from '@base-ui/react/collapsible';
-import { cn } from '@fishballapps/cn';
 import type { OpAddress, OpChoiceNode, OpTreeNode } from '@gut.run/core/inspector';
 import { CaretRightIcon } from '@phosphor-icons/react';
+import { cn } from 'cn';
 import { useEffect, useRef, useState } from 'react';
 import { isOnPath } from '../../lib/op-path.ts';
 import { revealWithin } from '../../lib/reveal.ts';

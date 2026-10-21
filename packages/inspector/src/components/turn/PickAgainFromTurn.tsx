@@ -1,6 +1,6 @@
 import { Button } from '@base-ui/react/button';
-import { cn } from '@fishballapps/cn';
 import type { Action } from '@gut.run/core/inspector';
+import { cn } from 'cn';
 import { useState } from 'react';
 import type { ActOutcome } from '../../lib/connection.ts';
 import { pickAgainNote } from '../../lib/pick-again.ts';
