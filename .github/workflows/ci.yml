@@ -32,12 +32,15 @@ jobs:
       - run: pnpm check
       - run: pnpm repojj:check
       - run: pnpm typecheck
+      # A browser build links against the OS it was built for, so the Ubuntu release is in the key.
+      - id: os-release
+        run: echo "release=$(. /etc/os-release && echo "$ID-$VERSION_ID")" >> "$GITHUB_OUTPUT"
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ steps.os-release.outputs.release }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Install Playwright chromium (browser)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
