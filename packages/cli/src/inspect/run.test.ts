@@ -30,7 +30,8 @@ describe('runInspected', () => {
       file,
       `setTimeout(() => import('node:fs').then(fs => fs.writeFileSync(${JSON.stringify(marker)}, 'x')), 1500);\n`,
     );
-    const taken = createServer();
+    // Tools that scan local ports connect here too, and an unread socket would keep `close` waiting.
+    const taken = createServer(socket => socket.destroy());
     await new Promise<void>(resolve => taken.listen(0, '127.0.0.1', resolve));
     const address = taken.address();
     if (address === null || typeof address === 'string') throw new Error('no port');
