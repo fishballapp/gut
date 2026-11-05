@@ -17,38 +17,43 @@ cookie-consent[hidden] {
 }
 .cookie-consent-bar {
   position: fixed;
-  bottom: 1rem;
-  left: 1rem;
-  right: 1rem;
+  bottom: max(0.5rem, env(safe-area-inset-bottom));
+  left: 0.5rem;
+  right: 0.5rem;
   margin-left: auto;
   margin-right: auto;
   max-width: 44rem;
   z-index: 9999;
   box-sizing: border-box;
-  padding: 1rem 1.25rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.75rem;
   border-radius: var(--radius-lg, var(--radius, var(--dm-radius, 10px)));
   background-color: var(--color-card, var(--card, var(--dm-bg-secondary, var(--color-background, var(--background, var(--dm-bg, #ffffff))))));
   color: var(--color-foreground, var(--foreground, var(--dm-fg, #111111)));
   border: 1px solid var(--color-border, var(--border, var(--dm-border, rgba(0, 0, 0, 0.15))));
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   display: flex;
-  flex-direction: column;
-  gap: 0.875rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
   font-family: inherit;
-  font-size: 0.875rem;
-  line-height: 1.45;
+  font-size: 0.8125rem;
+  line-height: 1.35;
 }
 @media (min-width: 640px) {
   .cookie-consent-bar {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1.5rem;
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    left: 1rem;
+    right: 1rem;
+    padding: 0.625rem 0.625rem 0.625rem 1.25rem;
+    gap: 0.5rem 1.5rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
   }
 }
 .cookie-consent-text {
   margin: 0;
-  flex: 1;
+  flex: 1 1 11rem;
   color: var(--color-muted-foreground, var(--muted-foreground, var(--dm-fg-muted, #555555)));
 }
 .cookie-consent-link {
@@ -68,17 +73,18 @@ cookie-consent[hidden] {
 .cookie-consent-actions {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
-  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 .cookie-consent-btn {
-  flex: 1;
-  min-width: 5rem;
-  padding: 0.5rem 1rem;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
   font-family: inherit;
-  font-size: 0.875rem;
+  font-size: inherit;
   font-weight: 500;
-  line-height: 1.25rem;
+  line-height: 1.25;
+  white-space: nowrap;
   text-align: center;
   cursor: pointer;
   box-sizing: border-box;
@@ -90,7 +96,9 @@ cookie-consent[hidden] {
 }
 @media (min-width: 640px) {
   .cookie-consent-btn {
-    flex: initial;
+    min-height: 2.25rem;
+    min-width: 5rem;
+    padding: 0 1rem;
   }
 }
 .cookie-consent-btn:hover {

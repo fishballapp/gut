@@ -1,4 +1,5 @@
 ---
+import { GET_STARTED_HREF } from '../lib/get-started.ts';
 import Icon from './Icon.astro';
 
 // The theme switch names the theme it turns on, so its label is its action.
@@ -24,6 +25,12 @@ import Icon from './Icon.astro';
       class="hidden items-center gap-1 text-muted transition-colors hover:text-ink sm:flex"
     >
       npm <Icon name="arrowUpRight" size={12} />
+    </a>
+    <a
+      href={GET_STARTED_HREF}
+      class="flex h-8 items-center rounded-md border border-line px-2.5 text-[13px] font-medium text-ink transition-colors hover:border-ink/40"
+    >
+      Get started
     </a>
     <button
       type="button"

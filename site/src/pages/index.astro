@@ -9,6 +9,7 @@ import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import Story from '../components/Story.astro';
 import Layout from '../layouts/Layout.astro';
+import { GET_STARTED_HREF } from '../lib/get-started.ts';
 ---
 
 <Layout>
@@ -29,7 +30,7 @@ import Layout from '../layouts/Layout.astro';
       </p>
       <div class="mt-9 flex flex-wrap items-center gap-x-6 gap-y-4">
         <a
-          href="#start"
+          href={GET_STARTED_HREF}
           class="inline-flex h-10 items-center rounded-md bg-ink px-4 text-[14px] font-medium text-ground transition-opacity hover:opacity-90"
         >
           Get started
