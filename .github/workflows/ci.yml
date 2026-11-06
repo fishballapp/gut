@@ -21,6 +21,13 @@ jobs:
     name: Check · typecheck · test · build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The tests drive Chromium. Playwright's image holds the browsers and the system libraries they
+    # need, so nothing is fetched from the runner's Ubuntu mirror, which has crawled past a job's
+    # limit. Its tag must be the catalog's `playwright` (pnpm-workspace.yaml): bump both together.
+    # `--user 1001` is Playwright's own setup for this image on GitHub Actions.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --user 1001
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6
@@ -32,23 +39,6 @@ jobs:
       - run: pnpm check
       - run: pnpm repojj:check
       - run: pnpm typecheck
-      # A browser build links against the OS it was built for, so the Ubuntu release is in the key.
-      - id: os-release
-        run: echo "release=$(. /etc/os-release && echo "$ID-$VERSION_ID")" >> "$GITHUB_OUTPUT"
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ steps.os-release.outputs.release }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: Install Playwright chromium (browser)
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm -F @gut.run/playwright exec playwright install chromium
-
-      - name: Install Playwright OS dependencies
-        run: pnpm -F @gut.run/playwright exec playwright install-deps chromium
-
       - run: pnpm test
       - run: pnpm -F @gut.run/inspector test:e2e
       - run: pnpm -F @gut.run/site test:e2e
