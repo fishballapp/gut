@@ -6,6 +6,7 @@
   "exports": {
     "./Layout.astro": "./src/Layout.astro",
     "./PostHog.astro": "./src/PostHog.astro",
+    "./icons": "./src/icons.ts",
     "./integration": "./src/integration.ts",
     "./posthog": "./src/posthog.ts"
   },

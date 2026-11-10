@@ -1,4 +1,5 @@
 ---
+import { type IconLink, PUBLIC_ICONS } from './icons';
 import PostHog from './PostHog.astro';
 
 export type CookieConsentCopy = {
@@ -19,7 +20,9 @@ type Props = {
   // file's real pixels, declared so the first share renders before the scraper has fetched it.
   // When omitted, no og:image is rendered and the Twitter card is `summary`.
   ogImage?: { path: string; alt: string; width: number; height: number };
-  themeColor: string;
+  // The browser's chrome colour: one colour, or one per colour scheme (`media`), each written as
+  // its own <meta name="theme-color">.
+  themeColor: string | readonly { media: string; content: string }[];
   // Apple App Store numeric ID (e.g. '6758626786'). When set, renders the
   // <meta name="apple-itunes-app"> tag for iOS Safari's Smart App Banner.
   appStoreId?: string;
@@ -42,6 +45,9 @@ type Props = {
   privacyPolicyHref?: string;
   // Copy overrides for the cookie consent banner (e.g. for localization).
   cookieConsentCopy?: CookieConsentCopy;
+  // The icons every page links, from the site's own list of what it serves. Defaults to the two
+  // files a site keeps in its public/ folder (`PUBLIC_ICONS`).
+  icons?: readonly IconLink[];
 };
 
 const {
@@ -62,6 +68,7 @@ const {
   posthogHost,
   privacyPolicyHref = '/privacy',
   cookieConsentCopy,
+  icons = PUBLIC_ICONS,
 } = Astro.props;
 
 if (Astro.site === undefined) {
@@ -95,7 +102,13 @@ const jsonLdBlocks = [
     <meta name="description" content={description} />
     {!isIndexable && <meta name="robots" content="noindex" />}
     <link rel="canonical" href={pageUrl} />
-    <meta name="theme-color" content={themeColor} />
+    {typeof themeColor === 'string' ? (
+      <meta name="theme-color" content={themeColor} />
+    ) : (
+      themeColor.map(({ media, content }) => (
+        <meta name="theme-color" media={media} content={content} />
+      ))
+    )}
 
     {/* Smart App Banner — iOS Safari shows a one-tap install prompt for
         users on iPhone who don't already have the app installed. */}
@@ -129,8 +142,7 @@ const jsonLdBlocks = [
       </>
     )}
 
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    {icons.map(icon => <link {...icon} />)}
     {fontHref !== null && (
       <>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
