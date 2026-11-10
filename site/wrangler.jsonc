@@ -1,9 +1,14 @@
 {
   "$schema": "../../../node_modules/wrangler/config-schema.json",
-  // Assets only: the built site, no Worker code. Binding gut.run is OpenTofu's job, not this file's.
+  // Assets only: the built site, no Worker code.
   "name": "gut-run-marketing",
   "compatibility_date": "2026-10-01",
   "account_id": "ef1db00eff7bafcb12e7acb5754d1377",
+  // The site's only hostname. A deploy makes the Worker's custom domains match this list, and
+  // Cloudflare keeps the DNS record and the certificate.
+  "routes": [{ "pattern": "gut.run", "custom_domain": true }],
+  // Served on its own domain only, not on workers.dev.
+  "workers_dev": false,
   "assets": {
     "directory": "./dist",
     "not_found_handling": "404-page"
