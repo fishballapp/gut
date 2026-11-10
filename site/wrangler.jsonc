@@ -7,8 +7,9 @@
   // The site's only hostname. A deploy makes the Worker's custom domains match this list, and
   // Cloudflare keeps the DNS record and the certificate.
   "routes": [{ "pattern": "gut.run", "custom_domain": true }],
-  // Served on its own domain only, not on workers.dev.
+  // Served on its own domain only: not on workers.dev, and with no preview URLs.
   "workers_dev": false,
+  "preview_urls": false,
   "assets": {
     "directory": "./dist",
     "not_found_handling": "404-page"
