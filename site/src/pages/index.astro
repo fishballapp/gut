@@ -62,7 +62,7 @@ import { GET_STARTED_HREF } from '../lib/get-started.ts';
 
 <script>
   // Bundled, not is:inline, so it can import capture.
-  import { capture } from '@fishballapps/marketing/posthog';
+  import { capture } from '@internal/marketing/posthog';
 
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
     button.addEventListener('click', async () => {

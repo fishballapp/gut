@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@astrojs/sitemap": "catalog:",
-    "@fishballapps/marketing": "workspace:*",
+    "@internal/marketing": "workspace:*",
     "@fontsource-variable/geist": "catalog:",
     "@fontsource-variable/geist-mono": "catalog:",
     "@tailwindcss/vite": "catalog:",

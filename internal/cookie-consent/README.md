@@ -1,8 +1,8 @@
-# @fishballapps/cookie-consent
+# @internal/cookie-consent
 
 Framework-free TypeScript cookie consent store and custom element for Astro marketing sites and React SPAs. Zero runtime dependencies. Complies with UK PECR and ICO guidance (equal weight Accept/Reject buttons, non-blocking bar, no cookies or storage written for analytics before consent, persisted choice in `localStorage`).
 
-The package root (`@fishballapps/cookie-consent`) exports only the store (`getConsent`, `setConsent`, `onConsentChange`, …). Import the custom element from `@fishballapps/cookie-consent/element` so a server-side `getConsent` import never evaluates `class … extends HTMLElement`.
+The package root (`@internal/cookie-consent`) exports only the store (`getConsent`, `setConsent`, `onConsentChange`, …). Import the custom element from `@internal/cookie-consent/element` so a server-side `getConsent` import never evaluates `class … extends HTMLElement`.
 
 ## Custom Element Usage
 
@@ -14,7 +14,7 @@ Register the element and render `<cookie-consent>`:
 <cookie-consent policy-href="/privacy"></cookie-consent>
 
 <script>
-  import '@fishballapps/cookie-consent/element';
+  import '@internal/cookie-consent/element';
 </script>
 ```
 
@@ -23,7 +23,7 @@ Register the element and render `<cookie-consent>`:
 React 19 natively supports custom elements and attributes:
 
 ```tsx
-import '@fishballapps/cookie-consent/element';
+import '@internal/cookie-consent/element';
 
 export function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -58,7 +58,7 @@ without cookies or storage until then (as the marketing sites' PostHog does, wit
 choice is `null`:
 
 ```ts
-import { type Consent, getConsent, onConsentChange } from '@fishballapps/cookie-consent';
+import { type Consent, getConsent, onConsentChange } from '@internal/cookie-consent';
 
 const applyConsent = (consent: Consent) => {
   if (consent === 'granted') {
@@ -77,4 +77,4 @@ onConsentChange(applyConsent);
 ```
 
 The marketing sites' version, which skips PostHog's `$opt_in` event when re-applying a stored
-choice, is `syncPostHogWithConsent` in `@fishballapps/marketing/posthog`.
+choice, is `syncPostHogWithConsent` in `@internal/marketing/posthog`.

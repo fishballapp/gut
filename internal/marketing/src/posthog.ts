@@ -1,4 +1,4 @@
-import { type Consent, getConsent, onConsentChange } from '@fishballapps/cookie-consent';
+import { type Consent, getConsent, onConsentChange } from '@internal/cookie-consent';
 
 declare global {
   interface Window {
@@ -28,7 +28,7 @@ const applyConsent = (consent: Consent, isUserAction: boolean): void => {
   window.posthog?.opt_in_capturing?.(isUserAction ? undefined : { captureEventName: false });
 };
 
-/** Makes PostHog follow the `@fishballapps/cookie-consent` store: the stored choice now, each
+/** Makes PostHog follow the `@internal/cookie-consent` store: the stored choice now, each
  * change later. With no choice yet it leaves PostHog in its pending, cookieless state. */
 export const syncPostHogWithConsent = (): void => {
   const stored = getConsent();

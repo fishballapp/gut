@@ -72,7 +72,7 @@ const {
 } = Astro.props;
 
 if (Astro.site === undefined) {
-  throw new Error('@fishballapps/marketing Layout: set `site` in astro.config');
+  throw new Error('@internal/marketing Layout: set `site` in astro.config');
 }
 
 // Under build.format 'file' the pathname is the built file ("/index.html", "/about.html"), which
@@ -175,7 +175,7 @@ const jsonLdBlocks = [
           reject-label={cookieConsentCopy?.rejectLabel}
         />
         <script>
-          import '@fishballapps/cookie-consent/element';
+          import '@internal/cookie-consent/element';
         </script>
       </>
     )}

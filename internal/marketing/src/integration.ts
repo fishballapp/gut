@@ -123,7 +123,7 @@ export const readSitemapUrls = async (dir: URL): Promise<string[]> => {
   const index = new URL('sitemap-index.xml', dir);
   if (!existsSync(index)) {
     throw new Error(
-      `@fishballapps/marketing: no sitemap-index.xml in ${fileURLToPath(dir)}; list sitemap() before marketing() in integrations`,
+      `@internal/marketing: no sitemap-index.xml in ${fileURLToPath(dir)}; list sitemap() before marketing() in integrations`,
     );
   }
   const sitemaps = await readLocs(index);
@@ -142,7 +142,7 @@ export const marketing = (): AstroIntegration => {
   // Set by astro:config:done, read by astro:build:done.
   let site: string | undefined;
   return {
-    name: '@fishballapps/marketing',
+    name: '@internal/marketing',
     hooks: {
       'astro:config:done': ({ config }) => {
         if (
@@ -151,14 +151,14 @@ export const marketing = (): AstroIntegration => {
           config.trailingSlash !== 'never'
         ) {
           throw new Error(
-            "@fishballapps/marketing: astro.config needs `site`, `build: { format: 'file' }` and `trailingSlash: 'never'`",
+            "@internal/marketing: astro.config needs `site`, `build: { format: 'file' }` and `trailingSlash: 'never'`",
           );
         }
         site = config.site;
       },
       'astro:build:done': async ({ dir, assets, logger }) => {
         if (site === undefined) {
-          throw new Error('@fishballapps/marketing: astro:config:done never ran');
+          throw new Error('@internal/marketing: astro:config:done never ran');
         }
         const pages = await Promise.all(
           [...assets.values()]
@@ -172,7 +172,7 @@ export const marketing = (): AstroIntegration => {
         const problems = findHeadProblems({ site, pages, sitemapUrls: await readSitemapUrls(dir) });
         if (problems.length > 0) {
           throw new Error(
-            `@fishballapps/marketing: broken page heads\n${problems.map(problem => `  - ${problem}`).join('\n')}`,
+            `@internal/marketing: broken page heads\n${problems.map(problem => `  - ${problem}`).join('\n')}`,
           );
         }
         logger.info(`${pages.length} page heads match their served URLs and the sitemap`);

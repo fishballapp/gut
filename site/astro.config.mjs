@@ -1,7 +1,7 @@
 // @ts-check
 
 import sitemap from '@astrojs/sitemap';
-import { marketing } from '@fishballapps/marketing/integration';
+import { marketing } from '@internal/marketing/integration';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 

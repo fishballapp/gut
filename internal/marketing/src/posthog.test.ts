@@ -1,4 +1,4 @@
-import { COOKIE_CONSENT_KEY, setConsent } from '@fishballapps/cookie-consent';
+import { COOKIE_CONSENT_KEY, setConsent } from '@internal/cookie-consent';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { capture, syncPostHogWithConsent } from './posthog';
 

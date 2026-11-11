@@ -1,5 +1,5 @@
 {
-  "name": "@fishballapps/cookie-consent",
+  "name": "@internal/cookie-consent",
   "version": "0.0.0",
   "private": true,
   "type": "module",

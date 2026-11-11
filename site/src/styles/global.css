@@ -7,7 +7,7 @@
 /* The inspector's Marked tokens, so the site and the page it replays are one palette. */
 @import "../../../packages/inspector/src/styles/tokens.css";
 
-/* Tailwind v4 ignores node_modules. @fishballapps/marketing's Layout.astro sets the body classes
+/* Tailwind v4 ignores node_modules. @internal/marketing's Layout.astro sets the body classes
    (bg-background, font-sans, text-foreground, antialiased); without this @source those utilities
    are dropped from the built CSS and the body ships unstyled. */
 @source "../../../../../packages/marketing/src";
