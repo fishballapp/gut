@@ -342,7 +342,9 @@ const main = async (): Promise<void> => {
 
   const benchDir = resolve(__dirname, '../../../../tmp/gut-bench');
   mkdirSync(benchDir, { recursive: true });
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const timestamp = Temporal.Now.instant()
+    .toString({ fractionalSecondDigits: 3 })
+    .replace(/[:.]/g, '-');
   const resultsJsonPath = join(benchDir, `${timestamp}.json`);
   // One readable trace per run, every request and round in order: tmp/gut-bench/<timestamp>/.
   const tracesDir = join(benchDir, timestamp);
