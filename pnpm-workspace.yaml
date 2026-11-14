@@ -16,6 +16,7 @@ overrides:
   "@types/node": "catalog:"
 allowBuilds:
   "@biomejs/biome": true
+  core-js: false
   esbuild: true
   sharp: false
   workerd: true
@@ -41,6 +42,7 @@ catalog:
   motion: ^13.3.0
   node-html-parser: ^9.0.4
   playwright: 1.64.1
+  posthog-js: ^1.433.4
   repojj: ^2026.7.29
   tailwindcss: ^4.3.3
   tsdown: ^0.23.0
