@@ -143,11 +143,7 @@ export const EndingBanner = ({ ending }: { ending: Ending }) => {
 
     case 'ended':
       return (
-        <p className="px-1 text-sm text-muted">
-          {isReplay
-            ? 'The recording ends here. Pick any round or turn in the rail to read it.'
-            : 'The task ended; the record stays until you stop gut (Ctrl-C).'}
-        </p>
+        <p className="px-1 text-sm text-muted">{isReplay ? 'Recording ended.' : 'Task ended.'}</p>
       );
   }
 };
